@@ -55,8 +55,20 @@ exports.handler = async function (event) {
   const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
   const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const todayFormatted = `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
-  const minDateFormatted = `${days[minBookingDate.getDay()]} ${minBookingDate.getDate()} ${months[minBookingDate.getMonth()]} ${minBookingDate.getFullYear()}`;
   const minDateISO = minBookingDate.toISOString().split("T")[0];
+
+  // Pre-calculate available booking dates (Mon-Sat only) for the next 8 weeks
+  // so Claude never has to calculate day-of-week itself
+  const availableDatesList = [];
+  const dateIterator = new Date(minBookingDate);
+  for(let i = 0; i < 60 && availableDatesList.length < 48; i++){
+    const dow = dateIterator.getDay();
+    if(dow >= 1 && dow <= 6){
+      const iso = dateIterator.toISOString().split("T")[0];
+      availableDatesList.push(`${days[dow]} ${dateIterator.getDate()} ${months[dateIterator.getMonth()]} ${dateIterator.getFullYear()} (${iso})`);
+    }
+    dateIterator.setDate(dateIterator.getDate() + 1);
+  }
 
   const SYSTEM_PROMPT = `You are the AI assistant for Intelligent Carpet Cleaning, a specialist carpet cleaning company based in Cheltenham, Gloucestershire, run by Mark McClymont.
 
@@ -77,12 +89,17 @@ Write in clear standard British English.
 
 IMPORTANT - IMAGE UPLOADS: Customers CAN upload photos directly in this chat using the camera icon next to the text input. If a customer asks about sending a photo, tell them to click the camera icon at the bottom left of the chat to upload an image. When a customer sends an image, analyse it carefully for carpet type, pile construction, condition, soiling level, and any visible staining. Use this analysis to inform your quote and method recommendation.
 
-IMPORTANT - DATES:
-Today is ${todayFormatted}. The current year is ${now.getFullYear()}.
-The earliest date you can accept a booking for is ${minDateFormatted} (${minDateISO}). This is exactly one week from today. Never book or suggest any date before ${minDateISO}.
-If a customer requests a date that is too soon, politely explain that the minimum lead time is one week and suggest ${minDateFormatted} as the earliest option.
-Always check that any date the customer gives falls on a Monday to Saturday. Sundays are not available.
-When writing the BOOKING_READY block, always use the correct year (${now.getFullYear()} or later as appropriate).
+IMPORTANT - DATES AND AVAILABILITY:
+Today is ${todayFormatted}. Never calculate dates yourself as this leads to errors with day names.
+
+Instead, ALWAYS use the exact day names and ISO dates from the verified list below. When a customer asks for a date, find the closest match in this list and quote both the day name and full date exactly as shown.
+
+Sundays are never available. Only dates in this list are bookable.
+
+AVAILABLE BOOKING DATES:
+${availableDatesList.join("\n")}
+
+When confirming a date with the customer, always say both the day name and the full date, for example "Thursday 7 May 2026". Use the ISO date shown in brackets when writing the BOOKING_READY block.
 
 BUSINESS DETAILS:
 Owner: Mark McClymont
@@ -189,7 +206,7 @@ Collect in this order, one question at a time:
 7. Any staining or specific concerns
 8. Whether furniture needs moving
 9. Any pets
-10. Preferred date (must be ${minDateISO} or later, Monday to Saturday only)
+10. Preferred date (must be from the AVAILABLE BOOKING DATES list above, Monday to Saturday only)
 11. Preferred start time (9am to 5pm, hourly slots)
 
 Once you have all details, calculate the total estimated time needed (minimum 1 hour per room, round up, add 1 hour buffer). Tell the customer the estimated duration, total price plus VAT, and the 10% deposit amount. Then ask them to confirm they want to proceed.
@@ -199,12 +216,15 @@ BOOKING_READY:{"name":"[full name]","phone":"[phone]","email":"[email]","address
 
 This triggers the booking confirmation system. Do not output this until the customer has explicitly confirmed they want to proceed.`;
 
-  // Use Opus for conversations containing images, Sonnet for standard chat
-  const hasImage = Array.isArray(body.messages) && body.messages.some(m =>
-    Array.isArray(m.content) && m.content.some(c => c.type === "image")
-  );
+  // Use Opus only when the most recent user message contains an image
+  // (not the whole history, otherwise Opus stays on for the entire conversation)
+  const lastUserMsg = Array.isArray(body.messages)
+    ? [...body.messages].reverse().find(m => m.role === "user")
+    : null;
+  const hasImage = lastUserMsg && Array.isArray(lastUserMsg.content)
+    && lastUserMsg.content.some(c => c.type === "image");
   const model = hasImage ? "claude-opus-4-5" : "claude-sonnet-4-6";
-  console.log("Model selected:", model, "| Image in conversation:", hasImage);
+  console.log("Model selected:", model, "| Image in latest message:", !!hasImage);
 
   try {
     console.log("Calling Anthropic API...");
@@ -542,7 +562,7 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
     sectionHeader("Customer Details");
     twoCol("CUSTOMER NAME", booking.name, "PHONE", booking.phone);
     twoCol("EMAIL ADDRESS", booking.email, "POSTCODE", booking.postcode);
-    fullRow("FULL ADDRESS", booking.address);
+    fullRow("FULL ADDRESS", [booking.address, booking.postcode].filter(Boolean).join(", "));
 
     // Job
     sectionHeader("Job Details");
@@ -577,8 +597,8 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
     doc.y = pY + 50;
     doc.moveDown(0.5);
 
-    // Calendar link
-    doc.fontSize(7.5).fillColor(teal).font("Helvetica").text("Add to Google Calendar: " + calLink, 40, doc.y, { width: W });
+    // Calendar link - just note it's in the email, don't print the full URL
+    doc.fontSize(8).fillColor(textMid).font("Helvetica").text("A Google Calendar link has been included in the notification email.", 40, doc.y, { width: W });
     doc.moveDown(0.8);
 
     // Photo
@@ -593,13 +613,15 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
       } catch(e) { console.log("PDF image error:", e.message); }
     }
 
-    // Footer
-    const fY = doc.page.height - 48;
-    doc.rect(0, fY, doc.page.width, 48).fill(navy);
-    doc.fontSize(7.5).fillColor("rgba(255,255,255,0.5)").font("Helvetica")
-       .text("Intelligent Carpet Cleaning  |  01242 279590  |  talktoregency@gmail.com  |  All GL Postcodes  |  Mon-Sat 8am-6pm", 40, fY + 12, { align: "center", width: doc.page.width - 80 });
-    doc.fontSize(6.5).fillColor("rgba(255,255,255,0.3)")
-       .text("This job card was generated automatically by the ICC AI booking system. Please verify all details with the customer before the appointment.", 40, fY + 28, { align: "center", width: doc.page.width - 80 });
+    // Footer - drawn as flowing content to avoid blank pages
+    doc.moveDown(1);
+    doc.rect(40, doc.y, W, 1).fill("#e2e8f0");
+    doc.moveDown(0.5);
+    doc.fontSize(7.5).fillColor(textMid).font("Helvetica")
+       .text("Intelligent Carpet Cleaning  |  01242 279590  |  talktoregency@gmail.com  |  All GL Postcodes  |  Mon-Sat 8am-6pm", 40, doc.y, { align: "center", width: W });
+    doc.moveDown(0.4);
+    doc.fontSize(7).fillColor("#a0aec0")
+       .text("This job card was generated automatically by the ICC AI booking system. Please verify all details with the customer before the appointment.", 40, doc.y, { align: "center", width: W });
 
     doc.end();
   });

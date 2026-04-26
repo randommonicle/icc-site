@@ -475,7 +475,7 @@ async function processBooking(booking){
     const isAvailable = !requestedSlots.some(function(s){return availData.booked&&availData.booked.includes(s);});
 
     if(!isAvailable){
-      appendMessage("bot","Sorry, that slot has just been taken. Available times for "+booking.date+": "+(availData.available||[]).join(", ")+". Which would you prefer?");
+      const parts=booking.date.split("-");const readableDate=new Date(parts[0],parts[1]-1,parts[2]).toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});appendMessage("bot","Sorry, that time has just been taken by another booking. The remaining available times for "+readableDate+" are: "+(availData.available||[]).join(", ")+". Which would you prefer?");
       return;
     }
 
@@ -598,7 +598,7 @@ async function processBooking(booking){
     const isAvailable = !requestedSlots.some(function(s){return availData.booked&&availData.booked.includes(s);});
 
     if(!isAvailable){
-      appendMessage("bot","Sorry, that slot has just been taken. Available times for "+booking.date+": "+(availData.available||[]).join(", ")+". Which would you prefer?");
+      const parts=booking.date.split("-");const readableDate=new Date(parts[0],parts[1]-1,parts[2]).toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});appendMessage("bot","Sorry, that time has just been taken by another booking. The remaining available times for "+readableDate+" are: "+(availData.available||[]).join(", ")+". Which would you prefer?");
       return;
     }
 
