@@ -376,7 +376,7 @@ async function handleBooking(booking, resendKey) {
   // Send email to Mark
   const markEmail = {
     from: "ICC Bookings <onboarding@resend.dev>",
-    to: "talktoregency@gmail.com",
+    to: "ben.graham240689@gmail.com",
     subject: `New Booking - ${booking.name} - ${booking.date}`,
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
