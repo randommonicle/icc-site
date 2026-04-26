@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ICC Admin | Bookings Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;600;700;800&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+  :root{--navy:#1a3a5c;--teal:#1a8a7a;--teal-light:#2ab8a4;--navy-dark:#0d2236;--off-white:#f7f8fa;--border:#e2e8f0;--text-dark:#1a1a2e;--text-mid:#4a5568;--text-light:#718096;}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:"Lato",sans-serif;background:var(--off-white);color:var(--text-dark);}
+
+  #loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,var(--navy-dark),var(--navy) 50%,#0f4a3c);}
+  .login-card{background:#fff;border-radius:16px;padding:2.5rem;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,0.3);}
+  .login-logo{text-align:center;margin-bottom:1.5rem;}
+  .login-logo h1{font-family:"Raleway",sans-serif;font-size:1.1rem;font-weight:800;color:var(--navy);}
+  .login-logo p{font-size:0.75rem;color:var(--teal);letter-spacing:0.1em;text-transform:uppercase;}
+  .login-card h2{font-family:"Raleway",sans-serif;font-size:1.3rem;font-weight:700;color:var(--navy);margin-bottom:0.4rem;}
+  .login-card p{font-size:0.85rem;color:var(--text-mid);margin-bottom:1.5rem;}
+  .login-card input{width:100%;border:1px solid var(--border);border-radius:8px;padding:0.75rem 1rem;font-family:"Lato",sans-serif;font-size:0.9rem;outline:none;transition:border-color 0.2s;margin-bottom:1rem;}
+  .login-card input:focus{border-color:var(--teal);}
+  .login-btn{width:100%;background:var(--teal);color:#fff;border:none;padding:0.85rem;border-radius:8px;font-family:"Lato",sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;transition:background 0.2s;}
+  .login-btn:hover{background:var(--teal-light);}
+  .login-error{color:#e53e3e;font-size:0.82rem;margin-top:0.5rem;display:none;}
+
+  #adminScreen{display:none;}
+  .admin-nav{background:var(--navy-dark);padding:0 2rem;height:60px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(26,138,122,0.3);}
+  .admin-nav-title{font-family:"Raleway",sans-serif;font-size:0.95rem;font-weight:700;color:#fff;}
+  .admin-nav-title span{color:var(--teal-light);font-size:0.7rem;display:block;font-weight:400;letter-spacing:0.1em;text-transform:uppercase;}
+  .admin-nav-actions{display:flex;gap:1rem;align-items:center;}
+  .admin-btn{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:0.4rem 1rem;border-radius:6px;font-size:0.8rem;cursor:pointer;font-family:"Lato",sans-serif;transition:background 0.2s;}
+  .admin-btn:hover{background:rgba(255,255,255,0.2);}
+  .admin-btn.teal{background:var(--teal);border-color:var(--teal);}
+  .admin-btn.teal:hover{background:var(--teal-light);}
+
+  .admin-body{max-width:1200px;margin:0 auto;padding:2rem;}
+  .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:2rem;}
+  .stat-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:1.25rem;border-top:3px solid var(--teal);}
+  .stat-num{font-family:"Raleway",sans-serif;font-size:1.8rem;font-weight:800;color:var(--teal);}
+  .stat-label{font-size:0.75rem;color:var(--text-light);text-transform:uppercase;letter-spacing:0.08em;margin-top:2px;}
+
+  .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;}
+  .section-header h2{font-family:"Raleway",sans-serif;font-size:1.1rem;font-weight:700;color:var(--navy);}
+
+  .filter-row{display:flex;gap:0.75rem;margin-bottom:1.5rem;flex-wrap:wrap;}
+  .filter-btn{background:#fff;border:1px solid var(--border);border-radius:100px;padding:0.35rem 1rem;font-size:0.8rem;cursor:pointer;font-family:"Lato",sans-serif;color:var(--text-mid);transition:all 0.2s;}
+  .filter-btn.active{background:var(--teal);border-color:var(--teal);color:#fff;}
+
+  .bookings-grid{display:flex;flex-direction:column;gap:1rem;}
+  .booking-card{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:box-shadow 0.2s;}
+  .booking-card:hover{box-shadow:0 4px 20px rgba(26,58,92,0.1);}
+  .booking-card-header{padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);cursor:pointer;}
+  .booking-card-header-left{display:flex;align-items:center;gap:12px;}
+  .booking-avatar{width:40px;height:40px;background:linear-gradient(135deg,var(--teal),var(--navy));border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:"Raleway",sans-serif;font-size:0.85rem;font-weight:700;color:#fff;flex-shrink:0;}
+  .booking-name{font-family:"Raleway",sans-serif;font-size:0.95rem;font-weight:700;color:var(--navy);}
+  .booking-meta{font-size:0.78rem;color:var(--text-mid);}
+  .booking-status{padding:0.25rem 0.75rem;border-radius:100px;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;}
+  .status-pending{background:rgba(200,168,75,0.15);color:#8a6d0a;}
+  .status-confirmed{background:rgba(26,138,122,0.15);color:var(--teal);}
+  .status-completed{background:rgba(26,58,92,0.1);color:var(--navy);}
+  .booking-card-body{display:none;padding:1.25rem;}
+  .booking-card-body.open{display:block;}
+  .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;}
+  .detail-item label{font-size:0.72rem;color:var(--teal);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;display:block;margin-bottom:3px;}
+  .detail-item p{font-size:0.88rem;color:var(--text-dark);}
+  .assessment-box{background:var(--off-white);border-radius:8px;padding:1rem;margin-bottom:1rem;border-left:3px solid var(--teal);}
+  .assessment-box label{font-size:0.72rem;color:var(--teal);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;display:block;margin-bottom:6px;}
+  .assessment-box p{font-size:0.85rem;color:var(--text-mid);line-height:1.6;}
+  .carpet-image-section{margin-bottom:1rem;}
+  .carpet-image-section label{font-size:0.72rem;color:var(--teal);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;display:block;margin-bottom:8px;}
+  .carpet-image{max-width:300px;max-height:200px;border-radius:8px;border:1px solid var(--border);object-fit:cover;}
+  .no-image{background:var(--off-white);border:1px dashed var(--border);border-radius:8px;padding:1rem;font-size:0.82rem;color:var(--text-light);text-align:center;max-width:300px;}
+  .price-row{display:flex;gap:1rem;margin-bottom:1rem;}
+  .price-box{background:linear-gradient(135deg,var(--navy),var(--teal));border-radius:8px;padding:1rem;color:#fff;flex:1;text-align:center;}
+  .price-box label{font-size:0.7rem;opacity:0.7;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;}
+  .price-box p{font-size:1.1rem;font-weight:700;font-family:"Raleway",sans-serif;}
+  .card-actions{display:flex;gap:0.75rem;padding-top:1rem;border-top:1px solid var(--border);}
+  .action-btn{padding:0.5rem 1rem;border-radius:6px;font-size:0.82rem;font-weight:700;cursor:pointer;font-family:"Lato",sans-serif;transition:all 0.2s;border:1px solid var(--border);background:#fff;color:var(--text-mid);}
+  .action-btn.primary{background:var(--teal);color:#fff;border-color:var(--teal);}
+  .action-btn.primary:hover{background:var(--teal-light);}
+  .cal-link{display:inline-flex;align-items:center;gap:6px;padding:0.5rem 1rem;border-radius:6px;font-size:0.82rem;font-weight:700;cursor:pointer;font-family:"Lato",sans-serif;background:linear-gradient(135deg,#4285f4,#34a853);color:#fff;text-decoration:none;border:none;}
+
+  .empty-state{text-align:center;padding:4rem 2rem;color:var(--text-light);}
+  .empty-state p{font-size:0.95rem;margin-top:0.5rem;}
+
+  .loading-spinner{text-align:center;padding:3rem;color:var(--text-light);font-size:0.9rem;}
+
+  @media(max-width:768px){
+    .stats-row{grid-template-columns:repeat(2,1fr);}
+    .detail-grid{grid-template-columns:1fr;}
+    .price-row{flex-direction:column;}
+  }
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">
+      <h1>INTELLIGENT CARPET CLEANING</h1>
+      <p>Admin Dashboard</p>
+    </div>
+    <h2>Sign in</h2>
+    <p>Enter your password to access the bookings dashboard.</p>
+    <input type="password" id="passwordInput" placeholder="Password" onkeydown="if(event.key==='Enter')login()">
+    <button class="login-btn" onclick="login()">Access Dashboard</button>
+    <p class="login-error" id="loginError">Incorrect password. Please try again.</p>
+  </div>
+</div>
+
+<div id="adminScreen">
+  <nav class="admin-nav">
+    <div class="admin-nav-title">
+      Intelligent Carpet Cleaning
+      <span>Bookings Dashboard</span>
+    </div>
+    <div class="admin-nav-actions">
+      <button class="admin-btn teal" onclick="loadBookings()">Refresh</button>
+      <button class="admin-btn" onclick="downloadXML()">Export XML</button>
+      <button class="admin-btn" onclick="logout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <div class="admin-body">
+    <div class="stats-row" id="statsRow">
+      <div class="stat-card"><div class="stat-num" id="statTotal">-</div><div class="stat-label">Total Bookings</div></div>
+      <div class="stat-card"><div class="stat-num" id="statUpcoming">-</div><div class="stat-label">Upcoming</div></div>
+      <div class="stat-card"><div class="stat-num" id="statThisWeek">-</div><div class="stat-label">This Week</div></div>
+      <div class="stat-card"><div class="stat-num" id="statRevenue">-</div><div class="stat-label">Est. Revenue (Ex VAT)</div></div>
+    </div>
+
+    <div class="section-header">
+      <h2>All Bookings</h2>
+    </div>
+    <div class="filter-row">
+      <button class="filter-btn active" onclick="filterBookings('all',this)">All</button>
+      <button class="filter-btn" onclick="filterBookings('upcoming',this)">Upcoming</button>
+      <button class="filter-btn" onclick="filterBookings('today',this)">Today</button>
+    </div>
+
+    <div class="bookings-grid" id="bookingsGrid">
+      <div class="loading-spinner">Loading bookings...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let adminToken = "";
+let allBookings = [];
+
+async function login(){
+  const pw = document.getElementById("passwordInput").value.trim();
+  if(!pw){ document.getElementById("loginError").style.display = "block"; return; }
+  try{
+    const res = await fetch("/api/bookings", {
+      headers: { "Authorization": "Bearer " + pw }
+    });
+    if(res.status === 401){
+      document.getElementById("loginError").style.display = "block";
+      return;
+    }
+    adminToken = pw;
+    document.getElementById("loginScreen").style.display = "none";
+    document.getElementById("adminScreen").style.display = "block";
+    const data = await res.json();
+    allBookings = data.bookings || [];
+    renderBookings(allBookings);
+    updateStats(allBookings);
+  } catch(e){
+    document.getElementById("loginError").style.display = "block";
+  }
+}
+
+function logout(){
+  adminToken = "";
+  document.getElementById("loginScreen").style.display = "flex";
+  document.getElementById("adminScreen").style.display = "none";
+  document.getElementById("passwordInput").value = "";
+}
+
+async function loadBookings(){
+  document.getElementById("bookingsGrid").innerHTML = '<div class="loading-spinner">Loading bookings...</div>';
+  try{
+    const res = await fetch("/api/bookings", {
+      headers: { "Authorization": "Bearer " + adminToken }
+    });
+    const data = await res.json();
+    allBookings = data.bookings || [];
+    renderBookings(allBookings);
+    updateStats(allBookings);
+  } catch(e){
+    document.getElementById("bookingsGrid").innerHTML = '<div class="empty-state"><p>Could not load bookings. Make sure the site is fully deployed.</p></div>';
+  }
+}
+
+function updateStats(bookings){
+  const today = new Date().toISOString().split("T")[0];
+  const weekEnd = new Date(Date.now() + 7*24*60*60*1000).toISOString().split("T")[0];
+  const upcoming = bookings.filter(b => b.date >= today);
+  const thisWeek = bookings.filter(b => b.date >= today && b.date <= weekEnd);
+  let revenue = 0;
+  bookings.forEach(b => {
+    const match = (b.estimated_price||"").match(/[\d,]+/);
+    if(match) revenue += parseFloat(match[0].replace(",",""));
+  });
+  document.getElementById("statTotal").textContent = bookings.length;
+  document.getElementById("statUpcoming").textContent = upcoming.length;
+  document.getElementById("statThisWeek").textContent = thisWeek.length;
+  document.getElementById("statRevenue").textContent = revenue > 0 ? "\u00a3"+revenue.toLocaleString() : "-";
+}
+
+function filterBookings(filter, btn){
+  document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  const today = new Date().toISOString().split("T")[0];
+  if(filter === "all") renderBookings(allBookings);
+  else if(filter === "upcoming") renderBookings(allBookings.filter(b => b.date >= today));
+  else if(filter === "today") renderBookings(allBookings.filter(b => b.date === today));
+}
+
+function renderBookings(bookings){
+  const grid = document.getElementById("bookingsGrid");
+  if(bookings.length === 0){
+    grid.innerHTML = '<div class="empty-state"><p>No bookings found.</p></div>';
+    return;
+  }
+  const sorted = [...bookings].sort((a,b) => a.date > b.date ? -1 : 1);
+  grid.innerHTML = sorted.map((b,i) => buildCard(b,i)).join("");
+}
+
+function esc(s){
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+
+function buildCard(b, i){
+  const initials = b.name ? b.name.split(" ").map(w=>w[0]).join("").substring(0,2).toUpperCase() : "?";
+  const today = new Date().toISOString().split("T")[0];
+  const status = b.date < today ? "completed" : b.date === today ? "confirmed" : "pending";
+  const statusLabel = b.date < today ? "Completed" : b.date === today ? "Today" : "Upcoming";
+
+  // Image: only render if mediaType is a safe image type
+  const safeMediaTypes = ["image/jpeg","image/png","image/gif","image/webp"];
+  const imageHtml = (b.image && safeMediaTypes.includes(b.image.mediaType))
+    ? '<div class="carpet-image-section"><label>Carpet Photo</label><img class="carpet-image" src="data:'+esc(b.image.mediaType)+';base64,'+esc(b.image.base64)+'" alt="Carpet photo"></div>'
+    : '<div class="carpet-image-section"><label>Carpet Photo</label><div class="no-image">No photo uploaded</div></div>';
+
+  // Calendar link: validate it starts with the expected Google Calendar URL
+  const calLinkSafe = (b.calLink && b.calLink.startsWith("https://calendar.google.com/")) ? b.calLink : null;
+  const calBtn = calLinkSafe
+    ? '<a class="cal-link" href="'+esc(calLinkSafe)+'" target="_blank" rel="noopener">&#128197; Add to Calendar</a>'
+    : "";
+
+  return '<div class="booking-card">'+
+    '<div class="booking-card-header" onclick="toggleCard('+i+')">'+
+      '<div class="booking-card-header-left">'+
+        '<div class="booking-avatar">'+esc(initials)+'</div>'+
+        '<div>'+
+          '<div class="booking-name">'+esc(b.name||"Unknown")+'</div>'+
+          '<div class="booking-meta">'+esc(b.date||"")+" at "+esc(b.start_time||"")+" &mdash; "+esc(b.rooms||"")+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<span class="booking-status status-'+status+'">'+statusLabel+'</span>'+
+    '</div>'+
+    '<div class="booking-card-body" id="card-'+i+'">'+
+      '<div class="detail-grid">'+
+        '<div class="detail-item"><label>Customer</label><p>'+esc(b.name||"-")+'</p></div>'+
+        '<div class="detail-item"><label>Phone</label><p>'+esc(b.phone||"-")+'</p></div>'+
+        '<div class="detail-item"><label>Email</label><p>'+esc(b.email||"-")+'</p></div>'+
+        '<div class="detail-item"><label>Address</label><p>'+esc(b.address||"-")+'</p></div>'+
+        '<div class="detail-item"><label>Date</label><p>'+esc(b.date||"-")+" at "+esc(b.start_time||"-")+'</p></div>'+
+        '<div class="detail-item"><label>Duration</label><p>'+esc(b.slots_needed||"-")+" hour(s)"+'</p></div>'+
+        '<div class="detail-item"><label>Rooms</label><p>'+esc(b.rooms||"-")+'</p></div>'+
+        '<div class="detail-item"><label>Carpet Types</label><p>'+esc(b.carpet_types||"-")+'</p></div>'+
+        '<div class="detail-item"><label>Concerns</label><p>'+esc(b.concerns||"None noted")+'</p></div>'+
+        '<div class="detail-item"><label>Furniture Moving</label><p>'+(b.furniture_moving?"Yes - \u00a330+VAT":"No")+'</p></div>'+
+        '<div class="detail-item"><label>Pets on Site</label><p>'+(b.pets?"Yes":"No")+'</p></div>'+
+        '<div class="detail-item"><label>Recommended Method</label><p>'+esc(b.recommended_method||"-")+'</p></div>'+
+      '</div>'+
+      imageHtml+
+      '<div class="assessment-box"><label>AI Assessment</label><p>'+esc(b.ai_assessment||"No assessment recorded")+'</p></div>'+
+      '<div class="price-row">'+
+        '<div class="price-box"><label>Estimated Price</label><p>'+esc(b.estimated_price||"-")+'</p></div>'+
+        '<div class="price-box"><label>Deposit Due</label><p>'+esc(b.deposit||"-")+'</p></div>'+
+      '</div>'+
+      '<div class="card-actions">'+
+        calBtn+
+        '<a class="action-btn" href="tel:'+esc(b.phone||"")+'">Call Customer</a>'+
+        '<a class="action-btn" href="mailto:'+esc(b.email||"")+'">Email Customer</a>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+}
+
+function toggleCard(i){
+  const body = document.getElementById("card-"+i);
+  if(body) body.classList.toggle("open");
+}
+
+function downloadXML(){
+  if(!allBookings.length){ alert("No bookings to export."); return; }
+  const fields = ["id","name","phone","email","address","postcode","date","start_time","slots_needed","rooms","carpet_types","concerns","furniture_moving","pets","estimated_price","deposit","recommended_method","ai_assessment","created_at"];
+  function xmlEsc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  const lines = ['<?xml version="1.0" encoding="UTF-8"?>','<bookings>'];
+  allBookings.forEach(function(b){
+    lines.push("  <booking>");
+    fields.forEach(function(f){ lines.push("    <"+f+">"+xmlEsc(b[f])+"</"+f+">"); });
+    lines.push("  </booking>");
+  });
+  lines.push("</bookings>");
+  const blob = new Blob([lines.join("\n")],{type:"application/xml"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "icc-bookings-"+new Date().toISOString().split("T")[0]+".xml";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>

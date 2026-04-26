@@ -1,0 +1,17 @@
+[build]
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/chat"
+  to = "/.netlify/functions/chat"
+  status = 200
+
+[[redirects]]
+  from = "/api/bookings"
+  to = "/.netlify/functions/bookings"
+  status = 200
+
+[[redirects]]
+  from = "/admin"
+  to = "/admin.html"
+  status = 200
