@@ -366,6 +366,45 @@ let conversationHistory=[];
 const AI_NAMES=["Jamie","Alex","Sam","Ellie","Tom"];
 const aiAssistantName=AI_NAMES[Math.floor(Math.random()*AI_NAMES.length)];
 
+// Inactivity timer - 3 minutes between checks, max 3 reminders then session ends
+let inactivityTimer=null;
+let inactivityCount=0;
+const INACTIVITY_MS=3*60*1000;
+
+function scheduleInactivityCheck(){
+  if(inactivityTimer) clearTimeout(inactivityTimer);
+  inactivityTimer=setTimeout(handleInactivity,INACTIVITY_MS);
+}
+
+function cancelInactivityTimer(){
+  if(inactivityTimer) clearTimeout(inactivityTimer);
+  inactivityTimer=null;
+}
+
+function resetInactivityTimer(){
+  inactivityCount=0;
+  scheduleInactivityCheck();
+}
+
+function handleInactivity(){
+  inactivityCount++;
+  const input=document.getElementById("chatInput");
+  const btn=document.getElementById("sendBtn");
+  if(inactivityCount===1){
+    appendMessage("bot","Still there? No rush at all, happy to help whenever you're ready.");
+    scheduleInactivityCheck();
+  } else if(inactivityCount===2){
+    appendMessage("bot","Just checking in again. If now isn't a good moment, feel free to come back any time and we'll pick up from wherever you like.");
+    scheduleInactivityCheck();
+  } else {
+    appendMessage("bot","I'll leave you to it for now. Come back any time you'd like a quote or to get booked in. You can also reach us directly on 01242 279590 or at talktoregency@gmail.com. Take care!");
+    cancelInactivityTimer();
+    input.disabled=true;
+    btn.disabled=true;
+    input.placeholder="Chat session ended. Refresh the page to start a new conversation.";
+  }
+}
+
 function showSection(s){
   document.querySelectorAll("section").forEach(x=>x.classList.remove("active"));
   const map={home:"home",chat:"chat-section",about:"about-section",book:"book-section"};
@@ -523,6 +562,7 @@ async function sendMessage(){
   const btn=document.getElementById("sendBtn");
   const text=input.value.trim();
   if(!text && !pendingImage) return;
+  cancelInactivityTimer();
   document.getElementById("quickSuggestions").style.display="none";
 
   let userContent;
@@ -575,6 +615,7 @@ async function sendMessage(){
         appendMessage("bot",reply);
       }
       conversationHistory.push({role:"assistant",content:reply});
+      resetInactivityTimer();
     } else {
       appendMessage("bot","I apologise, I encountered an issue. Please try again or contact us directly.");
     }

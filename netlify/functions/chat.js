@@ -195,6 +195,15 @@ Realistic expectations - if a stain has a good chance of being removed, say so c
 After-care advice - how long to stay off the carpet, when it will be fully dry, how to maintain it going forward.
 This level of care builds trust and sets ICC apart from competitors. The customer should feel they have spoken to a genuine expert who has thought about their specific situation, not simply filled in a booking form.
 
+FREE ADVICE AND HELPFUL TIPS:
+Throughout the conversation, offer genuinely useful free advice where it is relevant. This is not about upselling - it is about being helpful and building trust. Examples:
+If a customer mentions a fresh stain: give them immediate first-aid advice (blot not rub, cold water for protein stains, do not use hot water on blood, do not apply salt to wine, etc.) before they even book.
+If they mention DIY cleaning attempts: advise on what to avoid (overwetting, leaving residue, using the wrong products on wool) and what may have already been done to the stain that could affect the outcome.
+Carpet maintenance tips: vacuum regularly in the direction of the pile, avoid walking on carpets in outdoor shoes, use door mats to reduce tracked-in dirt, ventilate rooms after cleaning.
+Preparation advice even before they book: move small ornaments and lightweight items before the appointment, ensure the area is accessible, keep pets away on the day.
+If they mention mould: strongly advise fixing the source of moisture first and explain why cleaning alone will not solve the problem long-term.
+Make this feel like advice from a knowledgeable friend in the trade, not a script.
+
 BOOKING PROCESS:
 Collect in this order, one question at a time:
 1. Customer full name
@@ -212,7 +221,11 @@ Collect in this order, one question at a time:
 Once you have all details, calculate the total estimated time needed (minimum 1 hour per room, round up, add 1 hour buffer). Tell the customer the estimated duration, total price plus VAT, and the 10% deposit amount. Then ask them to confirm they want to proceed.
 
 When they confirm, output a special booking confirmation block in this EXACT format on its own line:
-BOOKING_READY:{"name":"[full name]","phone":"[phone]","email":"[email]","address":"[full address]","postcode":"[postcode]","date":"[YYYY-MM-DD]","start_time":"[HH:MM]","slots_needed":[number of 1-hour slots],"rooms":"[description of rooms]","carpet_types":"[carpet types]","concerns":"[any concerns or stains]","furniture_moving":[true/false],"pets":[true/false],"estimated_price":"[price + VAT]","deposit":"[10% amount + VAT]","recommended_method":"[Texatherm low-moisture / Texatherm wet extraction / combination]","ai_assessment":"[brief professional assessment of carpet type and recommended approach]"}
+BOOKING_READY:{"name":"[full name]","phone":"[phone]","email":"[email]","address":"[full address]","postcode":"[postcode]","date":"[YYYY-MM-DD]","start_time":"[HH:MM]","slots_needed":[number of 1-hour slots],"rooms":"[description of rooms]","carpet_types":"[carpet types]","concerns":"[any concerns or stains]","furniture_moving":[true/false],"pets":[true/false],"estimated_price":"[price + VAT]","deposit":"[10% amount + VAT]","recommended_method":"[Texatherm low-moisture / Texatherm wet extraction / combination]","ai_assessment":"[brief professional assessment of carpet type and recommended approach]","rams":"[see RAMS instructions below]"}
+
+RAMS FIELD INSTRUCTIONS:
+The rams field must contain a plain-English risk assessment tailored to this specific job. Use \\n to separate each line within the JSON string. Include only hazards relevant to this job. Format exactly as follows:
+Activity: [e.g. Texatherm low-moisture carpet cleaning, domestic premises]\\nHazards: [comma-separated list of relevant hazards only from: wet surface slip risk, trip hazard from equipment cables, cleaning chemicals (low toxicity), manual handling if furniture moving, pets on site, mould or biological material if present]\\nControls: [corresponding control measures matching the hazards listed]\\nPPE: [gloves as minimum standard; add P2 mask if mould or biological hazard present]\\nNotes: [any specific on-the-day notes, e.g. pets to be secured before work begins, customer to be advised carpet will be damp for 30-60 minutes]
 
 This triggers the booking confirmation system. Do not output this until the customer has explicitly confirmed they want to proceed.`;
 
@@ -469,7 +482,14 @@ async function handleBooking(booking, resendKey) {
             <a href="${escHtml(calLink)}" style="display:inline-block;background:#1a8a7a;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;">Add to My Calendar</a>
           </div>
           <p style="margin-top:20px;font-size:13px;color:#718096;">Questions? Call us on 01242 279590 or email talktoregency@gmail.com</p>
-          <p style="font-size:12px;color:#a0aec0;">Established Trust, Superior Cleaning.</p>
+          <div style="margin-top:20px;padding:15px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;">
+            <p style="margin:0 0 10px;font-size:12px;font-weight:bold;color:#1a3a5c;">Terms and Conditions</p>
+            <p style="margin:0 0 8px;font-size:11px;color:#718096;line-height:1.6;"><strong>Pricing:</strong> The price quoted is an estimate based on the information and any photographs provided at the time of booking. In the vast majority of cases this will be the final price. If on arrival the condition differs significantly from what was described, any variation will be explained and agreed with you before any additional work is carried out. No additional charges will be applied without your explicit approval.</p>
+            <p style="margin:0 0 8px;font-size:11px;color:#718096;line-height:1.6;"><strong>Deposit and cancellation:</strong> Your deposit secures your appointment slot and is payable at the point of booking. Cancellations made with 7 or more days notice will receive a full deposit refund. Cancellations within 7 days of the appointment date will forfeit the deposit. Cancellations within 48 hours of the appointment may be liable for the full estimated cost.</p>
+            <p style="margin:0 0 8px;font-size:11px;color:#718096;line-height:1.6;"><strong>Re-clean guarantee:</strong> If you are not satisfied with the result, please contact us within 72 hours with photographic evidence and we will arrange a single return visit at no additional charge. This guarantee does not apply to pre-existing permanent staining present before the clean was carried out.</p>
+            <p style="margin:0;font-size:11px;color:#718096;line-height:1.6;">These terms do not affect your statutory rights.</p>
+          </div>
+          <p style="margin-top:15px;font-size:12px;color:#a0aec0;">Established Trust, Superior Cleaning.</p>
         </div>
       </div>`
   };
@@ -583,6 +603,28 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
     doc.moveDown(0.2);
     doc.fontSize(8.5).fillColor(textMid).font("Helvetica").text(booking.ai_assessment || "No assessment recorded.", 40, doc.y, { width: W });
     doc.moveDown(0.6);
+
+    // RAMS
+    if(booking.rams){
+      sectionHeader("Risk Assessment & Method Statement (RAMS)");
+      doc.moveDown(0.2);
+      const ramsLines = booking.rams.split(/\\n|\n/);
+      ramsLines.forEach(function(line){
+        const colonIdx = line.indexOf(":");
+        if(colonIdx > -1){
+          const label = line.substring(0, colonIdx).trim();
+          const value = line.substring(colonIdx + 1).trim();
+          const y = doc.y;
+          doc.fontSize(7).fillColor(teal).font("Helvetica-Bold").text(label.toUpperCase()+":", 40, y, { continued: false, width: W });
+          doc.fontSize(8.5).fillColor(textMid).font("Helvetica").text(value, 40, doc.y, { width: W });
+          doc.moveDown(0.3);
+        } else if(line.trim()){
+          doc.fontSize(8.5).fillColor(textMid).font("Helvetica").text(line.trim(), 40, doc.y, { width: W });
+          doc.moveDown(0.3);
+        }
+      });
+      doc.moveDown(0.3);
+    }
 
     // Pricing
     sectionHeader("Pricing");
