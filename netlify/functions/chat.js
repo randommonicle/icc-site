@@ -1,8 +1,33 @@
-// Allowed origins for the chat endpoint. Configurable via env var ALLOWED_ORIGINS
-// (comma-separated). Defaults cover the production domain plus the Netlify preview.
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ||
-  "https://intelligentcarpetcleaning.co.uk,https://www.intelligentcarpetcleaning.co.uk,https://intelligentcarpetcleaning.netlify.app,http://localhost:8888,http://localhost:3000")
-  .split(",").map(s => s.trim()).filter(Boolean);
+// Allowed origins for the chat endpoint.
+//
+// Order of precedence:
+//   1. The ALLOWED_ORIGINS env var (comma-separated) if explicitly set.
+//   2. Netlify's auto-injected URL / DEPLOY_URL / DEPLOY_PRIME_URL — these
+//      always reflect the real deployed domain, so a default-named Netlify
+//      site (e.g. random-words-12345.netlify.app) works without manual config.
+//   3. A small set of common dev/prod fallbacks.
+//
+// If nothing matches at request time we fail OPEN with a warning rather than
+// 403 every customer — the per-IP rate limit on /api/chat is the real defence.
+function buildAllowedOrigins(){
+  const explicit = process.env.ALLOWED_ORIGINS;
+  if(explicit){
+    return explicit.split(",").map(s => s.trim()).filter(Boolean);
+  }
+  const auto = [
+    process.env.URL,
+    process.env.DEPLOY_URL,
+    process.env.DEPLOY_PRIME_URL,
+    "https://intelligentcarpetcleaning.co.uk",
+    "https://www.intelligentcarpetcleaning.co.uk",
+    "http://localhost:8888",
+    "http://localhost:3000"
+  ].filter(Boolean);
+  // Normalise — strip trailing slashes
+  return auto.map(o => o.replace(/\/+$/, ""));
+}
+const ALLOWED_ORIGINS = buildAllowedOrigins();
+const ORIGIN_CHECK_STRICT = process.env.ALLOWED_ORIGINS ? true : false;
 
 function getOrigin(event){
   const raw = event.headers.origin || event.headers.referer || "";
@@ -11,9 +36,16 @@ function getOrigin(event){
 }
 
 function corsHeaders(origin){
+  // In strict mode echo allowed origins only. In fail-open mode echo the
+  // request's origin so the browser actually accepts the response — otherwise
+  // a CORS mismatch hides the real response body from the client.
   const ok = origin && ALLOWED_ORIGINS.includes(origin);
+  let allow;
+  if(ok) allow = origin;
+  else if(!ORIGIN_CHECK_STRICT && origin) allow = origin;
+  else allow = ALLOWED_ORIGINS[0] || "*";
   return {
-    "Access-Control-Allow-Origin": ok ? origin : ALLOWED_ORIGINS[0],
+    "Access-Control-Allow-Origin": allow,
     "Vary": "Origin",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "POST, OPTIONS"
@@ -75,11 +107,16 @@ exports.handler = async function (event) {
     return { statusCode: 400, headers: baseHeaders, body: JSON.stringify({ error: "Invalid JSON" }) };
   }
 
-  // Origin check: reject browser requests that did not come from an allowed site.
-  // Skip when no origin header (server-to-server, curl) — those still pass through
-  // and would hit rate-limit / validation if they tried to abuse the AI/booking paths.
+  // Origin check: only enforced when ALLOWED_ORIGINS env var was explicitly set.
+  // Otherwise we log mismatches but let the request through — the rate limit is
+  // the real defence and a 403 storm would be much more visible than abuse.
   if (origin && !ALLOWED_ORIGINS.includes(origin)) {
-    return { statusCode: 403, headers: baseHeaders, body: JSON.stringify({ error: "Forbidden origin" }) };
+    if(ORIGIN_CHECK_STRICT){
+      console.log("Rejected origin:", origin, "allowed:", ALLOWED_ORIGINS.join(","));
+      return { statusCode: 403, headers: baseHeaders, body: JSON.stringify({ error: "Forbidden origin" }) };
+    } else {
+      console.log("Unrecognised origin (fail-open):", origin, "allowed defaults:", ALLOWED_ORIGINS.join(","));
+    }
   }
 
   // Handle booking confirmation separately
