@@ -1,50 +1,106 @@
-const { Blob } = require("buffer");
+// Allowed origins for the chat endpoint. Configurable via env var ALLOWED_ORIGINS
+// (comma-separated). Defaults cover the production domain plus the Netlify preview.
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ||
+  "https://intelligentcarpetcleaning.co.uk,https://www.intelligentcarpetcleaning.co.uk,https://intelligentcarpetcleaning.netlify.app,http://localhost:8888,http://localhost:3000")
+  .split(",").map(s => s.trim()).filter(Boolean);
+
+function getOrigin(event){
+  const raw = event.headers.origin || event.headers.referer || "";
+  if(!raw) return "";
+  try { const u = new URL(raw); return u.origin; } catch(e){ return ""; }
+}
+
+function corsHeaders(origin){
+  const ok = origin && ALLOWED_ORIGINS.includes(origin);
+  return {
+    "Access-Control-Allow-Origin": ok ? origin : ALLOWED_ORIGINS[0],
+    "Vary": "Origin",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS"
+  };
+}
+
+function getClientIP(event){
+  const xff = event.headers["x-forwarded-for"] || "";
+  const first = xff.split(",")[0].trim();
+  return first || event.headers["client-ip"] || event.headers["x-real-ip"] || "";
+}
+
+// Sliding-window rate limit for the AI chat path (NOT availability/booking,
+// which are cheap). 30 chat messages per IP per hour. Fails open if Blobs
+// are unavailable so a storage outage never blocks legitimate customers.
+async function checkChatRateLimit(ip){
+  if(!ip) return { ok: true };
+  try {
+    const store = getBlobStore();
+    const key = "rl:" + ip;
+    const data = await store.get(key);
+    const now = Date.now();
+    const windowMs = 60 * 60 * 1000;
+    const arr = (data ? JSON.parse(data) : []).filter(t => t > now - windowMs);
+    if(arr.length >= 30) return { ok: false, retryAfter: 3600 };
+    arr.push(now);
+    await store.set(key, JSON.stringify(arr));
+    return { ok: true };
+  } catch(e){
+    console.log("Rate limit blob unavailable, failing open:", e.message);
+    return { ok: true };
+  }
+}
 
 exports.handler = async function (event) {
+  const origin = getOrigin(event);
+  const baseHeaders = corsHeaders(origin);
+
   if (event.httpMethod === "OPTIONS") {
-    return {
-      statusCode: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Allow-Methods": "POST, OPTIONS"
-      },
-      body: ""
-    };
+    return { statusCode: 200, headers: baseHeaders, body: "" };
   }
 
   if (event.httpMethod !== "POST") {
-    return { statusCode: 405, body: "Method Not Allowed" };
+    return { statusCode: 405, headers: baseHeaders, body: "Method Not Allowed" };
   }
 
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const resendKey = process.env.RESEND_API_KEY;
 
-  console.log("API key present:", !!anthropicKey);
-  console.log("API key length:", anthropicKey ? anthropicKey.length : 0);
-  console.log("Request method:", event.httpMethod);
-  console.log("Body preview:", event.body ? event.body.substring(0, 100) : "no body");
-
   if (!anthropicKey) {
     console.log("ERROR: No API key found in environment");
-    return { statusCode: 500, body: JSON.stringify({ error: "Anthropic API key not configured" }) };
+    return { statusCode: 500, headers: baseHeaders, body: JSON.stringify({ error: "Anthropic API key not configured" }) };
   }
 
   let body;
   try {
     body = JSON.parse(event.body);
   } catch {
-    return { statusCode: 400, body: JSON.stringify({ error: "Invalid JSON" }) };
+    return { statusCode: 400, headers: baseHeaders, body: JSON.stringify({ error: "Invalid JSON" }) };
+  }
+
+  // Origin check: reject browser requests that did not come from an allowed site.
+  // Skip when no origin header (server-to-server, curl) — those still pass through
+  // and would hit rate-limit / validation if they tried to abuse the AI/booking paths.
+  if (origin && !ALLOWED_ORIGINS.includes(origin)) {
+    return { statusCode: 403, headers: baseHeaders, body: JSON.stringify({ error: "Forbidden origin" }) };
   }
 
   // Handle booking confirmation separately
   if (body.action === "confirm_booking") {
-    return await handleBooking(body.booking, resendKey);
+    return await handleBooking(body.booking, resendKey, baseHeaders);
   }
 
   // Handle availability check
   if (body.action === "check_availability") {
-    return await checkAvailability(body.date, body.slots_needed);
+    return await checkAvailability(body.date, body.slots_needed, baseHeaders);
+  }
+
+  // AI chat path — apply per-IP rate limit before hitting Anthropic
+  const ip = getClientIP(event);
+  const rl = await checkChatRateLimit(ip);
+  if(!rl.ok){
+    return {
+      statusCode: 429,
+      headers: Object.assign({}, baseHeaders, { "Retry-After": String(rl.retryAfter || 3600) }),
+      body: JSON.stringify({ error: "Too many requests. Please wait a little and try again, or call us on 01242 279590." })
+    };
   }
 
   const assistantName = (body.assistantName && ["Jamie","Alex","Sam","Ellie","Tom"].includes(body.assistantName))
@@ -262,16 +318,14 @@ This triggers the booking confirmation system. Do not output this until the cust
 
     return {
       statusCode: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
-      },
+      headers: Object.assign({}, baseHeaders, { "Content-Type": "application/json" }),
       body: JSON.stringify(data)
     };
   } catch (err) {
     console.log("FETCH ERROR:", err.message);
     return {
       statusCode: 500,
+      headers: baseHeaders,
       body: JSON.stringify({ error: "Failed to contact Anthropic API", detail: err.message })
     };
   }
@@ -286,7 +340,13 @@ function getBlobStore() {
   });
 }
 
-async function checkAvailability(date, slotsNeeded) {
+async function checkAvailability(date, slotsNeeded, baseHeaders) {
+  const headers = Object.assign({}, baseHeaders || {}, { "Content-Type": "application/json" });
+  // Light input check — bookings.js does the full validate; this path is read-only
+  const slots = Number(slotsNeeded);
+  if(typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isInteger(slots) || slots < 1 || slots > 9){
+    return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid availability query" }) };
+  }
   try {
     const store = getBlobStore();
     const existing = await store.get(date);
@@ -294,8 +354,8 @@ async function checkAvailability(date, slotsNeeded) {
     const allSlots = [9,10,11,12,13,14,15,16,17];
     const available = [];
 
-    for (let i = 0; i <= allSlots.length - slotsNeeded; i++) {
-      const block = allSlots.slice(i, i + slotsNeeded);
+    for (let i = 0; i <= allSlots.length - slots; i++) {
+      const block = allSlots.slice(i, i + slots);
       const conflict = block.some(s => bookedSlots.includes(s));
       if (!conflict) {
         available.push(`${allSlots[i]}:00`);
@@ -304,13 +364,13 @@ async function checkAvailability(date, slotsNeeded) {
 
     return {
       statusCode: 200,
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      headers,
       body: JSON.stringify({ available, booked: bookedSlots })
     };
   } catch (err) {
     return {
       statusCode: 200,
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      headers,
       body: JSON.stringify({ available: ["9:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00"], booked: [] })
     };
   }
@@ -320,7 +380,88 @@ function escHtml(s){
   return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
 }
 
-async function handleBooking(booking, resendKey) {
+// Server-side validation. The chat client cannot be trusted: a malicious caller
+// can POST directly to /api/chat with action=confirm_booking and any payload.
+// Reject anything malformed, oversized, or with obviously fake pricing.
+function validateBooking(b){
+  if(!b || typeof b !== "object") return "Invalid booking payload";
+
+  const required = ["name","phone","email","address","date","start_time","slots_needed"];
+  for(const f of required){
+    if(b[f] === undefined || b[f] === null || b[f] === "") return `Missing field: ${f}`;
+  }
+
+  if(typeof b.name !== "string" || b.name.length < 2 || b.name.length > 120) return "Invalid name";
+  if(typeof b.phone !== "string" || b.phone.length < 7 || b.phone.length > 30) return "Invalid phone";
+  if(typeof b.email !== "string" || b.email.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.email)) return "Invalid email";
+  if(typeof b.address !== "string" || b.address.length < 5 || b.address.length > 500) return "Invalid address";
+  if(typeof b.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.date)) return "Invalid date format";
+  if(typeof b.start_time !== "string" || !/^(9|1[0-7]):00$/.test(b.start_time)) return "Invalid start_time";
+
+  const slots = Number(b.slots_needed);
+  if(!Number.isInteger(slots) || slots < 1 || slots > 9) return "Invalid slots_needed";
+
+  // Date must be in the bookable window and not a Sunday
+  const today = new Date(); today.setHours(0,0,0,0);
+  const [y,m,d] = b.date.split("-").map(Number);
+  const bookingDate = new Date(y, m-1, d);
+  if(isNaN(bookingDate.getTime())) return "Invalid date";
+  const daysOut = Math.floor((bookingDate - today) / (24*60*60*1000));
+  if(daysOut < 6) return "Date too soon — minimum 7 days notice";
+  if(daysOut > 90) return "Date too far ahead";
+  if(bookingDate.getDay() === 0) return "Sundays are not bookable";
+
+  // Slots fit within trading hours (last slot ends at 18:00)
+  const startHour = parseInt(b.start_time.split(":")[0], 10);
+  if(startHour + slots > 18) return "Slots overflow trading hours";
+
+  // Price floor — minimum call-out is £75 + VAT (£90 inc). Anything under £30
+  // is almost certainly a prompt-injection or tampered payload.
+  if(b.estimated_price && typeof b.estimated_price === "string"){
+    const match = b.estimated_price.replace(/,/g,"").match(/[\d.]+/);
+    const priceNum = match ? parseFloat(match[0]) : 0;
+    if(priceNum < 30) return "Estimated price below minimum";
+    if(priceNum > 5000) return "Estimated price unrealistically high";
+  }
+
+  // Image size cap — base64 grows ~4/3 the raw bytes. 4.5MB string ≈ 3.3MB image.
+  if(b.image && typeof b.image === "object"){
+    if(typeof b.image.base64 !== "string") return "Invalid image data";
+    if(b.image.base64.length > 4500000) return "Image too large (max ~3MB)";
+    const okTypes = ["image/jpeg","image/png","image/webp","image/gif"];
+    if(!okTypes.includes(b.image.mediaType)) return "Unsupported image type";
+  }
+
+  // Optional boolean flags
+  if(b.furniture_moving !== undefined && typeof b.furniture_moving !== "boolean") return "Invalid furniture_moving";
+  if(b.pets !== undefined && typeof b.pets !== "boolean") return "Invalid pets";
+
+  // Length caps on free-text fields (prevents storing/emailing huge blobs)
+  const textFields = ["rooms","carpet_types","concerns","recommended_method","ai_assessment","rams","postcode","deposit","estimated_price"];
+  for(const f of textFields){
+    if(b[f] !== undefined && b[f] !== null){
+      if(typeof b[f] !== "string") return `Invalid ${f}`;
+      if(b[f].length > 3000) return `${f} too long`;
+    }
+  }
+
+  return null;
+}
+
+async function handleBooking(booking, resendKey, baseHeaders) {
+  const headers = Object.assign({}, baseHeaders || {}, { "Content-Type": "application/json" });
+
+  // Reject malformed/tampered payloads before touching Blobs, email, or PDF
+  const validationError = validateBooking(booking);
+  if(validationError){
+    console.log("Booking rejected:", validationError);
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: validationError })
+    };
+  }
+
   // Block out slots in Netlify Blobs
   let currentBookingId = null;
   try {
@@ -334,7 +475,7 @@ async function handleBooking(booking, resendKey) {
     if (conflict) {
       return {
         statusCode: 409,
-        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        headers,
         body: JSON.stringify({ error: "Time slot no longer available. Please choose another time." })
       };
     }
@@ -389,7 +530,7 @@ async function handleBooking(booking, resendKey) {
   if (!resendKey) {
     return {
       statusCode: 200,
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      headers,
       body: JSON.stringify({ success: true, message: "Booking recorded. Email sending not configured.", calLink })
     };
   }
@@ -406,10 +547,16 @@ async function handleBooking(booking, resendKey) {
 
   const pdfFilename = `ICC-Job-${(booking.name||"Unknown").replace(/\s+/g,"-")}-${booking.date}.pdf`;
 
+  // Email sender/recipient addresses are env-configurable so Mark's address can
+  // change without a code deploy once Resend has a verified sending domain.
+  const operatorEmail = process.env.OPERATOR_EMAIL || "ben.graham240689@gmail.com";
+  const operatorFrom = process.env.OPERATOR_FROM || "ICC Bookings <onboarding@resend.dev>";
+  const customerFrom = process.env.CUSTOMER_FROM || "Intelligent Carpet Cleaning <onboarding@resend.dev>";
+
   // Send email to Mark
   const markEmail = {
-    from: "ICC Bookings <onboarding@resend.dev>",
-    to: "ben.graham240689@gmail.com",
+    from: operatorFrom,
+    to: operatorEmail,
     subject: `New Booking - ${booking.name} - ${booking.date}`,
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
@@ -449,7 +596,7 @@ async function handleBooking(booking, resendKey) {
 
   // Send confirmation email to customer
   const customerEmail = {
-    from: "Intelligent Carpet Cleaning <onboarding@resend.dev>",
+    from: customerFrom,
     to: booking.email,
     subject: `Your Booking Confirmation - Intelligent Carpet Cleaning`,
     html: `
@@ -513,7 +660,7 @@ async function handleBooking(booking, resendKey) {
 
     return {
       statusCode: 200,
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      headers,
       body: JSON.stringify({
         success: true,
         message: "Booking confirmed. Confirmation emails sent.",
@@ -525,7 +672,7 @@ async function handleBooking(booking, resendKey) {
   } catch (err) {
     return {
       statusCode: 200,
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      headers,
       body: JSON.stringify({ success: true, message: "Booking recorded but email sending failed.", calLink, error: err.message })
     };
   }
@@ -586,7 +733,15 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
 
     // Job
     sectionHeader("Job Details");
-    const dateFormatted = (() => { try { return new Date(booking.date).toLocaleDateString("en-GB", { weekday:"long", day:"2-digit", month:"long", year:"numeric" }); } catch(e){ return booking.date; } })();
+    // Parse YYYY-MM-DD as local-date components so the function's runtime
+    // timezone (Netlify functions run UTC) can never shift the printed day.
+    const dateFormatted = (() => {
+      try {
+        const parts = String(booking.date || "").split("-").map(Number);
+        if(parts.length !== 3 || parts.some(isNaN)) return booking.date;
+        return new Date(parts[0], parts[1]-1, parts[2]).toLocaleDateString("en-GB", { weekday:"long", day:"2-digit", month:"long", year:"numeric" });
+      } catch(e){ return booking.date; }
+    })();
     twoCol("DATE", dateFormatted, "START TIME", booking.start_time);
     twoCol("ESTIMATED DURATION", `${booking.slots_needed} hour(s)`, "FURNITURE MOVING", booking.furniture_moving ? "Yes - £30 + VAT" : "No");
     twoCol("PETS ON SITE", booking.pets ? "Yes - keep away during clean and until dry" : "No", "", "");
@@ -667,20 +822,4 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
 
     doc.end();
   });
-}
-
-function generateJobSheet(booking, calLink) {
-  return `
-    <h2>ICC Job Sheet</h2>
-    <p><strong>Customer:</strong> ${booking.name}</p>
-    <p><strong>Date:</strong> ${booking.date} at ${booking.start_time}</p>
-    <p><strong>Address:</strong> ${booking.address}</p>
-    <p><strong>Rooms:</strong> ${booking.rooms}</p>
-    <p><strong>Carpet Types:</strong> ${booking.carpet_types}</p>
-    <p><strong>Concerns:</strong> ${booking.concerns}</p>
-    <p><strong>Method:</strong> ${booking.recommended_method}</p>
-    <p><strong>Assessment:</strong> ${booking.ai_assessment}</p>
-    <p><strong>Price:</strong> ${booking.estimated_price}</p>
-    <p><strong>Deposit:</strong> ${booking.deposit}</p>
-  `;
 }

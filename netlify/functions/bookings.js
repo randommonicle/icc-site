@@ -26,13 +26,17 @@ exports.handler = async function(event) {
     const indexData = await store.get("booking-index");
     const bookingIds = indexData ? JSON.parse(indexData) : [];
 
-    const bookings = [];
-    for(const id of bookingIds){
-      try{
+    // Fetch all bookings in parallel — sequential reads were slow past ~20 bookings
+    const results = await Promise.all(bookingIds.map(async id => {
+      try {
         const data = await store.get("booking-"+id);
-        if(data) bookings.push(JSON.parse(data));
-      } catch(e){ /* skip corrupt entries */ }
-    }
+        return data ? JSON.parse(data) : null;
+      } catch(e){ return null; }
+    }));
+    const bookings = results.filter(Boolean);
+
+    // Newest first by created_at so admin sees most recent at the top
+    bookings.sort((a,b) => String(b.created_at||"").localeCompare(String(a.created_at||"")));
 
     return {
       statusCode: 200,
