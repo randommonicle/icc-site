@@ -148,26 +148,46 @@
 let adminToken = "";
 let allBookings = [];
 
+function showLoginError(msg){
+  const el = document.getElementById("loginError");
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
 async function login(){
   const pw = document.getElementById("passwordInput").value.trim();
-  if(!pw){ document.getElementById("loginError").style.display = "block"; return; }
-  try{
-    const res = await fetch("/api/bookings", {
+  if(!pw){ showLoginError("Please enter a password."); return; }
+  let res;
+  try {
+    res = await fetch("/api/bookings", {
       headers: { "Authorization": "Bearer " + pw }
     });
-    if(res.status === 401){
-      document.getElementById("loginError").style.display = "block";
-      return;
-    }
+  } catch(e){
+    showLoginError("Could not reach the server. Check your connection and try again.");
+    return;
+  }
+  if(res.status === 401){
+    showLoginError("Incorrect password. Please try again.");
+    return;
+  }
+  if(res.status === 500){
+    showLoginError("Server error. The backend may not be deployed yet, or ADMIN_SECRET may be missing in Netlify. Try again in a minute.");
+    return;
+  }
+  if(!res.ok){
+    showLoginError("Unexpected response from server (status " + res.status + "). Try again shortly.");
+    return;
+  }
+  try {
+    const data = await res.json();
     adminToken = pw;
     document.getElementById("loginScreen").style.display = "none";
     document.getElementById("adminScreen").style.display = "block";
-    const data = await res.json();
     allBookings = data.bookings || [];
     renderBookings(allBookings);
     updateStats(allBookings);
   } catch(e){
-    document.getElementById("loginError").style.display = "block";
+    showLoginError("Server returned an unreadable response. Try again shortly.");
   }
 }
 
