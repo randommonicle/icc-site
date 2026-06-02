@@ -106,6 +106,24 @@ ALLOWED_ORIGINS=      # Comma-separated origin allowlist for /api/chat. When uns
 
 ## Project Structure
 
+### Target (monorepo, from Phase 2 — D-014)
+
+The whole platform lives in this one repo: the public site, the field app, the backend/functions, and a shared API contract. Created when Phase 2 starts, before the API exists to consume.
+
+```
+icc-platform/                   # (currently named icc-site; rename when convenient)
+├── site/                       # public multi-page static site (Astro or HTML)
+├── app/                        # field app (Capacitor, like the ASH app)
+├── functions/ (or server/)     # API + AI proxy + serverless
+├── shared/                     # API contract types + AI knowledge source (D-006, D-012)
+├── supabase/migrations/
+└── docs/ + CLAUDE.md, ROADMAP.md, DECISIONS.md, LESSONS_LEARNED.md, NEXT_SESSION.md (root)
+```
+
+Netlify's build is scoped to `site/` (and `shared/`) so app-only commits do not trigger a site deploy. Site and app are worked on in separate sessions via branches (D-010) or git worktrees.
+
+### Current (Phase 0)
+
 ```
 icc-site/
 ├── index.html                  # Public single-page site (hero, services, about, booking, chat client)

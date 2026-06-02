@@ -38,6 +38,7 @@ Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file
 ## Things to watch / not yet decided
 
 - D-001 front-end tool (Astro vs hand-built) is still open.
+- Monorepo restructure (D-014) is the first task of Phase 2 — do it before the API exists so the shared contract is born in `shared/`. Repo may be renamed `icc-site` → `icc-platform` then.
 - Exact out-of-area surcharge figure + postcode boundary (D-011) — not yet set; the assistant currently says "small charge, confirmed at booking".
 - Domain not yet chosen (D-013) — fine for now, needed before Phase 1 go-live.
 - Phase 2 API must be designed for two clients (website + field app) from the start (D-012).

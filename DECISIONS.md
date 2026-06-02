@@ -72,3 +72,30 @@ The field app has not been designed yet, but Mark wants it built alongside the w
 **Status:** Accepted (June 2026)
 
 The live domain is not yet chosen. This does not block Phases 0–2: development continues on the Netlify-assigned URL, and `ALLOWED_ORIGINS` / Resend / Google Business Profile / structured data are configured once the domain is registered. Recorded so the open question is visibly parked rather than forgotten. Must be resolved before the SEO/findability launch (Phase 1 go-live) and before `ALLOWED_ORIGINS` strict mode (L-001).
+
+## D-014 — One monorepo for the whole ICC platform (site + app + backend + shared contract)
+**Status:** Accepted (June 2026)
+
+The public website, the field app, the backend/serverless functions, and the shared API contract all live in this single repository. This is the natural consequence of D-003 and D-012: the website and the field app are two clients of one product, not two products.
+
+Reasoning:
+- One product, one repo. This is the dividing line from the ASH↔PropOS strategy, where separate repos are used precisely because those are separate products with separate commercial lives. The ICC site and ICC app are clients of the same platform, so they belong together.
+- Single source of truth for the API contract. A `shared/` package (endpoint shapes, types) is imported by the site, the app, and the functions, so the compiler enforces D-012's "the two clients never diverge". Across two repos this needs a published versioned package or hand-duplication, and drift is exactly the failure mode we are avoiding (it is why PropOS needs the XR cross-repo tagging convention).
+- Same win for D-006: the AI knowledge source lives in `shared/` and is consumed by site content, the assistant prompt, and the app.
+- Bus factor: one clone, one doc set, one decisions/lessons log covering the whole platform.
+- Atomic changes: an endpoint change plus both clients land in one PR, not coordinated cross-repo PRs.
+
+The one real cost is two deploy targets (site → Netlify, app → Capacitor build). Handle it by scoping Netlify's build to changes under `site/` (and `shared/`) so an app-only commit never triggers a site deploy, and vice versa. The ASH repo already proves a Capacitor app + server + Supabase migrations coexist in one repo.
+
+Target layout (created when Phase 2 starts, before the API exists to consume):
+```
+icc-platform/
+├── site/                       public multi-page static site
+├── app/                        field app (Capacitor)
+├── functions/ (or server/)     API + AI proxy + serverless
+├── shared/                     API contract types + AI knowledge source (D-006, D-012)
+├── supabase/migrations/
+└── docs/ + CLAUDE.md, ROADMAP.md, DECISIONS.md, LESSONS_LEARNED.md, NEXT_SESSION.md at root
+```
+
+Sessions stay separate by working on branches (existing discipline, D-010) or git worktrees — the monorepo makes separate site/app sessions easier, not harder, because each has the shared contract and docs to hand. The repo is currently named `icc-site`; rename to `icc-platform` when convenient (GitHub redirects the old URL) or leave it as a cosmetic mismatch. Do the monorepo restructure before building the Phase 2 API, so the contract is born in `shared/` rather than extracted later.

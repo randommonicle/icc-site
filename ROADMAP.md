@@ -53,6 +53,7 @@ Carry the Phase 0 hardening items above into this phase.
 
 **Outcome:** Mark runs the operational side from one place.
 
+- [ ] **Restructure to the monorepo layout first** (D-014): `site/`, `app/`, `functions/`, `shared/`, `supabase/migrations/`, docs at root. Scope the Netlify build to `site/`+`shared/`. Do this before the API exists so the contract is born in `shared/`, not extracted later.
 - [ ] Stand up Supabase: relational DB, admin auth, file storage for job photos, API (D-002).
 - [ ] Design the API surface deliberately so the future field app is a client, not a rebuild (D-003). Document it as an integration contract from day one (mirror the ASH/PropOS convention).
 - [ ] Migrate bookings off Netlify Blobs into Postgres (one-time migration + cutover).
@@ -92,6 +93,7 @@ Carry the Phase 0 hardening items above into this phase.
 
 What this changes about the plan:
 - **Phase 2 API design must serve both clients.** Design and version the API surface and a documented integration contract from the first backend build, with all business logic server-side so the website and app never diverge (D-003, D-012).
+- **One repo (D-014).** The app lives in `app/` in this monorepo and imports the shared contract from `shared/`, so it cannot drift from the website. No separate app repo, no separate backend.
 - The app's own build (scoping, UI, native shell) begins once the Phase 2 API exists to consume, and progresses in parallel with Phases 3–4 rather than after them.
 - Whatever the website does through the API (book, quote, view jobs, mark complete, invoice), the app can do through the same endpoints — no app-only backend.
 
