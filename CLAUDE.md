@@ -52,8 +52,10 @@ The platform described in the design doc needs persistent relational data, authe
 
 - A multi-page static front end for the public site (hand-built HTML or Astro), still on Netlify, fully crawlable.
 - A managed Postgres backend (Supabase) for the business platform: relational data, admin auth, file storage for job photos, and an API.
-- API-first design. The website is one client of the API; the future field app is another. Plan endpoints so a second client is a small step, not a rebuild.
+- API-first design. The website is one client of the API; the field app is another. Plan endpoints so a second client is a small step, not a rebuild.
 - Serverless functions remain the home for the AI proxy, email, and calendar writes — keys stay server-side.
+
+The field app is a concurrent, fully-integrated client, not a deferred final phase (D-012). It is not designed yet, but every backend decision from Phase 2 onward must assume two equal clients (website + app) consuming the same documented, versioned API. Keep all business logic server-side so the two never diverge. See [ROADMAP.md](ROADMAP.md) "Field app — concurrent track".
 
 The public marketing site and the operational platform are separated cleanly, share the same database where it makes sense, and talk through a documented API.
 
@@ -152,6 +154,11 @@ Any marketing-email capability must record per-client consent (PECR soft opt-in 
 
 ## Feature Deep-Dives (current code)
 
+### Business facts that live in the code
+These are real business rules encoded in `chat.js` (the system prompt) — keep them in sync with reality and with [DECISIONS.md](DECISIONS.md):
+- **Service area (D-011):** Cheltenham and Gloucester are core (no travel charge). The wider Gloucestershire area (Stroud, Tewkesbury, Cirencester and surrounding GL towns) is covered with a small out-of-area surcharge. The assistant flags the surcharge early for out-of-area addresses but does not invent a figure — Mark confirms it at booking. The exact figure and postcode boundary are still to be set; once they are, encode them so the assistant quotes a concrete number and `validateBooking` applies it server-side.
+- **Hours, slots, pricing, deposit:** all in the `STATIC_SYSTEM_PROMPT`. Pricing is "+ VAT" throughout. A 10% non-refundable deposit secures a slot.
+
 ### AI chat flow (`netlify/functions/chat.js` + `index.html`)
 - The browser keeps `conversationHistory` and POSTs it to `/api/chat` with a randomised assistant name (Jamie/Alex/Sam/Ellie/Tom).
 - The system prompt is sent in two blocks: a large static block (business knowledge, pricing, method, booking script) with `cache_control: ephemeral`, and a small dynamic block (assistant name, today's date, the pre-computed list of bookable dates). The split keeps the cache prefix stable so repeat messages in a 5-minute window pay roughly 10% of normal input cost (see LESSONS_LEARNED.md L-002).
@@ -219,6 +226,21 @@ Tracked in full in [LESSONS_LEARNED.md](LESSONS_LEARNED.md) and the roadmap. The
 - [ ] **Constant-time compare** for the admin token (minor; single-operator dashboard).
 
 ---
+
+## Continuity and onboarding (bus factor)
+
+This project is deliberately built so that anyone could pick it up and carry on with no handover conversation — if Ben were hit by a bus tomorrow, the docs and the code are the handover. If you are that person, here is the whole picture:
+
+- **What it is and why:** read this file, then [docs/DESIGN.md](docs/DESIGN.md) (the client brief), then [ROADMAP.md](ROADMAP.md) (what to build next and in what order).
+- **Why things are the way they are:** [DECISIONS.md](DECISIONS.md). Do not undo a decision without reading its record first.
+- **What will bite you:** [LESSONS_LEARNED.md](LESSONS_LEARNED.md). Read it before touching the chat proxy, bookings, email, or deploy config.
+- **Where you left off:** [NEXT_SESSION.md](NEXT_SESSION.md), updated at the end of every session.
+- **The client:** Mark McClymont, Intelligent Carpet Cleaning, Cheltenham — phone 01242 279590, email talktoregency@gmail.com.
+- **Where the code runs:** GitHub `randommonicle/icc-site` → Netlify auto-deploys `main`. Static site + serverless functions; no build step in Phase 0.
+- **Where the secrets are:** Netlify → Site settings → Environment variables (never in git). The list and what each does is in [.env.example](.env.example) and the Environment Variables section above. These are the only things not reconstructable from the repo — make sure Mark owns the accounts that hold them (D-009).
+- **The data:** Phase 0 bookings live in Netlify Blobs (store `icc-bookings`). From Phase 2 they live in Supabase. There is no other hidden state.
+
+Keeping this true is part of the job: every session, leave the docs in a state where a stranger could continue. That is the standard, not a nice-to-have.
 
 ## Pointers
 

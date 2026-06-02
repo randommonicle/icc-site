@@ -2,7 +2,7 @@
 
 Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file at the end of every working session so the next person (or AI) can continue cold.
 
-**Last updated:** June 2026 (documentation scaffold + roadmap added)
+**Last updated:** June 2026 (scaffold + roadmap + service-area / field-app decisions; pushed to git)
 
 ---
 
@@ -16,23 +16,31 @@ Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file
 ## What was just done
 
 - Reviewed the platform design document and turned it into a phased, RAG-tracked [ROADMAP.md](ROADMAP.md).
-- Captured the architectural choices from the brief as decision records D-001..D-010 in [DECISIONS.md](DECISIONS.md).
+- Captured the architectural choices as decision records D-001..D-013 in [DECISIONS.md](DECISIONS.md).
 - Seeded [LESSONS_LEARNED.md](LESSONS_LEARNED.md) with eight entries — some from reviewing the current code, some carried pre-emptively from the ASH app.
+- Confirmed with Mark and encoded:
+  - **Service area (D-011):** Cheltenham + Gloucester core (no surcharge); wider Gloucestershire with a small out-of-area surcharge. Updated the live AI prompt in `chat.js` (service-area block + a pricing line) so the assistant flags the surcharge without inventing a figure.
+  - **Field app (D-012):** built concurrently with the website and fully integrated via the shared API — added a dedicated concurrent-track section to the roadmap.
+  - **Domain (D-013):** deferred but non-blocking for now.
+- Added a Continuity / bus-factor section to [CLAUDE.md](CLAUDE.md) so a stranger could pick this up cold.
+- Pushed everything to git so the home machine can pull it.
 
 ## Immediate next steps (suggested order)
 
-1. **Review and merge the doc scaffold** (`docs/scaffold-and-roadmap` → `main`). Adjust anything that does not match Mark's intent.
-2. **Resolve the open questions** in [ROADMAP.md](ROADMAP.md) / DESIGN §13 with Mark — especially the domain, the service-area town list, and whether the field app is near-roadmap. These unblock Phase 1.
-3. **Close the Phase 0 hardening gaps before any real-traffic launch** (tracked in ROADMAP Phase 0 table):
+1. **Get the exact out-of-area surcharge figure and postcode boundary from Mark** (D-011), then encode it so the assistant quotes a concrete number and the server applies it.
+2. **Close the Phase 0 hardening gaps before any real-traffic launch** (tracked in ROADMAP Phase 0 table):
    - Set `ALLOWED_ORIGINS` in Netlify (L-001).
    - Rate-limit the booking/availability endpoints (L-006).
    - Verify a Resend sending domain and set real from/operator addresses (L-004).
    - Add a privacy notice to the site (DESIGN §11).
-4. **Decide the Phase 1 front-end approach** (hand-built HTML vs Astro — D-001) so the multi-page conversion can start.
+3. **Decide the Phase 1 front-end approach** (hand-built HTML vs Astro — D-001) so the multi-page conversion can start.
 
 ## Things to watch / not yet decided
 
 - D-001 front-end tool (Astro vs hand-built) is still open.
+- Exact out-of-area surcharge figure + postcode boundary (D-011) — not yet set; the assistant currently says "small charge, confirmed at booking".
+- Domain not yet chosen (D-013) — fine for now, needed before Phase 1 go-live.
+- Phase 2 API must be designed for two clients (website + field app) from the start (D-012).
 - Whether minimal job state (for the "mark complete → review request" flow) lands in Phase 1 on Blobs or waits for the Supabase backend in Phase 2.
 - Account ownership (D-009) — confirm everything is registered under Mark / the business, not personal accounts, before more services are added.
 

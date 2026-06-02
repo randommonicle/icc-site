@@ -57,3 +57,18 @@ Domain, Netlify, Anthropic, Resend, Stripe, Supabase, and Google Business Profil
 **Status:** Accepted
 
 Branch off `main`, never push to `main` directly, deploy by deliberate merge (not mid-traffic without sign-off). Real services in tests, no mocks. Honest RAG-tracked, standards-referenced, phased audits. Keep the doc set (CLAUDE/ROADMAP/DECISIONS/LESSONS_LEARNED/NEXT_SESSION) current. Clean prose, bold for structure only. Recorded here so the convention is explicit for this repo, not just assumed.
+
+## D-011 — Service area: Cheltenham/Gloucester core, wider Gloucestershire with an out-of-area surcharge
+**Status:** Accepted (confirmed by Mark, June 2026; exact surcharge figure still Open)
+
+Cheltenham and Gloucester are the core service area with no travel charge. ICC also covers the wider Gloucestershire area — Stroud, Tewkesbury, Cirencester, and surrounding towns (all GL postcodes). Jobs outside Cheltenham and Gloucester incur a small out-of-area surcharge. The live AI assistant now states this and flags the surcharge early when an address is outside the core area, without inventing a figure (Mark confirms the amount at booking). Open: the exact surcharge amount and/or the precise postcode boundary for "out of area" — once Mark sets these, encode them so the assistant can quote a concrete number and `validateBooking` can apply it server-side. This also shapes the SEO area pages (D-001): core-area pages and wider-area pages with honest surcharge messaging.
+
+## D-012 — The field app is built concurrently with the website and fully integrated, not deferred
+**Status:** Accepted (confirmed by Mark, June 2026)
+
+The field app has not been designed yet, but Mark wants it built alongside the website and fully integrated rather than treated as a final, separate phase. This raises the priority of the API-first design (D-003): the backend API surface must be designed from the first backend build (Phase 2) to serve both the website and the app as equal clients, with a documented integration contract. The app is no longer "Phase 5 only" — it is a parallel track that consumes the same API as it matures. Practical consequence: front-load API design in Phase 2, keep all business logic server-side (never only in the website client), and version the API/contract from day one so the two clients never drift. Supersedes the roadmap's earlier framing of the app as a deferred Phase 5 item.
+
+## D-013 — Domain registration is deferred but non-blocking
+**Status:** Accepted (June 2026)
+
+The live domain is not yet chosen. This does not block Phases 0–2: development continues on the Netlify-assigned URL, and `ALLOWED_ORIGINS` / Resend / Google Business Profile / structured data are configured once the domain is registered. Recorded so the open question is visibly parked rather than forgotten. Must be resolved before the SEO/findability launch (Phase 1 go-live) and before `ALLOWED_ORIGINS` strict mode (L-001).

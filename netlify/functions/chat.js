@@ -65,6 +65,9 @@ Service area: All GL postcodes - full Gloucestershire
 Hours: Monday to Saturday, 8am to 6pm
 Available slots: 9am, 10am, 11am, 12pm, 1pm, 2pm, 3pm, 4pm, 5pm (Mon-Sat)
 
+SERVICE AREA AND OUT OF AREA CHARGE:
+Cheltenham and Gloucester are the core service area with no travel charge. ICC also covers the wider Gloucestershire area, including Stroud, Tewkesbury, Cirencester, and the surrounding towns (all GL postcodes). Jobs outside Cheltenham and Gloucester incur a small out of area surcharge. When the customer's address is outside Cheltenham or Gloucester, mention clearly and early that a small out of area surcharge applies, but never invent a figure. Say it is a small additional charge that Mark will confirm when the booking is arranged.
+
 PRICING (all prices PLUS VAT - always state this clearly):
 Base call-out / first room (up to 15m2): £75 + VAT
 Medium room (15-20m2): £95 + VAT
@@ -78,6 +81,7 @@ Upholstery 3-seater sofa: £90 + VAT
 Upholstery armchair: £50 + VAT
 Stain treatment: from £45 + VAT
 Furniture moving surcharge: £30 + VAT
+Out of area surcharge (address outside Cheltenham and Gloucester): small additional charge, confirmed by Mark at booking
 Full house packages: significant discount, quote on request
 Commercial: tailored pricing
 

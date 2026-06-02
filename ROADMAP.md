@@ -30,7 +30,8 @@ Outstanding before this can safely take real traffic (carried into Phase 1, trac
 
 Front end and content:
 - [ ] Convert the single-file PoC to a multi-page static site (D-001). Decide hand-built HTML vs Astro before starting (open in DECISIONS.md D-001).
-- [ ] Build pages: Home, Services, Booking, About, History of carpet cleaning, Carpet science & care guides, Area pages (Cheltenham, Gloucester, Tewkesbury, Stroud, Cirencester — confirm list), Contact.
+- [ ] Build pages: Home, Services, Booking, About, History of carpet cleaning, Carpet science & care guides, Area pages, Contact.
+- [ ] Area pages reflect the service-area model (D-011): Cheltenham and Gloucester as core/no-surcharge pages, plus wider-Gloucestershire pages (Stroud, Tewkesbury, Cirencester and surrounding towns) that honestly state a small out-of-area surcharge applies. Confirm the exact surcharge figure and postcode boundary with Mark before quoting a number on a page.
 - [ ] Move the AI knowledge into a single maintainable source shared between site content and the assistant prompt (D-006).
 - [ ] Expand the AI knowledge base (fibre science, stain chemistry, method justification, history).
 
@@ -85,9 +86,19 @@ Carry the Phase 0 hardening items above into this phase.
 
 ---
 
-## Phase 5 and beyond 🔴 / ⚪
+## Field app — concurrent track (not a deferred final phase) 🔴
 
-- [ ] Field app built against the platform API (no separate backend). Front-load API work in Phase 2 only if Mark wants the app on the near roadmap (DESIGN §13).
+**Decision (D-012):** Mark wants the field app built alongside the website and fully integrated, not parked until the end. It is not yet designed, but it is a first-class client of the platform API from the start, equal to the website.
+
+What this changes about the plan:
+- **Phase 2 API design must serve both clients.** Design and version the API surface and a documented integration contract from the first backend build, with all business logic server-side so the website and app never diverge (D-003, D-012).
+- The app's own build (scoping, UI, native shell) begins once the Phase 2 API exists to consume, and progresses in parallel with Phases 3–4 rather than after them.
+- Whatever the website does through the API (book, quote, view jobs, mark complete, invoice), the app can do through the same endpoints — no app-only backend.
+
+When the app is scoped, give it its own roadmap section here.
+
+## Phase 5 and beyond — optional integrations ⚪
+
 - [ ] ⚪ SMS notifications (Mark and customers).
 - [ ] ⚪ Open banking for direct bank payments.
 - [ ] ⚪ Accounting software export for invoices.
@@ -95,13 +106,15 @@ Carry the Phase 0 hardening items above into this phase.
 
 ---
 
-## Open questions blocking later phases (from DESIGN §13)
+## Open questions (from DESIGN §13)
 
-Resolve with Mark before the phase that needs each:
+Resolved with Mark (June 2026):
+- ✅ **Service area:** Cheltenham + Gloucester core (no surcharge); wider Gloucestershire (Stroud, Tewkesbury, Cirencester, surrounding GL towns) with a small out-of-area surcharge (D-011).
+- ✅ **Field app:** built concurrently with the website and fully integrated via the shared API, not deferred (D-012).
+- ⏸️ **Domain:** still to be chosen — parked, non-blocking for Phases 0–2 (D-013). Needed before Phase 1 go-live and `ALLOWED_ORIGINS` strict mode.
 
-- Domain name to register for the live site (Phase 1).
-- Full service-area town list for the area pages (Phase 1).
+Still to resolve before the phase that needs each:
+- Exact out-of-area surcharge figure and the precise postcode boundary for "out of area" (D-011) — needed before area pages quote a number and before server-side surcharge logic.
 - Deposit policy — amount or percentage at booking (Phase 3).
 - Which calendar Mark actually uses day to day (Phase 3).
-- Whether the field app is near-roadmap or later — affects how much API work is front-loaded in Phase 2.
-- Account ownership (domain, Stripe, Google Business Profile, database) sitting with Mark from the start.
+- Account ownership (domain, Stripe, Google Business Profile, database) sitting with Mark from the start (D-009).
