@@ -4,7 +4,7 @@ The phased forward plan, derived from [docs/DESIGN.md](docs/DESIGN.md) §12 and 
 
 **Status key (RAG):** 🟢 done · 🟡 in progress · 🔴 not started · ⚪ deferred/optional
 
-**Last updated:** June 2026
+**Last updated:** 3 June 2026
 
 ---
 
@@ -17,10 +17,12 @@ Outstanding before this can safely take real traffic (carried into Phase 1, trac
 | Item | Status | Ref |
 |------|--------|-----|
 | Set `ALLOWED_ORIGINS` in Netlify (chat origin check fails open today) | 🔴 | L-001 |
-| Rate-limit booking/availability endpoints (slot-griefing risk) | 🔴 | L-006 |
+| Rate-limit booking/availability endpoints (slot-griefing risk) | 🟢 | L-006 |
 | Verify a Resend sending domain; set real from/operator addresses | 🔴 | L-004 |
-| Privacy notice on the public site | 🔴 | DESIGN §11 |
-| Constant-time admin token compare | 🔴 | — |
+| Privacy notice on the public site | 🟡 | DESIGN §11 |
+| Constant-time admin token compare | 🟢 | — |
+
+🟢 done on `hardening/phase0-pre-launch` (rate limits L-006, constant-time admin compare). 🟡 privacy notice is **drafted and live-linked but not go-live ready** — Mark must fill the data-controller placeholders (`[to confirm: …]` in `index.html`) and the wording wants a data-protection review before real traffic. 🔴 `ALLOWED_ORIGINS` (L-001) and the Resend sending domain (L-004) are blocked on the final domain (D-013) and on Netlify/Resend access; the new rate limits are the interim defence on the cost/slot paths. Verified locally by `node --test` (pure logic) + in-browser render; live 429/email/CORS behaviour verifies on a Netlify deploy preview.
 
 ---
 

@@ -101,28 +101,25 @@ RE-CLEAN POLICY:
 One free return visit if the customer is unhappy, provided they raise it within 48 hours with photographic evidence. Pre-existing permanent staining is excluded.
 
 TEXATHERM SYSTEM:
-ICC uses the Texatherm EMV 409, a professional machine offering three methods: hot water extraction, low-moisture cleaning, and a combination of both. When explaining this to customers, describe it in plain terms - for example: "It uses far less water than a standard extraction machine, which means your carpets dry in 30 to 60 minutes rather than half a day. The cleaning solution works through a heat reaction that draws dirt up from the base of the fibres rather than just washing the surface."
-Key technical points:
-Drying time 30-60 minutes (vs 4-12 hours for standard extraction)
-80% less water used - no overwetting, no mould risk
-Exothermic reaction draws dirt from carpet base to surface
-WoolSafe approved - safe for wool and all delicate carpets
-pH neutral result - no sticky residue, stays cleaner longer
-Biocidal sanitiser certified to BS EN 1040 standard
-Anti-static coating applied during every clean
-76dB quiet operation - quieter than a standard vacuum
-Digital flow control for consistent pressure on long hose runs
-Can operate remotely up to 300 metres from the machine
+ICC uses the Texatherm EMV 401, a professional low-moisture machine, together with the Texatherm TC 170, a low-speed rotary used for low-moisture and dry-compound cleaning and for hard floors. The method is low-moisture: it uses far less water than standard hot water extraction, so carpets dry much faster and there is far less risk of over-wetting. Explain it plainly and honestly, for example: "It is a low-moisture system, so it uses much less water than a standard machine and your carpets dry far quicker, usually within an hour or two rather than half a day. Less water also means much less risk of shrinkage or mould, which is why it is the safer choice for wool and natural fibres."
+Performance figures - present these as the manufacturer's own figures, never as independently proven fact, and never invent numbers:
+Texatherm states drying in roughly 30 to 60 minutes, much faster than the 4 to 12 hours typical of standard extraction.
+Texatherm states up to 80% less water than standard extraction, which reduces the risk of over-wetting and slow drying.
+Benefits we can always stand behind (lead with these):
+Low-moisture cleaning is the recognised safe approach for wool and delicate natural fibres, because over-wetting can cause shrinkage, browning, backing delamination or mould.
+A thorough, low-residue clean helps carpets stay cleaner for longer, because leftover detergent residue attracts soil (a common problem with DIY cleaning).
+Anti-static and deodoriser treatments can be applied where they are useful.
+Never tell a customer the system or our products are "WoolSafe approved", never quote a noise or decibel figure, and never state as established fact that an "exothermic reaction draws dirt from the base of the fibre". We cannot substantiate these claims.
 
 PRODUCTS AND CHEMICALS:
-Always reassure customers that the products used are safe, low-toxicity, and appropriate for homes with children and pets. Key products:
-Cleaning solution: pH-neutral, WoolSafe-approved solution. Works through an exothermic reaction. Leaves no sticky residue and does not attract future soiling the way some DIY products do.
-Pre-treatment spray: enzyme-based pre-spray used on protein stains such as blood, urine, and food. Breaks down the stain at a molecular level before cleaning begins.
-Solvent spotter: used on oil-based stains such as grease, tar, or make-up. Applied before the main clean.
-Biocidal sanitiser: certified to BS EN 1040, kills 99.9% of bacteria. Applied as standard on every clean - particularly important in homes with pets or young children.
-Anti-static treatment: applied during the clean. Reduces static electricity in synthetic carpets and helps repel future soiling, keeping carpets cleaner for longer.
-Deodouriser: available on request. Particularly recommended for pet odours or smoky environments.
-All products are rinse-free and safe once dry, typically within 30 to 60 minutes. No bleach, no harsh solvents, no high-pH chemicals that can damage fibres or backing.
+Reassure customers honestly that the products are chosen to be low-toxicity and appropriate for homes with children and pets. Key products:
+Cleaning solution: a low-residue solution formulated to be safe for use on wool and delicate fibres. It is not a high-pH product and leaves little residue, so it does not attract soil the way some DIY products do. It is fine to tell a customer the products are safe for use on wool; never call them "WoolSafe approved" (that is a separate, independent certification ICC does not hold) or describe an "exothermic reaction".
+Pre-treatment spray: an enzyme-based pre-spray for protein stains such as blood, urine and food, which breaks the stain down before cleaning begins.
+Solvent spotter: for oil-based stains such as grease, tar or make-up, applied before the main clean.
+Sanitiser: an anti-bacterial sanitiser can be applied, particularly useful in homes with pets or young children. Certain products in the Texatherm range (for example Dio-Cleanse and Advanced Cleaner) are independently tested to the BS EN 1040 disinfectant standard. Do not claim a "kills 99.9%" figure for cleaning a carpet, as that is a basic laboratory screen and not a real-world carpet claim.
+Anti-static treatment: can be applied to reduce static in synthetic carpets and help repel future soiling.
+Deodouriser: available on request, useful for pet odours or smoky environments.
+Products are chosen to be safe once dry, and we never use bleach or harsh high-pH chemicals that can damage fibres or backing.
 
 CARPET TYPE AND METHOD:
 Wool / Axminster / Wilton: Texatherm low-moisture only. Wool is sensitive to excess moisture and heat. Overwetting can cause shrinkage, browning, or delamination. The low-moisture method is the only safe professional approach.
@@ -218,22 +215,41 @@ function getClientIP(event){
   return first || event.headers["client-ip"] || event.headers["x-real-ip"] || "";
 }
 
-// Sliding-window rate limit for the AI chat path (NOT availability/booking,
-// which are cheap). 30 chat messages per IP per hour. Fails open if Blobs
-// are unavailable so a storage outage never blocks legitimate customers.
-async function checkChatRateLimit(ip){
+// 429 response shared by all rate-limited paths.
+function tooManyResponse(baseHeaders, retryAfter){
+  return {
+    statusCode: 429,
+    headers: Object.assign({}, baseHeaders, { "Retry-After": String(retryAfter || 3600) }),
+    body: JSON.stringify({ error: "Too many requests. Please wait a little and try again, or call us on 01242 279590." })
+  };
+}
+
+// Sliding-window per-IP rate limiting, backed by Blobs. The pure decision logic
+// lives in rateLimit() so it can be unit-tested with an in-memory store (see
+// test/hardening.test.js); enforceRateLimit() wraps it with the real Blobs store
+// and the fail-open policy — a storage outage must never block a real customer.
+//
+// rateLimit records `now` in a per-key timestamp list, drops entries older than
+// the window, and refuses once the list reaches `limit`. The store is injected:
+// any object with async get(key)->string|null and set(key, value).
+async function rateLimit(store, key, limit, windowMs, now){
+  const data = await store.get(key);
+  const arr = (data ? JSON.parse(data) : []).filter(t => t > now - windowMs);
+  if(arr.length >= limit) return { ok: false, retryAfter: Math.ceil(windowMs / 1000) };
+  arr.push(now);
+  await store.set(key, JSON.stringify(arr));
+  return { ok: true };
+}
+
+// Production wrapper: real Blobs store, namespaced key, fail-open on any error.
+// Used for three paths at different limits — chat (AI cost), booking confirmation
+// (expensive write + slot-griefing vector), and availability (cheap but loopable).
+async function enforceRateLimit(ip, prefix, limit){
   if(!ip) return { ok: true };
+  const windowMs = 60 * 60 * 1000;
   try {
     const store = getBlobStore();
-    const key = "rl:" + ip;
-    const data = await store.get(key);
-    const now = Date.now();
-    const windowMs = 60 * 60 * 1000;
-    const arr = (data ? JSON.parse(data) : []).filter(t => t > now - windowMs);
-    if(arr.length >= 30) return { ok: false, retryAfter: 3600 };
-    arr.push(now);
-    await store.set(key, JSON.stringify(arr));
-    return { ok: true };
+    return await rateLimit(store, prefix + ":" + ip, limit, windowMs, Date.now());
   } catch(e){
     console.log("Rate limit blob unavailable, failing open:", e.message);
     return { ok: true };
@@ -279,26 +295,29 @@ exports.handler = async function (event) {
     }
   }
 
-  // Handle booking confirmation separately
+  // Per-IP client identity, shared by all three POST actions for rate limiting.
+  const ip = getClientIP(event);
+
+  // Handle booking confirmation separately. Rate-limited hardest: each confirm
+  // writes slot blocks, generates a PDF, and sends two emails, and looping it is
+  // the slot-griefing vector (L-006). A real customer confirms once, maybe twice.
   if (body.action === "confirm_booking") {
+    const rl = await enforceRateLimit(ip, "rl:book", 5);
+    if(!rl.ok) return tooManyResponse(baseHeaders, rl.retryAfter);
     return await handleBooking(body.booking, resendKey, baseHeaders);
   }
 
-  // Handle availability check
+  // Handle availability check. Read-only and cheap, but loopable for slot
+  // enumeration, so it gets a looser per-IP cap (L-006).
   if (body.action === "check_availability") {
+    const rl = await enforceRateLimit(ip, "rl:avail", 60);
+    if(!rl.ok) return tooManyResponse(baseHeaders, rl.retryAfter);
     return await checkAvailability(body.date, body.slots_needed, baseHeaders);
   }
 
-  // AI chat path — apply per-IP rate limit before hitting Anthropic
-  const ip = getClientIP(event);
-  const rl = await checkChatRateLimit(ip);
-  if(!rl.ok){
-    return {
-      statusCode: 429,
-      headers: Object.assign({}, baseHeaders, { "Retry-After": String(rl.retryAfter || 3600) }),
-      body: JSON.stringify({ error: "Too many requests. Please wait a little and try again, or call us on 01242 279590." })
-    };
-  }
+  // AI chat path — per-IP rate limit before hitting Anthropic (the AI cost path).
+  const rl = await enforceRateLimit(ip, "rl:chat", 30);
+  if(!rl.ok) return tooManyResponse(baseHeaders, rl.retryAfter);
 
   const assistantName = (body.assistantName && ["Jamie","Alex","Sam","Ellie","Tom"].includes(body.assistantName))
     ? body.assistantName : "Jamie";
@@ -873,3 +892,6 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
     doc.end();
   });
 }
+
+// Exported for unit tests (test/hardening.test.js). Not used by the handler.
+exports.rateLimit = rateLimit;

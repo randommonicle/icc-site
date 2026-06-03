@@ -1,3 +1,16 @@
+const crypto = require("crypto");
+
+// Constant-time bearer-token comparison. Both sides are hashed to a fixed 32-byte
+// digest first, so timingSafeEqual never sees a length mismatch — that would both
+// throw and leak the secret's length through the error path. Single-operator
+// dashboard, but cheap to do correctly.
+function safeEqual(provided, expected){
+  if(typeof provided !== "string" || typeof expected !== "string" || !provided || !expected) return false;
+  const a = crypto.createHash("sha256").update(provided).digest();
+  const b = crypto.createHash("sha256").update(expected).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
 exports.handler = async function(event) {
   const headers = {
     "Content-Type": "application/json",
@@ -12,7 +25,7 @@ exports.handler = async function(event) {
   const authHeader = event.headers["authorization"] || "";
   const providedToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
 
-  if(!adminSecret || providedToken !== adminSecret){
+  if(!adminSecret || !safeEqual(providedToken, adminSecret)){
     return { statusCode: 401, headers, body: JSON.stringify({ error: "Unauthorized" }) };
   }
 
@@ -51,3 +64,6 @@ exports.handler = async function(event) {
     };
   }
 };
+
+// Exported for unit tests (test/hardening.test.js).
+exports.safeEqual = safeEqual;
