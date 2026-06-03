@@ -13,6 +13,38 @@ interface Props {
 const { title, description } = Astro.props;
 // Astro.site comes from astro.config.mjs; canonical is the absolute page URL.
 const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const siteUrl = (Astro.site?.href ?? 'https://www.intelligentcarpetcleaning.co.uk/').replace(/\/$/, '');
+
+// Site-wide LocalBusiness structured data. Only confirmed contact/geo facts —
+// no cleaning-method or USP claims (those wait on the verified Texatherm brief).
+const localBusiness = {
+  '@context': 'https://schema.org',
+  '@type': 'LocalBusiness',
+  '@id': `${siteUrl}/#business`,
+  name: 'Intelligent Carpet Cleaning',
+  description: 'Specialist carpet and upholstery cleaning serving Cheltenham and the wider Gloucestershire area.',
+  url: siteUrl,
+  image: `${siteUrl}/logo.jpg`,
+  telephone: '+441242279590',
+  email: 'talktoregency@gmail.com',
+  address: {
+    '@type': 'PostalAddress',
+    addressLocality: 'Cheltenham',
+    addressRegion: 'Gloucestershire',
+    addressCountry: 'GB',
+  },
+  areaServed: [
+    'Cheltenham', 'Gloucester', 'Stroud', 'Tewkesbury', 'Cirencester',
+    'Winchcombe', 'Bishops Cleeve', 'Charlton Kings', 'Prestbury', 'Gloucestershire',
+  ],
+  openingHoursSpecification: [{
+    '@type': 'OpeningHoursSpecification',
+    dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+    opens: '08:00',
+    closes: '18:00',
+  }],
+  priceRange: '££',
+};
 ---
 <!DOCTYPE html>
 <html lang="en">
@@ -26,6 +58,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site).href;
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    <script type="application/ld+json" set:html={JSON.stringify(localBusiness)} />
     <link
       href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;600;700;800&family=Lato:wght@300;400;700&display=swap"
       rel="stylesheet"
