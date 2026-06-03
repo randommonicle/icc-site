@@ -1,0 +1,117 @@
+---
+// Care-guides index. Lists the published guides from the `guides` collection,
+// sorted by their `order` field. New guides appear here automatically.
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const guides = (await getCollection('guides', ({ data }) => !data.draft)).sort(
+  (a, b) => a.data.order - b.data.order,
+);
+---
+<BaseLayout
+  title="Carpet Care Guides | Intelligent Carpet Cleaning"
+  description="Expert, honest guides to cleaning and caring for carpets and upholstery: wool and natural fibres, which stains are permanent, and choosing the right cleaning method. Written by Intelligent Carpet Cleaning, Cheltenham."
+>
+  <section class="guides-index">
+    <div class="guides-hero">
+      <div class="section-label guides-hero-label">Carpet Knowledge</div>
+      <h1>Carpet Care Guides</h1>
+      <p>Straight, expert advice on getting the best from your carpets and upholstery, and on knowing what is realistic. No sales spin: where a stain is permanent or a method carries a risk, we say so.</p>
+    </div>
+
+    <div class="guides-list">
+      {guides.map((g) => (
+        <a class="guide-card" href={`/guides/${g.id}`}>
+          <h2 class="guide-card-title">{g.data.title}</h2>
+          <p class="guide-card-summary">{g.data.summary}</p>
+          <span class="guide-card-link">Read the guide &rarr;</span>
+        </a>
+      ))}
+    </div>
+
+    <p class="guides-related">
+      Related reading: <a href="/history">The History of Carpet Cleaning</a>.
+    </p>
+  </section>
+</BaseLayout>
+
+<style>
+  .guides-index { padding-top: 70px; }
+
+  .guides-hero {
+    background: linear-gradient(135deg, var(--navy-dark), var(--navy));
+    padding: 4rem 2rem;
+    text-align: center;
+  }
+  .guides-hero-label { color: var(--teal-light); margin-bottom: 0.75rem; }
+  .guides-hero h1 {
+    font-family: "Raleway", sans-serif;
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 1rem;
+    letter-spacing: -0.02em;
+  }
+  .guides-hero p {
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 1.05rem;
+    font-weight: 300;
+    max-width: 680px;
+    margin: 0 auto;
+    line-height: 1.8;
+  }
+
+  .guides-list {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 3.5rem 2rem 1rem;
+    display: grid;
+    gap: 1.5rem;
+  }
+  .guide-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    border-left: 3px solid var(--teal);
+    padding: 1.75rem 2rem;
+    text-decoration: none;
+    display: block;
+    transition: box-shadow 0.2s, transform 0.15s;
+  }
+  .guide-card:hover {
+    box-shadow: 0 6px 24px rgba(26, 138, 122, 0.12);
+    transform: translateY(-2px);
+  }
+  .guide-card-title {
+    font-family: "Raleway", sans-serif;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 0.5rem;
+  }
+  .guide-card-summary {
+    color: var(--text-mid);
+    font-size: 0.95rem;
+    line-height: 1.7;
+    margin-bottom: 0.9rem;
+  }
+  .guide-card-link {
+    color: var(--teal);
+    font-weight: 700;
+    font-size: 0.88rem;
+    letter-spacing: 0.03em;
+  }
+
+  .guides-related {
+    max-width: 880px;
+    margin: 1.5rem auto 4rem;
+    padding: 0 2rem;
+    text-align: center;
+    color: var(--text-light);
+    font-size: 0.92rem;
+  }
+  .guides-related a { color: var(--teal); }
+
+  @media (max-width: 768px) {
+    .guides-hero h1 { font-size: 2rem; }
+  }
+</style>
