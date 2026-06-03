@@ -57,7 +57,7 @@ While a spill is still wet it is just a spill. Once it dries and bonds to the fi
 - **Use cool water,** never hot, especially on protein stains like blood that heat can set.
 - **Avoid harsh or coloured products** that can bleach or add their own dye, and never reach for household bleach.
 
-Then get advice before the mark has a chance to set.
+For the full step-by-step, see our companion guide on [carpet care at home](/guides/carpet-care-at-home/). And get advice before the mark has a chance to set.
 
 ## Our honest approach
 
