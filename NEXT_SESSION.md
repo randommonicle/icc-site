@@ -2,38 +2,34 @@
 
 Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file at the end of every working session so the next person (or AI) can continue cold.
 
-**Last updated:** June 2026 (scaffold + roadmap + service-area / field-app decisions; pushed to git)
+**Last updated:** 3 June 2026 (Phase 0 pre-launch hardening — on branch `hardening/phase0-pre-launch`, PR open into `main`, not yet merged)
 
 ---
 
 ## Current state
 
 - Phase 0 proof of concept is built and functional: single-page site, AI assistant (Sonnet + Opus vision), availability + booking via Netlify Blobs, Resend confirmation emails, PDF job card, password-gated admin dashboard.
-- The codebase has already had a security-hardening and prompt-caching pass (see git log). It is in good shape for its size.
-- This session added the engineering discipline this repo was missing: `README.md`, `CLAUDE.md`, `ROADMAP.md`, `DECISIONS.md`, `LESSONS_LEARNED.md`, this file, and `docs/DESIGN.md` (the agreed product brief).
-- Work is on branch `docs/scaffold-and-roadmap`, off `main`. Not yet merged.
+- Engineering scaffold, the phased [ROADMAP.md](ROADMAP.md), the decision log (D-001..D-014), and [LESSONS_LEARNED.md](LESSONS_LEARNED.md) are all merged to `main`.
+- **In flight (this session):** Phase 0 pre-launch hardening on branch `hardening/phase0-pre-launch` — PR open, awaiting Ben's deliberate merge (do not merge mid-traffic without sign-off):
+  - Per-IP rate limits on `confirm_booking` (5/hr) and `check_availability` (60/hr), alongside the existing chat cap (30/hr) — L-006 closed.
+  - Constant-time admin token comparison in `bookings.js`.
+  - A privacy notice drafted and linked across `index.html` — **not go-live ready**: the `[to confirm: …]` placeholders need Mark's data-controller details and a data-protection review.
+  - Origin check (L-001) deliberately left fail-open — it auto-enforces once `ALLOWED_ORIGINS` is set in Netlify (blocked on the final domain, D-013).
+  - First unit tests added: `test/hardening.test.js` (`node --test`, no creds needed).
 
 ## What was just done
 
-- Reviewed the platform design document and turned it into a phased, RAG-tracked [ROADMAP.md](ROADMAP.md).
-- Captured the architectural choices as decision records D-001..D-013 in [DECISIONS.md](DECISIONS.md).
-- Seeded [LESSONS_LEARNED.md](LESSONS_LEARNED.md) with eight entries — some from reviewing the current code, some carried pre-emptively from the ASH app.
-- Confirmed with Mark and encoded:
-  - **Service area (D-011):** Cheltenham + Gloucester core (no surcharge); wider Gloucestershire with a small out-of-area surcharge. Updated the live AI prompt in `chat.js` (service-area block + a pricing line) so the assistant flags the surcharge without inventing a figure.
-  - **Field app (D-012):** built concurrently with the website and fully integrated via the shared API — added a dedicated concurrent-track section to the roadmap.
-  - **Domain (D-013):** deferred but non-blocking for now.
-- Added a Continuity / bus-factor section to [CLAUDE.md](CLAUDE.md) so a stranger could pick this up cold.
-- Pushed everything to git so the home machine can pull it.
+- Verified the local `C:\Users\ben\icc-site` checkout is a complete, in-sync mirror of GitHub — all three branches level with their remotes, no stale worktrees, nothing uncommitted at risk.
+- Implemented and verified the Phase 0 hardening above. Verification run: `node --check` on both functions, `node --test` 8/8 green, and the privacy section rendered + navigation confirmed in a browser. **Not yet verified:** live 429 / email / CORS behaviour against real Blobs — that needs a Netlify deploy preview (there is no local `.env`/CLI on this machine).
+- Updated [ROADMAP.md](ROADMAP.md) Phase 0 table, [LESSONS_LEARNED.md](LESSONS_LEARNED.md) L-006 (now resolved), and the [CLAUDE.md](CLAUDE.md) hardening checklist to match.
 
 ## Immediate next steps (suggested order)
 
-1. **Get the exact out-of-area surcharge figure and postcode boundary from Mark** (D-011), then encode it so the assistant quotes a concrete number and the server applies it.
-2. **Close the Phase 0 hardening gaps before any real-traffic launch** (tracked in ROADMAP Phase 0 table):
-   - Set `ALLOWED_ORIGINS` in Netlify (L-001).
-   - Rate-limit the booking/availability endpoints (L-006).
-   - Verify a Resend sending domain and set real from/operator addresses (L-004).
-   - Add a privacy notice to the site (DESIGN §11).
-3. **Decide the Phase 1 front-end approach** (hand-built HTML vs Astro — D-001) so the multi-page conversion can start.
+1. **Merge the `hardening/phase0-pre-launch` PR** once reviewed (deliberate merge; not mid-traffic without sign-off). Then, on a deploy preview, smoke-test the three rate limits (confirm 429s) and that a normal booking still completes end to end.
+2. **Phase 1 is starting — decide D-001 (Astro vs hand-built HTML)** before the multi-page conversion begins. This is the active gate.
+3. **Fill the privacy-notice placeholders with Mark** (registered name / legal status, postal address, ICO registration, retention period) and get a data-protection review before go-live.
+4. **Remaining Phase 0 gaps**, blocked on the domain (D-013) / accounts: set `ALLOWED_ORIGINS` in Netlify (L-001), and verify a Resend sending domain + real from/operator addresses (L-004).
+5. **Still blocked on Mark:** exact out-of-area surcharge figure + postcode boundary (D-011); confirm account ownership sits with Mark (D-009).
 
 ## Things to watch / not yet decided
 
