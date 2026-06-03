@@ -218,22 +218,41 @@ function getClientIP(event){
   return first || event.headers["client-ip"] || event.headers["x-real-ip"] || "";
 }
 
-// Sliding-window rate limit for the AI chat path (NOT availability/booking,
-// which are cheap). 30 chat messages per IP per hour. Fails open if Blobs
-// are unavailable so a storage outage never blocks legitimate customers.
-async function checkChatRateLimit(ip){
+// 429 response shared by all rate-limited paths.
+function tooManyResponse(baseHeaders, retryAfter){
+  return {
+    statusCode: 429,
+    headers: Object.assign({}, baseHeaders, { "Retry-After": String(retryAfter || 3600) }),
+    body: JSON.stringify({ error: "Too many requests. Please wait a little and try again, or call us on 01242 279590." })
+  };
+}
+
+// Sliding-window per-IP rate limiting, backed by Blobs. The pure decision logic
+// lives in rateLimit() so it can be unit-tested with an in-memory store (see
+// test/hardening.test.js); enforceRateLimit() wraps it with the real Blobs store
+// and the fail-open policy — a storage outage must never block a real customer.
+//
+// rateLimit records `now` in a per-key timestamp list, drops entries older than
+// the window, and refuses once the list reaches `limit`. The store is injected:
+// any object with async get(key)->string|null and set(key, value).
+async function rateLimit(store, key, limit, windowMs, now){
+  const data = await store.get(key);
+  const arr = (data ? JSON.parse(data) : []).filter(t => t > now - windowMs);
+  if(arr.length >= limit) return { ok: false, retryAfter: Math.ceil(windowMs / 1000) };
+  arr.push(now);
+  await store.set(key, JSON.stringify(arr));
+  return { ok: true };
+}
+
+// Production wrapper: real Blobs store, namespaced key, fail-open on any error.
+// Used for three paths at different limits — chat (AI cost), booking confirmation
+// (expensive write + slot-griefing vector), and availability (cheap but loopable).
+async function enforceRateLimit(ip, prefix, limit){
   if(!ip) return { ok: true };
+  const windowMs = 60 * 60 * 1000;
   try {
     const store = getBlobStore();
-    const key = "rl:" + ip;
-    const data = await store.get(key);
-    const now = Date.now();
-    const windowMs = 60 * 60 * 1000;
-    const arr = (data ? JSON.parse(data) : []).filter(t => t > now - windowMs);
-    if(arr.length >= 30) return { ok: false, retryAfter: 3600 };
-    arr.push(now);
-    await store.set(key, JSON.stringify(arr));
-    return { ok: true };
+    return await rateLimit(store, prefix + ":" + ip, limit, windowMs, Date.now());
   } catch(e){
     console.log("Rate limit blob unavailable, failing open:", e.message);
     return { ok: true };
@@ -279,26 +298,29 @@ exports.handler = async function (event) {
     }
   }
 
-  // Handle booking confirmation separately
+  // Per-IP client identity, shared by all three POST actions for rate limiting.
+  const ip = getClientIP(event);
+
+  // Handle booking confirmation separately. Rate-limited hardest: each confirm
+  // writes slot blocks, generates a PDF, and sends two emails, and looping it is
+  // the slot-griefing vector (L-006). A real customer confirms once, maybe twice.
   if (body.action === "confirm_booking") {
+    const rl = await enforceRateLimit(ip, "rl:book", 5);
+    if(!rl.ok) return tooManyResponse(baseHeaders, rl.retryAfter);
     return await handleBooking(body.booking, resendKey, baseHeaders);
   }
 
-  // Handle availability check
+  // Handle availability check. Read-only and cheap, but loopable for slot
+  // enumeration, so it gets a looser per-IP cap (L-006).
   if (body.action === "check_availability") {
+    const rl = await enforceRateLimit(ip, "rl:avail", 60);
+    if(!rl.ok) return tooManyResponse(baseHeaders, rl.retryAfter);
     return await checkAvailability(body.date, body.slots_needed, baseHeaders);
   }
 
-  // AI chat path — apply per-IP rate limit before hitting Anthropic
-  const ip = getClientIP(event);
-  const rl = await checkChatRateLimit(ip);
-  if(!rl.ok){
-    return {
-      statusCode: 429,
-      headers: Object.assign({}, baseHeaders, { "Retry-After": String(rl.retryAfter || 3600) }),
-      body: JSON.stringify({ error: "Too many requests. Please wait a little and try again, or call us on 01242 279590." })
-    };
-  }
+  // AI chat path — per-IP rate limit before hitting Anthropic (the AI cost path).
+  const rl = await enforceRateLimit(ip, "rl:chat", 30);
+  if(!rl.ok) return tooManyResponse(baseHeaders, rl.retryAfter);
 
   const assistantName = (body.assistantName && ["Jamie","Alex","Sam","Ellie","Tom"].includes(body.assistantName))
     ? body.assistantName : "Jamie";
@@ -873,3 +895,6 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
     doc.end();
   });
 }
+
+// Exported for unit tests (test/hardening.test.js). Not used by the handler.
+exports.rateLimit = rateLimit;

@@ -237,11 +237,11 @@ There is no build step in Phase 0 (static files + functions). When the front end
 
 Tracked in full in [LESSONS_LEARNED.md](LESSONS_LEARNED.md) and the roadmap. The live priorities before any real-traffic launch:
 
-- [ ] **Set `ALLOWED_ORIGINS`** in Netlify. The chat origin check fails open by default; the rate limit is currently the only defence on the AI cost path (L-001).
-- [ ] **Rate-limit the booking/availability endpoints.** Only the chat path is throttled today, so a direct POST loop could block calendar slots (slot-griefing). Add a per-IP cap or lightweight challenge (L-006).
+- [ ] **Set `ALLOWED_ORIGINS`** in Netlify. The chat origin check fails open by default; the rate limits are currently the only defence on the AI cost path (L-001). Blocked on the final domain (D-013); the code auto-enforces strict mode once the env var is set (`chat.js`).
+- [x] **Rate-limit the booking/availability endpoints.** Done — per-IP caps on all three POST actions (chat 30/hr, `confirm_booking` 5/hr, `check_availability` 60/hr), fail-open if Blobs are unavailable (L-006).
 - [ ] **Verify a Resend sending domain** and set `OPERATOR_EMAIL` / `OPERATOR_FROM` / `CUSTOMER_FROM` to real addresses. Remember: "accepted by Resend" is not "delivered" (L-004).
-- [ ] **Add a privacy notice** to the public site before collecting data at any scale ([docs/DESIGN.md](docs/DESIGN.md) §11).
-- [ ] **Constant-time compare** for the admin token (minor; single-operator dashboard).
+- [ ] **Add a privacy notice** to the public site before collecting data at any scale. Drafted and linked across the site; Mark must fill the `[to confirm: …]` data-controller details in `index.html` and get a data-protection review before go-live ([docs/DESIGN.md](docs/DESIGN.md) §11).
+- [x] **Constant-time compare** for the admin token — done (SHA-256 + `crypto.timingSafeEqual` in `bookings.js`).
 
 ---
 
