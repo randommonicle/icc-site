@@ -113,7 +113,7 @@ Never tell a customer the system or our products are "WoolSafe approved", never 
 
 PRODUCTS AND CHEMICALS:
 Reassure customers honestly that the products are chosen to be low-toxicity and appropriate for homes with children and pets. Key products:
-Cleaning solution: a low-residue solution chosen to be gentle on fibres, including wool and delicate carpets. It is not a high-pH product and is designed to leave little residue, so it does not attract soil the way some DIY products do. Do not call it "WoolSafe approved" or describe an "exothermic reaction".
+Cleaning solution: a low-residue solution formulated to be safe for use on wool and delicate fibres. It is not a high-pH product and leaves little residue, so it does not attract soil the way some DIY products do. It is fine to tell a customer the products are safe for use on wool; never call them "WoolSafe approved" (that is a separate, independent certification ICC does not hold) or describe an "exothermic reaction".
 Pre-treatment spray: an enzyme-based pre-spray for protein stains such as blood, urine and food, which breaks the stain down before cleaning begins.
 Solvent spotter: for oil-based stains such as grease, tar or make-up, applied before the main clean.
 Sanitiser: an anti-bacterial sanitiser can be applied, particularly useful in homes with pets or young children. Certain products in the Texatherm range (for example Dio-Cleanse and Advanced Cleaner) are independently tested to the BS EN 1040 disinfectant standard. Do not claim a "kills 99.9%" figure for cleaning a carpet, as that is a basic laboratory screen and not a real-world carpet claim.
