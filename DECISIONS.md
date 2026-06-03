@@ -8,10 +8,14 @@ Same convention as the ASH app and PropOS. Reference decisions by ID from code c
 
 ---
 
-## D-001 — Multi-page static front end (not single-file, not an SPA)
-**Status:** Accepted (front-end tool still Open)
+## D-001 — Multi-page static front end, built with Astro
+**Status:** Accepted (front-end tool resolved: Astro, June 2026)
 
-The public site becomes a proper multi-page static site so each page is independently crawlable and can target its own search terms. This is the foundation of the SEO strategy (DESIGN §4, §9). Open sub-question: hand-built HTML vs a static site generator such as Astro. Astro gives components/layouts and content collections (useful once there are many guide/area pages) at the cost of a build step. Decide before Phase 1 build starts. Either way it deploys on Netlify and stays fully static.
+The public site becomes a proper multi-page static site so each page is independently crawlable and can target its own search terms — the foundation of the SEO strategy (DESIGN §4, §9).
+
+The front-end-tool sub-question is **resolved in favour of Astro** (a static site generator). Reasoning: Phase 1 is content- and SEO-heavy (Services, About, History, a growing library of care guides, and several core/wider-area pages per D-011), which is exactly where Astro's shared layouts/components and content collections remove duplication and keep per-page SEO consistent; `@astrojs/sitemap` generates the sitemap at build; output is zero-JS static HTML (fast, fully crawlable); and the existing chat widget ports cleanly as a client-side island with the `/api/*` serverless contract unchanged. The cost is a Node build step — already anticipated in CLAUDE.md, and immaterial on the project's paid Netlify plan. Hand-built HTML was the alternative; rejected because ~12+ pages would duplicate head/nav/footer and need hand-maintained meta, structured data, and sitemap, with drift being the exact failure mode Phase 1 is trying to avoid.
+
+Implementation: scaffolded under `site/` — a small, deliberate pull-forward of the D-014 monorepo layout, so the site is not relocated at Phase 2. TypeScript strict, vanilla CSS ported from the Phase 0 site, static output, deployed on Netlify. The Phase 0 single-page `index.html` keeps serving until the Astro site is cut over in a dedicated PR.
 
 ## D-002 — Supabase (managed Postgres) for the operational backend
 **Status:** Accepted
