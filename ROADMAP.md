@@ -26,9 +26,11 @@ Outstanding before this can safely take real traffic (carried into Phase 1, trac
 
 ---
 
-## Phase 1 — Public site and findability 🔴
+## Phase 1 — Public site and findability 🟡
 
 **Outcome:** a fast, expert, fully indexable site that ranks and converts. No new backend yet.
+
+🟡 In progress on `feat/phase1-public-site` (built, not yet cut over). Done on the branch: Astro scaffold + 8 pages (home, services, about, contact, history, privacy, book, guides), shared `BaseLayout` with per-page SEO + site-wide LocalBusiness JSON-LD, `@astrojs/sitemap`, and a **care-guides content collection** (3 guides) carrying per-guide **FAQ + Article JSON-LD**. Remaining: area pages (blocked on the D-011 surcharge figure), more guides, sitemap/robots review + Search Console/GBP, the review-request engine, and the cutover PR. Carry the Phase 0 hardening items below into go-live.
 
 Front end and content:
 - [ ] Convert the single-file PoC to a multi-page static site (D-001). Decide hand-built HTML vs Astro before starting (open in DECISIONS.md D-001).
