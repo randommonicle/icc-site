@@ -3,10 +3,10 @@
 // collection. Structured facts (tier, postcodes, nearby, FAQ) come from
 // frontmatter and are emitted as BreadcrumbList + Service + FAQPage JSON-LD via
 // BaseLayout's head slot; the Markdown body is the local prose. The `tier`
-// field is the honesty switch — 'core' shows "no travel surcharge", 'wider'
-// shows a small out-of-area surcharge "confirmed at booking", never a figure
-// (the amount and postcode boundary are still open with Mark; L-009 — do not
-// invent claims). Styling mirrors the care-guide template.
+// field is the honesty switch — 'core' (Cheltenham, Gloucester, Winchcombe)
+// shows "no travel surcharge"; 'wider' shows the flat £15 + VAT out-of-area
+// surcharge (confirmed by Mark, June 2026; D-011). Styling mirrors the
+// care-guide template.
 import { getCollection, render } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 
@@ -80,7 +80,7 @@ const services = [
       {tier === 'core' ? (
         <div class="area-badge area-badge-core">Core service area &mdash; no travel surcharge</div>
       ) : (
-        <div class="area-badge area-badge-wider">Wider Gloucestershire &mdash; small out-of-area surcharge, confirmed at booking</div>
+        <div class="area-badge area-badge-wider">Wider Gloucestershire &mdash; flat £15 + VAT out-of-area surcharge</div>
       )}
     </div>
 
@@ -101,9 +101,9 @@ const services = [
 
       <div class={`area-surcharge area-surcharge-${tier}`}>
         {tier === 'core' ? (
-          <p><strong>No travel surcharge.</strong> {town} is within our core Cheltenham and Gloucester service area, so you pay the standard per-room pricing on our <a href="/services">services page</a>, plus VAT.</p>
+          <p><strong>No travel surcharge.</strong> {town} is within our core Cheltenham, Gloucester and Winchcombe service area, so you pay the standard per-room pricing on our <a href="/services">services page</a>, plus VAT.</p>
         ) : (
-          <p><strong>A small out-of-area surcharge applies.</strong> {town} sits outside our core Cheltenham&ndash;Gloucester area, so a modest travel surcharge is added. We confirm the exact amount when you book &mdash; no hidden charges, and you will have the full price before you commit. Everything else follows the standard pricing on our <a href="/services">services page</a>.</p>
+          <p><strong>A flat £15 + VAT out-of-area surcharge applies.</strong> {town} sits outside our core Cheltenham, Gloucester and Winchcombe area, so a flat £15 + VAT travel surcharge is added and shown up front &mdash; no hidden charges, and you will have the full price before you commit. Everything else follows the standard pricing on our <a href="/services">services page</a>.</p>
         )}
       </div>
 

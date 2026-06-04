@@ -26,10 +26,10 @@ const guides = defineCollection({
 // Service-area pages (D-011). One Markdown file per town drives a page at
 // /areas/<slug>. Frontmatter carries the structured facts (tier, postcodes,
 // nearby places, FAQ) the template renders AND emits as JSON-LD; the Markdown
-// body is the local prose. `tier` is the honesty switch: 'core' = Cheltenham /
-// Gloucester, no travel surcharge; 'wider' = wider Gloucestershire, a small
-// out-of-area surcharge confirmed at booking — never an invented figure, since
-// the exact amount and postcode boundary are still open with Mark (L-009).
+// body is the local prose. `tier` is the honesty switch: 'core' = Cheltenham,
+// Gloucester and Winchcombe, no travel surcharge; 'wider' = everywhere else in
+// Gloucestershire, a flat £15 + VAT out-of-area surcharge (confirmed by Mark,
+// June 2026; D-011).
 const areas = defineCollection({
   loader: glob({ pattern: '**/*.md', base: './src/content/areas' }),
   schema: z.object({
@@ -37,7 +37,7 @@ const areas = defineCollection({
     title: z.string(), // full document <title>
     description: z.string(), // meta description / OG
     summary: z.string(), // listing-card blurb on /areas
-    tier: z.enum(['core', 'wider']), // 'core' = no surcharge; 'wider' = surcharge confirmed at booking
+    tier: z.enum(['core', 'wider']), // 'core' = no surcharge; 'wider' = flat £15 + VAT out-of-area surcharge
     postcodes: z.array(z.string()).default([]), // GL districts we cover here
     nearby: z.array(z.string()).default([]), // neighbouring places served
     order: z.number().default(50), // listing sort (low number = first)

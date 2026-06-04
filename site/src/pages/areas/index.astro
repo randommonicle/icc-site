@@ -1,8 +1,9 @@
 ---
 // Service-areas index. Lists the published areas from the `areas` collection,
-// grouped into the core (no-surcharge) and wider-Gloucestershire (surcharge
-// confirmed at booking) tiers — the honest D-011 distinction. New area pages
-// appear here automatically. A BreadcrumbList is emitted for the listing.
+// grouped into the core (Cheltenham/Gloucester/Winchcombe, no-surcharge) and
+// wider-Gloucestershire (flat £15 + VAT out-of-area surcharge) tiers — the
+// D-011 distinction. New area pages appear here automatically. A BreadcrumbList
+// is emitted for the listing.
 import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 
@@ -24,7 +25,7 @@ const breadcrumbSchema = {
 ---
 <BaseLayout
   title="Service Areas | Intelligent Carpet Cleaning"
-  description="Carpet and upholstery cleaning across Gloucestershire. Cheltenham and Gloucester are our core area with no travel surcharge; Stroud, Tewkesbury, Cirencester and the wider GL towns carry a small surcharge, always confirmed at booking."
+  description="Carpet and upholstery cleaning across Gloucestershire. Cheltenham, Gloucester and Winchcombe have no travel surcharge; everywhere else carries a flat £15 + VAT out-of-area surcharge, shown up front."
 >
   <Fragment slot="head">
     <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
@@ -34,7 +35,7 @@ const breadcrumbSchema = {
     <div class="areas-hero">
       <div class="section-label areas-hero-label">Service Areas</div>
       <h1>Where We Clean</h1>
-      <p>Cheltenham and Gloucester are our core area, with no travel surcharge. We also cover the wider Gloucestershire towns — Stroud, Tewkesbury, Cirencester and the surrounding GL postcodes — where a small out-of-area surcharge applies, always confirmed when you book.</p>
+      <p>Cheltenham, Gloucester and Winchcombe are our core area, with no travel surcharge. We also cover the wider Gloucestershire towns — Stroud, Tewkesbury, Cirencester and the surrounding GL postcodes — where a flat £15 + VAT out-of-area surcharge applies, always shown up front.</p>
     </div>
 
     <div class="areas-body">
@@ -52,7 +53,7 @@ const breadcrumbSchema = {
         ))}
       </div>
 
-      <h2 class="areas-group-title">Wider Gloucestershire <span>&mdash; small surcharge, confirmed at booking</span></h2>
+      <h2 class="areas-group-title">Wider Gloucestershire <span>&mdash; flat £15 + VAT out-of-area surcharge</span></h2>
       <div class="areas-list">
         {wider.map((a) => (
           <a class="area-card area-card-wider" href={`/areas/${a.id}`}>
@@ -68,7 +69,7 @@ const breadcrumbSchema = {
 
       <p class="areas-note">
         Just outside these towns? We very likely still cover you. Start a <a href="/book">booking</a> and our assistant
-        flags any out-of-area surcharge up front, or <a href="/contact">get in touch</a>.
+        adds the flat £15 + VAT out-of-area surcharge up front, or <a href="/contact">get in touch</a>.
       </p>
     </div>
   </section>

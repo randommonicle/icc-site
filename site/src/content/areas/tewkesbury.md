@@ -1,8 +1,8 @@
 ---
 town: "Tewkesbury"
 title: "Carpet Cleaning in Tewkesbury | Intelligent Carpet Cleaning"
-description: "Professional carpet and upholstery cleaning in Tewkesbury and the surrounding villages. Part of the wider Gloucestershire area we serve, with a small out-of-area surcharge confirmed at booking."
-summary: "Tewkesbury and nearby villages — wider Gloucestershire area. A small out-of-area surcharge applies, confirmed when you book."
+description: "Professional carpet and upholstery cleaning in Tewkesbury and the surrounding villages. Part of the wider Gloucestershire area we serve, with a flat £15 + VAT out-of-area surcharge, shown up front."
+summary: "Tewkesbury and nearby villages — wider Gloucestershire area. A flat £15 + VAT out-of-area surcharge applies, shown up front."
 tier: "wider"
 postcodes: ["GL20"]
 nearby: ["Ashchurch", "Northway", "Bredon", "Twyning", "Walton Cardiff", "Mitton"]
@@ -12,12 +12,12 @@ faq:
   - question: "Do you cover Tewkesbury?"
     answer: "Yes. Tewkesbury and nearby villages such as Ashchurch, Northway, Bredon and Twyning are within the wider Gloucestershire area we serve."
   - question: "Is there a surcharge for Tewkesbury?"
-    answer: "Tewkesbury sits outside our core Cheltenham–Gloucester area, so a small out-of-area surcharge applies, confirmed when you book. There are no hidden charges — you will have the full itemised price before committing."
+    answer: "Tewkesbury sits outside our core Cheltenham, Gloucester and Winchcombe area, so a flat £15 + VAT out-of-area surcharge applies. There are no hidden charges — you will have the full itemised price before committing."
   - question: "How long will my carpets take to dry?"
     answer: "Our low-moisture method dries far faster than traditional wet extraction. Texatherm states a typical drying time of 30 to 60 minutes; the exact time depends on the carpet, the soiling and the room conditions."
 ---
 
-Tewkesbury and the villages around it are part of the wider Gloucestershire area we serve, just beyond our core Cheltenham and Gloucester patch. A small out-of-area surcharge applies, and we confirm the exact amount when you book — there is never a hidden charge.
+Tewkesbury and the villages around it are part of the wider Gloucestershire area we serve, just beyond our core Cheltenham, Gloucester and Winchcombe area. A flat £15 + VAT out-of-area surcharge applies, shown up front — there is never a hidden charge.
 
 ## Carpets, upholstery and stain work
 
@@ -25,7 +25,7 @@ We clean all carpet types across Tewkesbury, Ashchurch, Northway, Bredon, Twynin
 
 ## A clear price before you commit
 
-Your quote is itemised and includes the surcharge up front, so you know the full cost before booking. Where a stain or bleach mark is permanent, we say so rather than promise a result we cannot deliver.
+Your quote is itemised and includes the £15 + VAT surcharge up front, so you know the full cost before booking. Where a stain or bleach mark is permanent, we say so rather than promise a result we cannot deliver.
 
 ## Get a Tewkesbury quote
 
