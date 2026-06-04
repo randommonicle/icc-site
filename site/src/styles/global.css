@@ -31,6 +31,10 @@ nav{position:fixed;top:0;left:0;right:0;background:rgba(12,44,37,0.97);backdrop-
 .nav-links a[aria-current="page"]{color:var(--teal-light);}
 .nav-cta{background:var(--teal);color:#fff;border:none;padding:0.55rem 1.4rem;border-radius:4px;font-family:"Lato",sans-serif;font-size:0.85rem;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;transition:background 0.2s;text-decoration:none;}
 .nav-cta:hover{background:var(--teal-light);}
+/* Mobile menu toggle — CSS-only, zero-JS (D-001). Hidden on desktop; shown in the ≤820px query below. */
+.nav-toggle{display:none;}
+.nav-burger{display:none;flex-direction:column;justify-content:center;gap:5px;width:34px;height:34px;padding:6px;cursor:pointer;background:none;border:none;}
+.nav-burger span{display:block;height:2px;width:100%;background:#fff;border-radius:2px;transition:transform 0.2s,opacity 0.2s;}
 
 /* Hero */
 .hero-wrap{min-height:100vh;background:linear-gradient(180deg,#071f1a 0%,#0c2c25 50%,#0d2c2a 80%,#0d3530 100%);padding-top:70px;display:flex;align-items:center;position:relative;overflow:hidden;}
@@ -95,5 +99,16 @@ footer a:hover{text-decoration:underline;}
   .hero-title{font-size:2.2rem;}
   .features-inner{grid-template-columns:1fr;}
   .services-grid{grid-template-columns:1fr;}
-  nav .nav-links{display:none;}
+  /* Mobile nav: a CSS-only dropdown driven by the hidden checkbox. The toggle is
+     kept focusable (not display:none) so it works by keyboard as well as tap. */
+  .nav-toggle{display:block;position:absolute;opacity:0;width:1px;height:1px;overflow:hidden;}
+  .nav-burger{display:flex;margin-left:auto;margin-right:1rem;}
+  .nav-toggle:focus-visible ~ .nav-burger{outline:2px solid var(--teal-light);outline-offset:2px;border-radius:4px;}
+  .nav-links{display:none;position:absolute;top:70px;left:0;right:0;flex-direction:column;gap:0;background:rgba(12,44,37,0.98);padding:0.5rem 0;border-bottom:1px solid rgba(26,138,122,0.3);}
+  .nav-toggle:checked ~ .nav-links{display:flex;}
+  .nav-links li{width:100%;}
+  .nav-links a{display:block;padding:0.9rem 2rem;}
+  .nav-toggle:checked ~ .nav-burger span:nth-child(1){transform:translateY(7px) rotate(45deg);}
+  .nav-toggle:checked ~ .nav-burger span:nth-child(2){opacity:0;}
+  .nav-toggle:checked ~ .nav-burger span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
 }

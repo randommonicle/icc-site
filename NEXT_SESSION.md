@@ -26,16 +26,17 @@ Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file
 - **Service-area pages (D-011).** New `areas` content collection + `pages/areas/[slug].astro` template + `pages/areas/index.astro` index. Five towns live: **Cheltenham** and **Gloucester** (core, no surcharge), **Stroud**, **Tewkesbury** and **Cirencester** (wider Gloucestershire, surcharge confirmed at booking). Each town page has a unique title/meta/H1, a coverage panel (GL postcode chips + nearby places), a core-vs-wider surcharge callout, a services-offered grid linking to `/services`, a visible FAQ, and **BreadcrumbList + Service + FAQPage JSON-LD**. Added an **Areas** nav link and a footer link.
 - **Honesty held (D-011 / L-009).** No surcharge figure is invented anywhere — wider pages say "a small out-of-area surcharge applies, confirmed when you book". The built HTML was grepped clean of "WoolSafe approved" / "EMV 409" / "76 dB"; the single Texatherm drying figure is attributed ("Texatherm states…").
 - **Verified:** `npm run build` clean (18 pages, sitemap regenerated with all 6 area URLs); all four JSON-LD blocks per page parse; `npm run preview` serves every route 200 with the right title/H1 and the Areas nav marked active. (`dist`/`.astro` stay gitignored — only source committed.)
+- **Home-page Areas strip + mobile nav (CSS-only).** Added an "Areas we cover" section to the home page — it pulls the 5 towns from the `areas` collection (core-vs-wider tags) so the strongest page links into the area pages. Fixed the pre-existing mobile-nav gap: the nav now has a **CSS-only hamburger** (checkbox hack, zero-JS per D-001) — below 820px it shows a burger that opens a dropdown with all links. Verified in a 375px viewport (burger → X, menu open/close, all 7 links incl. Areas) + a desktop strip screenshot.
 
 ## Immediate next steps (suggested order)
 
 1. **Encode the surcharge once Mark confirms it (D-011).** The five area pages and `services.astro` already say "confirmed at booking". When Mark gives the figure + the precise out-of-area boundary, wire a concrete number into the area template's `tier` wording (one place) and into `validateBooking` server-side. Until then the honest placeholder stands.
-2. **Home-page internal link to `/areas`.** The home page doesn't yet link to the area pages; an "Areas we cover" strip would pass authority from the strongest page. (Nav + footer already link `/areas`.)
-3. **Mobile nav gap (pre-existing, not introduced this session).** The nav hides *all* links at ≤820px (`global.css` `nav .nav-links{display:none}`) with no hamburger — mobile users can't navigate. Worth fixing given a phone-heavy audience; the site is otherwise zero-JS, so a small toggle island is the call.
-4. **More care guides** — natural fibres (sisal/seagrass/coir/jute), upholstery fabrics, drying/aftercare. Drop a Markdown file in `src/content/guides/`.
-5. **More / surrounding area pages** — e.g. Winchcombe, Bishop's Cleeve, Cirencester-area villages; trivial to add (one `src/content/areas/*.md` each, sets `tier`).
-6. **SEO finalisation** — `robots.txt` review; breadcrumb JSON-LD is now on the area pages and could extend to the guides/other pages; then Search Console/GBP (Mark-owned), NAP consistency.
-7. **Cutover PR** — point `netlify.toml` at `site/` (`astro build`, publish `site/dist`), carry over the `/api/*` redirects + headers, then Ben's deliberate merge.
+2. **More care guides** — natural fibres (sisal/seagrass/coir/jute), upholstery fabrics, drying/aftercare. Drop a Markdown file in `src/content/guides/`.
+3. **More / surrounding area pages** — e.g. Winchcombe, Bishop's Cleeve, Cirencester-area villages; trivial to add (one `src/content/areas/*.md` each, sets `tier`).
+4. **SEO finalisation** — `robots.txt` review; breadcrumb JSON-LD is now on the area pages and could extend to the guides/other pages; then Search Console/GBP (Mark-owned), NAP consistency.
+5. **Cutover PR** — point `netlify.toml` at `site/` (`astro build`, publish `site/dist`), carry over the `/api/*` redirects + headers, then Ben's deliberate merge.
+
+(Done this session: home-page → `/areas` strip, and the mobile-nav hamburger.)
 
 Standing pre-launch items (unchanged): privacy `[to confirm: …]` details + DP review; `ALLOWED_ORIGINS` (L-001) + Resend domain (L-004) once the domain is chosen; for Mark: surcharge figure (D-011), WoolSafe Service Provider route, Texatherm SDS PDFs + EMV 401 spec, account ownership (D-009), domain (D-013).
 
