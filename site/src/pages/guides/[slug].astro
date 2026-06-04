@@ -56,9 +56,21 @@ const faqSchema = faq.length
       })),
     }
   : null;
+
+// Breadcrumb: Home › Care Guides › this guide.
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: `${siteUrl}/` },
+    { '@type': 'ListItem', position: 2, name: 'Care Guides', item: `${siteUrl}/guides/` },
+    { '@type': 'ListItem', position: 3, name: title, item: pageUrl },
+  ],
+};
 ---
 <BaseLayout title={`${title} | Intelligent Carpet Cleaning`} description={description}>
   <Fragment slot="head">
+    <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
     <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
     {faqSchema && <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />}
   </Fragment>
