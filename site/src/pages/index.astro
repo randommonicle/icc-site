@@ -13,23 +13,26 @@ const areas = (await getCollection('areas', ({ data }) => !data.draft)).sort(
 ---
 <BaseLayout
   title="Intelligent Carpet Cleaning | Cheltenham & Gloucestershire"
-  description="Cheltenham and Gloucestershire's first AI-assisted carpet cleaning service. Get an instant quote, understand your carpet type, and book in minutes."
+  description="AI-assisted carpet cleaning across Cheltenham and Gloucestershire. Get an instant quote, understand your carpet type, and book in minutes."
 >
   <section class="hero-wrap">
     <div class="hero-grid"></div>
     <div class="hero-content">
       <div>
         <div class="hero-badge"><div class="hero-badge-dot"></div>AI-Powered Carpet Care</div>
-        <h1 class="hero-title">Smarter Cleaning.<br /><span class="accent">Guaranteed Results.</span></h1>
-        <p class="hero-sub">Cheltenham and Gloucestershire's first fully AI-assisted carpet cleaning service. Get an instant quote, understand your carpet type, and book in minutes.</p>
+        <h1 class="hero-title">Smarter Cleaning.<br /><span class="accent">Done Properly.</span></h1>
+        <p class="hero-sub">Cheltenham and Gloucestershire's AI-assisted carpet cleaning service. Get an instant quote, understand your carpet type, and book in minutes.</p>
         <div class="hero-actions">
           <a class="btn-primary" href="/book">Chat with Our AI</a>
           <a class="btn-outline" href="/book">Book a Visit</a>
         </div>
+        <!-- TODO(trust-stats): reinstate quantified track-record metrics only when
+             substantiated (a real completed-job count or verified review rating).
+             No fabricated figures (ASA/CAP, L-009). Tiles below are capability facts. -->
         <div class="hero-stats">
-          <div><div class="hero-stat-num">500+</div><div class="hero-stat-label">Cleans Completed</div></div>
-          <div><div class="hero-stat-num">98%</div><div class="hero-stat-label">Satisfaction Rate</div></div>
           <div><div class="hero-stat-num">15+</div><div class="hero-stat-label">Carpet Types</div></div>
+          <div><div class="hero-stat-num">6</div><div class="hero-stat-label">Days a Week</div></div>
+          <div><div class="hero-stat-num">10%</div><div class="hero-stat-label">Deposit to Book</div></div>
         </div>
       </div>
       <div class="hero-logo-panel">
@@ -113,7 +116,7 @@ const areas = (await getCollection('areas', ({ data }) => !data.draft)).sort(
   .home-area-town { font-family: "Raleway", sans-serif; font-size: 1.05rem; font-weight: 700; color: var(--navy); }
   .home-area-tag { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
   .home-area-tag-core { color: var(--teal); }
-  .home-area-tag-wider { color: var(--gold); }
+  .home-area-tag-wider { color: var(--gold-deep); }
   .home-areas-cta { color: var(--teal); font-weight: 700; font-size: 0.9rem; letter-spacing: 0.03em; text-decoration: none; }
   .home-areas-cta:hover { text-decoration: underline; }
 </style>
