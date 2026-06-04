@@ -58,6 +58,13 @@ const localBusiness = {
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={`${siteUrl}/logo.jpg`} />
+    <meta property="og:site_name" content="Intelligent Carpet Cleaning" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={`${siteUrl}/logo.jpg`} />
     <script type="application/ld+json" set:html={JSON.stringify(localBusiness)} />
     <link
       href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;600;700;800&family=Lato:wght@300;400;700&display=swap"
