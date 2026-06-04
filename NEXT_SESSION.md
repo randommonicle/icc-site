@@ -2,7 +2,7 @@
 
 Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file at the end of every working session so the next person (or AI) can continue cold.
 
-**Last updated:** 4 June 2026 (session — pre-cutover QA audit of the Phase 1 Astro site, then D-011 resolved: Winchcombe added to the core/no-surcharge area and a flat **£15 + VAT** out-of-area surcharge encoded across the site + assistant + docs; home-page prices aligned to the assistant + VAT. On the Phase 1 branch; **working tree NOT yet committed** — see "State of the branch".)
+**Last updated:** 4 June 2026 (session — pre-cutover QA audit of the Phase 1 Astro site, then D-011 resolved: Winchcombe added to the core/no-surcharge area and a flat **£15 + VAT** out-of-area surcharge encoded across the site + assistant + docs; home-page prices aligned to the assistant + VAT. Committed (`892d11d`) and **merged to `main`** this session — Phase 1 is now in `main` but **NOT cut over**; see "State (end of session)".)
 
 ---
 
@@ -12,14 +12,16 @@ Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file
 - **`main`** is unchanged this session (still PRs #1–#3). Nothing merged.
 - **Phase 1 (public Astro site) — IN PROGRESS on `feat/phase1-public-site`. Built clean (22 routes), NOT merged, NOT cut over.** The live site still serves the Phase 0 `index.html`.
 
-## State of the branch (read before you commit)
+## State (end of session — merged to main)
 
-This session's edits are in the **working tree but NOT committed** (Ben commits/deploys by deliberate decision, D-010). `npm run build --prefix site` is green and the built `dist` was grepped clean. Suggested commits when you're ready:
-1. `feat(site): pre-cutover SEO/JSON-LD/a11y audit` — *(no code; the audit is recorded below, not in a file. Skip unless you add an `AUDIT.md`.)*
-2. `feat(site+assistant): encode D-011 — Winchcombe core, flat £15 + VAT out-of-area surcharge` — the area content, template, both index pages, `content.config.ts`, `services.astro`, `index.astro` home strip, and `netlify/functions/chat.js` prompt.
-3. `fix(site): align home-page prices to the assistant (+ VAT)` — the three `index.astro` service-card prices.
-4. `docs: D-011 surcharge resolved (£15 + VAT, Winchcombe core)` — CLAUDE.md, DECISIONS.md, ROADMAP.md, this file.
-(Or one combined commit — the changes are one coherent "encode confirmed pricing & service area" unit.)
+This session's work is committed and **merged to `main`** (deliberate merge, Ben's go-ahead — out of time, picking up from home). Sequence: commit `892d11d` (D-011 + price alignment + docs) on `feat/phase1-public-site`, pushed, then merged into `main` via PR.
+
+**What the merge did / didn't do:**
+- **Did:** brought all of Phase 1 (the Astro `site/`) into `main`, and — because Netlify auto-deploys `main` — redeployed `chat.js`, so the **live AI assistant now quotes the flat £15 + VAT surcharge and treats Winchcombe as core**. (Confirm the production deploy succeeded in Netlify.)
+- **Did NOT cut over the public site.** `main`'s `netlify.toml` is still Phase 0 (no Astro build / `publish = site/dist`), so the live page is still the Phase 0 `index.html`; the 22-page Astro site sits in `main`, dormant, until the cutover PR (step 4 below).
+- **Carried the deferred audit items into `main` (unserved):** the `500+`/`98%` stats, "first"/"Guaranteed Results" wording, missing `og:image`, chat a11y gaps, privacy `[to confirm]` placeholders. None are user-facing until cutover — but they must be resolved before cutover/promotion.
+
+`npm run build --prefix site` was green and the built `dist` grepped clean before merge. **There is no CI in this repo** (no GitHub Actions / other) — the local build is the only gate.
 
 ## What was done this session (4 June 2026)
 
@@ -46,7 +48,7 @@ This session's edits are in the **working tree but NOT committed** (Ben commits/
 
 ## Immediate next steps (suggested order)
 
-1. **Commit the working tree** (see "State of the branch") once reviewed.
+1. **(Done — committed `892d11d` + merged to `main` this session.)** From home: `git checkout main && git pull`, branch off `main`, then start at step 2.
 2. **Safe SEO/a11y polish set** (offered, not yet done — all on-branch, build-verifiable, no live impact): tighten meta descriptions to ≤155 chars on the ~18 long pages; shorten the 4–5 over-long guide titles; add a default `og:image` (=`/logo.jpg`) + `twitter:card` in `BaseLayout`; add `aria-label`s to the chat textarea + send button and make suggestion chips keyboard-reachable.
 3. **Before any promotion off the Netlify name:** remove/replace the `500+` and `98%` stats (home + about); decide on "Guaranteed Results" / "first AI-assisted" (substantiate or soften); fill privacy `[to confirm: …]` + DP review.
 4. **Cutover PR** — point `netlify.toml` at the Astro build (`command`, `publish = site/dist`), carry over the `/api/*` + `/admin` redirects + security headers, and **lock `astro.config.mjs` `site`** to the real domain (D-013, currently a placeholder). Then Ben's deliberate merge.
