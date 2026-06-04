@@ -1,7 +1,7 @@
 ---
 town: "Gloucester"
 title: "Carpet Cleaning in Gloucester | Intelligent Carpet Cleaning"
-description: "Professional carpet and upholstery cleaning in Gloucester. Part of our core service area with Cheltenham — no travel surcharge, clear per-room pricing, and a method matched to your carpet's fibre."
+description: "Carpet and upholstery cleaning in Gloucester. Core service area with Cheltenham: no travel surcharge, clear per-room pricing, method matched to your fibre."
 summary: "Core service area with Cheltenham — no travel surcharge. Carpets, upholstery, stain treatment and commercial work across GL1–GL4."
 tier: "core"
 postcodes: ["GL1", "GL2", "GL3", "GL4"]

@@ -1,7 +1,7 @@
 ---
 town: "Tewkesbury"
 title: "Carpet Cleaning in Tewkesbury | Intelligent Carpet Cleaning"
-description: "Professional carpet and upholstery cleaning in Tewkesbury and the surrounding villages. Part of the wider Gloucestershire area we serve, with a flat £15 + VAT out-of-area surcharge, shown up front."
+description: "Carpet and upholstery cleaning in Tewkesbury and nearby villages. Wider-area service with a flat £15 + VAT surcharge, shown up front before you book."
 summary: "Tewkesbury and nearby villages — wider Gloucestershire area. A flat £15 + VAT out-of-area surcharge applies, shown up front."
 tier: "wider"
 postcodes: ["GL20"]

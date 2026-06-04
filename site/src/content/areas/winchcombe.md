@@ -1,7 +1,7 @@
 ---
 town: "Winchcombe"
 title: "Carpet Cleaning in Winchcombe | Intelligent Carpet Cleaning"
-description: "Professional carpet and upholstery cleaning in Winchcombe and the surrounding GL54 villages. One of our core service areas, alongside Cheltenham and Gloucester, with no travel surcharge."
+description: "Carpet and upholstery cleaning in Winchcombe and the GL54 villages. One of our core areas with Cheltenham and Gloucester, with no travel surcharge."
 summary: "Winchcombe and the GL54 villages — part of our core service area, with no travel surcharge."
 tier: "core"
 postcodes: ["GL54"]

@@ -1,6 +1,6 @@
 ---
 title: "How to Clean a Wool Carpet Safely"
-description: "Wool is beautiful and hard-wearing, but easily harmed by the wrong cleaning. An expert guide to cleaning wool carpets and rugs: why over-wetting and harsh chemicals cause shrinkage and browning, and the low-moisture approach that suits natural fibres."
+description: "How to clean wool carpets and rugs safely: why over-wetting and harsh chemicals cause shrinkage and browning, and the low-moisture method that suits them."
 summary: "Why wool needs a gentler approach than synthetic carpet, the damage that over-wetting and harsh products cause, and how to keep a wool carpet looking its best."
 order: 10
 updated: "2026-06-03"

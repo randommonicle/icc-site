@@ -1,6 +1,6 @@
 ---
-title: "Which Carpet Stains Can Be Removed, and Which Are Permanent"
-description: "An honest, expert guide to carpet stains: which marks a professional can realistically remove, which are usually permanent (bleach, old pet urine, dried paint, heat-set stains), and why acting quickly makes all the difference."
+title: "Which Carpet Stains Are Permanent?"
+description: "An honest guide to carpet stains: which marks a professional can realistically remove, which are usually permanent, and why acting fast matters."
 summary: "The difference between a stain and permanent dye damage, which marks usually come out and which do not, and how to give a spill the best chance of lifting."
 order: 20
 updated: "2026-06-03"

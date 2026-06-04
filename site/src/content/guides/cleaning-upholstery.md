@@ -1,6 +1,6 @@
 ---
-title: "How to Clean Upholstery Safely: Sofas, Armchairs and the Fabric Codes"
-description: "A guide to cleaning upholstered furniture: what the W, S, SW and X cleaning codes mean, why a sofa needs a fabric-appropriate method, and how professional low-moisture cleaning refreshes upholstery without over-wetting."
+title: "How to Clean Upholstery Safely"
+description: "Cleaning upholstered furniture: what the W, S, SW and X codes mean, why a sofa needs a fabric-matched method, and how low-moisture cleaning refreshes it."
 summary: "What the upholstery cleaning codes (W, S, SW, X) tell you, why the fabric dictates the method, and how to keep sofas and chairs fresh between professional cleans."
 order: 25
 updated: "2026-06-04"

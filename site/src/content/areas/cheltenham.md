@@ -1,7 +1,7 @@
 ---
 town: "Cheltenham"
 title: "Carpet Cleaning in Cheltenham | Intelligent Carpet Cleaning"
-description: "Professional carpet and upholstery cleaning in Cheltenham. Our home town and core service area, with no travel surcharge, clear per-room pricing, and the low-moisture method that suits wool and delicate fibres."
+description: "Carpet and upholstery cleaning in Cheltenham, our home town and core area: no travel surcharge, clear per-room pricing, and low-moisture care for wool."
 summary: "Our home town and core service area — no travel surcharge. Specialist carpet, upholstery and stain cleaning across every GL50–GL53 neighbourhood."
 tier: "core"
 postcodes: ["GL50", "GL51", "GL52", "GL53"]
