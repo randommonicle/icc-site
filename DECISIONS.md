@@ -103,3 +103,10 @@ icc-platform/
 ```
 
 Sessions stay separate by working on branches (existing discipline, D-010) or git worktrees — the monorepo makes separate site/app sessions easier, not harder, because each has the shared contract and docs to hand. The repo is currently named `icc-site`; rename to `icc-platform` when convenient (GitHub redirects the old URL) or leave it as a cosmetic mismatch. Do the monorepo restructure before building the Phase 2 API, so the contract is born in `shared/` rather than extracted later.
+
+## D-015 — No quantified trust or marketing claims until independently substantiated
+**Status:** Accepted (June 2026)
+
+The public site must not show quantified track-record or trust metrics (completed-job counts, satisfaction percentages, star ratings) or superlative claims ("first", "guaranteed") unless each is independently substantiated and current. ICC is a new business with no track record yet, so figures like "500+ cleans" or "98% satisfaction" are unverifiable and breach ASA/CAP and the L-009 rule on repeating unverified claims. Capability facts that are simply true (for example "15+ carpet types", the six trading days, the 10% deposit) are fine, because they describe what the service is rather than a track record it has not earned.
+
+Where a quantified metric would genuinely add value, it goes in only once there is a real, defensible source: a true completed-job count, or a verified review aggregate (which would also back an `aggregateRating` in the structured data). Implemented June 2026 on `feat/pre-cutover-polish`: the fabricated `500+`/`98%` tiles on the home and About pages were removed and replaced with capability facts, the "Guaranteed Results" and "first fully AI-assisted" claims were softened, and a grep-able `TODO(trust-stats)` anchor marks where substantiated metrics may later go. This is the site-side companion to L-009 (which governs the assistant) and is a hard gate on promoting the site off the Netlify name.
