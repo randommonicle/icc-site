@@ -2,7 +2,7 @@
 
 Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file at the end of every working session so the next person (or AI) can continue cold.
 
-**Last updated:** 3 June 2026 (end of session — accuracy fix, four care guides, and a green rebrand, all on the Phase 1 branch; pushed)
+**Last updated:** 4 June 2026 (end of session — service-area pages for Cheltenham, Gloucester, Stroud, Tewkesbury and Cirencester, with Breadcrumb/Service/FAQ JSON-LD and the honest D-011 surcharge wording; on the Phase 1 branch, pushed)
 
 ---
 
@@ -14,36 +14,37 @@ Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file
 
 ## Phase 1 progress (branch `feat/phase1-public-site`)
 
-- **D-001 resolved: Astro** (static SSG). **9 pages building clean** (`npm run build --prefix site`, 12 routes incl. guides).
-- Shared `BaseLayout` (per-page SEO + LocalBusiness JSON-LD + an optional `<slot name="head">` for per-page structured data), `Nav` (with a **Guides** link), `Footer`; `@astrojs/sitemap` wired.
+- **D-001 resolved: Astro** (static SSG). **Building clean** (`npm run build --prefix site`) — **18 routes**: home, services, about, contact, history, privacy, book; guides ×4 + index; **areas ×5 + index**.
+- Shared `BaseLayout` (per-page SEO + LocalBusiness JSON-LD + an optional `<slot name="head">` for per-page structured data), `Nav` (with **Areas** + **Guides** links), `Footer` (links to Areas + Privacy); `@astrojs/sitemap` wired.
 - **Care-guides content collection** (`src/content.config.ts` + `src/content/guides/*.md`), one template (`pages/guides/[slug].astro`) with **Article + FAQPage JSON-LD** + visible FAQ, listing at `pages/guides/index.astro`. **Four guides:** cleaning wool carpets, **carpet care at home (spill first-aid + everyday care)**, which stains are permanent, low-moisture vs hot-water extraction. Cross-linked.
+- **Service-area pages (D-011)** — an `areas` content collection (`src/content/areas/*.md`) + template (`pages/areas/[slug].astro`) emitting **BreadcrumbList + Service + FAQPage JSON-LD**, listing at `pages/areas/index.astro`. **Five towns:** Cheltenham + Gloucester (core, *no* surcharge), Stroud + Tewkesbury + Cirencester (wider Gloucestershire, *small out-of-area surcharge confirmed at booking* — no figure invented, D-011/L-009). A `tier` frontmatter switch drives the core-vs-wider wording from one place; `Service.areaServed` is scoped to the town and tied to the site-wide `LocalBusiness` by `@id`.
 - **Brand is now the ICC logo's green** (not the old ASH-style blue) across nav/footer/headers/headings. See L-010 for the token details.
 - **Verified Texatherm knowledge brief** at `docs/TEXATHERM_KNOWLEDGE_BRIEF.md` — the **D-006 single source** for the guides + the assistant.
 
-## What was just done (this session)
+## What was just done (this session — 4 June 2026)
 
-- Merged `main` into the branch.
-- **Accuracy fix (`ba9bd70`):** corrected `services.astro` + `history.astro`, which still carried the pre-correction Texatherm claims (WoolSafe approved, exothermic mechanism, unattributed 80%/30-60, EN 1040 overclaim). The site had drifted from the brief even though the assistant was fixed (L-009 addendum).
-- **Care guides (`58bfae7`):** content collection + 3 guides + index + template + nav + head slot.
-- **Docs (`5dfc907`):** earlier handover + L-009 addendum + roadmap.
-- **Green rebrand (`a6382a8`):** shifted the chrome from ASH-blue to the logo's deep green (L-010). Verified via build + computed styles (the preview screenshot tool was wedging). **Ben accepted it provisionally and may want it toned down later.**
-- **Carpet Care at Home guide (`eeef31e`):** the at-home advice Mark/Ben wanted — spill first-aid + maintenance, framed as damage limitation, not a replacement for the professional clean.
+- **Service-area pages (D-011).** New `areas` content collection + `pages/areas/[slug].astro` template + `pages/areas/index.astro` index. Five towns live: **Cheltenham** and **Gloucester** (core, no surcharge), **Stroud**, **Tewkesbury** and **Cirencester** (wider Gloucestershire, surcharge confirmed at booking). Each town page has a unique title/meta/H1, a coverage panel (GL postcode chips + nearby places), a core-vs-wider surcharge callout, a services-offered grid linking to `/services`, a visible FAQ, and **BreadcrumbList + Service + FAQPage JSON-LD**. Added an **Areas** nav link and a footer link.
+- **Honesty held (D-011 / L-009).** No surcharge figure is invented anywhere — wider pages say "a small out-of-area surcharge applies, confirmed when you book". The built HTML was grepped clean of "WoolSafe approved" / "EMV 409" / "76 dB"; the single Texatherm drying figure is attributed ("Texatherm states…").
+- **Verified:** `npm run build` clean (18 pages, sitemap regenerated with all 6 area URLs); all four JSON-LD blocks per page parse; `npm run preview` serves every route 200 with the right title/H1 and the Areas nav marked active. (`dist`/`.astro` stay gitignored — only source committed.)
 
 ## Immediate next steps (suggested order)
 
-1. **Area pages** — Cheltenham + Gloucester (core, no surcharge); wider-Gloucestershire towns with the honest D-011 surcharge wording. **Blocked on Mark's exact surcharge figure + postcode boundary.** Scaffold can be built with the figure as a placeholder (mirror the assistant's "confirmed at booking").
-2. **More care guides** — natural fibres (sisal/seagrass/coir/jute), upholstery fabrics, drying/aftercare. Trivial to add: drop a Markdown file in `src/content/guides/`.
-3. **SEO finalisation** — robots/sitemap review, breadcrumb JSON-LD site-wide. Per-guide FAQ JSON-LD is already done.
-4. **Cutover PR** — point `netlify.toml` at `site/` (`astro build`, publish `site/dist`), carry over the `/api/*` redirects + headers, then Ben's deliberate merge.
+1. **Encode the surcharge once Mark confirms it (D-011).** The five area pages and `services.astro` already say "confirmed at booking". When Mark gives the figure + the precise out-of-area boundary, wire a concrete number into the area template's `tier` wording (one place) and into `validateBooking` server-side. Until then the honest placeholder stands.
+2. **Home-page internal link to `/areas`.** The home page doesn't yet link to the area pages; an "Areas we cover" strip would pass authority from the strongest page. (Nav + footer already link `/areas`.)
+3. **Mobile nav gap (pre-existing, not introduced this session).** The nav hides *all* links at ≤820px (`global.css` `nav .nav-links{display:none}`) with no hamburger — mobile users can't navigate. Worth fixing given a phone-heavy audience; the site is otherwise zero-JS, so a small toggle island is the call.
+4. **More care guides** — natural fibres (sisal/seagrass/coir/jute), upholstery fabrics, drying/aftercare. Drop a Markdown file in `src/content/guides/`.
+5. **More / surrounding area pages** — e.g. Winchcombe, Bishop's Cleeve, Cirencester-area villages; trivial to add (one `src/content/areas/*.md` each, sets `tier`).
+6. **SEO finalisation** — `robots.txt` review; breadcrumb JSON-LD is now on the area pages and could extend to the guides/other pages; then Search Console/GBP (Mark-owned), NAP consistency.
+7. **Cutover PR** — point `netlify.toml` at `site/` (`astro build`, publish `site/dist`), carry over the `/api/*` redirects + headers, then Ben's deliberate merge.
 
 Standing pre-launch items (unchanged): privacy `[to confirm: …]` details + DP review; `ALLOWED_ORIGINS` (L-001) + Resend domain (L-004) once the domain is chosen; for Mark: surcharge figure (D-011), WoolSafe Service Provider route, Texatherm SDS PDFs + EMV 401 spec, account ownership (D-009), domain (D-013).
 
 ## Things to watch / not yet decided
 
-- **Green rebrand is provisional.** Ben said it looks "very green… fine for the moment… may need to revisit." The two brand greens live in one place (`site/src/styles/global.css` `:root`): `--green-dark:#0c2c25` and `--green:#15564a`. Tone down there if needed (L-010).
+- **Green rebrand is provisional.** Ben said it looks "very green… fine for the moment… may need to revisit." The two brand greens live in one place (`site/src/styles/global.css` `:root`): `--green-dark:#0c2c25` and `--green:#15564a`. Tone down there if needed (L-010). The new area pages reuse these tokens, so they follow any change automatically.
 - **The LIVE `index.html` is still the old blue.** Only the Astro site was rebranded. Matching the live site to the green is a separate, live change needing deploy sign-off; at minimum it should match at cutover.
-- **`astro dev` currently fails in this worktree** with a Vite/esbuild dependency-scan error (the deps were installed under a restricted install policy that skipped esbuild's setup step). The **production build is unaffected** (`npm run build` is clean). To preview locally, use `npm run preview --prefix site` (serves the build), or do a fresh `npm install` on a normal machine to fix dev.
-- **D-006 alignment now holds across the assistant AND the site** — keep it that way (grep the whole repo when correcting a claim, L-009).
+- **`astro dev` currently fails in this worktree** with a Vite/esbuild dependency-scan error (the deps were installed under a restricted install policy that skipped esbuild's setup step). The **production build is unaffected** (`npm run build` is clean). To preview locally, use `npm run preview --prefix site` (serves the build at localhost:4321), or do a fresh `npm install` on a normal machine to fix dev.
+- **D-006 alignment now holds across the assistant AND the site** (assistant prompt, guides, services, *and* area pages) — keep it that way (grep the whole repo when correcting a claim, L-009).
 - Not cut over; monorepo restructure (D-014) is Phase 2's first task; domain (D-013), surcharge (D-011), account ownership (D-009) all open.
 
 ## Local dev reminder
@@ -60,4 +61,4 @@ npm run build --prefix site     # -> site/dist (this is what Netlify will run)
 npm run preview --prefix site   # serve the build at localhost:4321 (use this, not dev, in this worktree)
 ```
 
-The Phase 1 work lives on branch `feat/phase1-public-site` (GitHub `randommonicle/icc-site`), checked out locally per machine (this session used a git worktree).
+The Phase 1 work lives on branch `feat/phase1-public-site` (GitHub `randommonicle/icc-site`), checked out locally per machine (this session used the main clone; an earlier session used a git worktree).

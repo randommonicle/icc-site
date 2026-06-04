@@ -1,0 +1,158 @@
+---
+// Service-areas index. Lists the published areas from the `areas` collection,
+// grouped into the core (no-surcharge) and wider-Gloucestershire (surcharge
+// confirmed at booking) tiers — the honest D-011 distinction. New area pages
+// appear here automatically. A BreadcrumbList is emitted for the listing.
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const areas = (await getCollection('areas', ({ data }) => !data.draft)).sort(
+  (a, b) => a.data.order - b.data.order,
+);
+const core = areas.filter((a) => a.data.tier === 'core');
+const wider = areas.filter((a) => a.data.tier === 'wider');
+
+const siteUrl = (Astro.site?.href ?? 'https://www.intelligentcarpetcleaning.co.uk/').replace(/\/$/, '');
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: `${siteUrl}/` },
+    { '@type': 'ListItem', position: 2, name: 'Service Areas', item: `${siteUrl}/areas/` },
+  ],
+};
+---
+<BaseLayout
+  title="Service Areas | Intelligent Carpet Cleaning"
+  description="Carpet and upholstery cleaning across Gloucestershire. Cheltenham and Gloucester are our core area with no travel surcharge; Stroud, Tewkesbury, Cirencester and the wider GL towns carry a small surcharge, always confirmed at booking."
+>
+  <Fragment slot="head">
+    <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+  </Fragment>
+
+  <section class="areas-index">
+    <div class="areas-hero">
+      <div class="section-label areas-hero-label">Service Areas</div>
+      <h1>Where We Clean</h1>
+      <p>Cheltenham and Gloucester are our core area, with no travel surcharge. We also cover the wider Gloucestershire towns — Stroud, Tewkesbury, Cirencester and the surrounding GL postcodes — where a small out-of-area surcharge applies, always confirmed when you book.</p>
+    </div>
+
+    <div class="areas-body">
+      <h2 class="areas-group-title">Core area <span>&mdash; no travel surcharge</span></h2>
+      <div class="areas-list">
+        {core.map((a) => (
+          <a class="area-card area-card-core" href={`/areas/${a.id}`}>
+            <h3 class="area-card-town">{a.data.town}</h3>
+            <p class="area-card-summary">{a.data.summary}</p>
+            {a.data.postcodes.length > 0 && (
+              <span class="area-card-pcs">{a.data.postcodes.join(' · ')}</span>
+            )}
+            <span class="area-card-link">Carpet cleaning in {a.data.town} &rarr;</span>
+          </a>
+        ))}
+      </div>
+
+      <h2 class="areas-group-title">Wider Gloucestershire <span>&mdash; small surcharge, confirmed at booking</span></h2>
+      <div class="areas-list">
+        {wider.map((a) => (
+          <a class="area-card area-card-wider" href={`/areas/${a.id}`}>
+            <h3 class="area-card-town">{a.data.town}</h3>
+            <p class="area-card-summary">{a.data.summary}</p>
+            {a.data.postcodes.length > 0 && (
+              <span class="area-card-pcs">{a.data.postcodes.join(' · ')}</span>
+            )}
+            <span class="area-card-link">Carpet cleaning in {a.data.town} &rarr;</span>
+          </a>
+        ))}
+      </div>
+
+      <p class="areas-note">
+        Just outside these towns? We very likely still cover you. Start a <a href="/book">booking</a> and our assistant
+        flags any out-of-area surcharge up front, or <a href="/contact">get in touch</a>.
+      </p>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .areas-index { padding-top: 70px; }
+
+  .areas-hero {
+    background: linear-gradient(135deg, var(--navy-dark), var(--navy));
+    padding: 4rem 2rem;
+    text-align: center;
+  }
+  .areas-hero-label { color: var(--teal-light); margin-bottom: 0.75rem; }
+  .areas-hero h1 {
+    font-family: "Raleway", sans-serif;
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 1rem;
+    letter-spacing: -0.02em;
+  }
+  .areas-hero p {
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 1.05rem;
+    font-weight: 300;
+    max-width: 720px;
+    margin: 0 auto;
+    line-height: 1.8;
+  }
+
+  .areas-body { max-width: 980px; margin: 0 auto; padding: 3.5rem 2rem 1rem; }
+  .areas-group-title {
+    font-family: "Raleway", sans-serif;
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--navy);
+    margin: 0 0 1.5rem;
+    letter-spacing: -0.01em;
+  }
+  .areas-group-title:not(:first-child) { margin-top: 3rem; }
+  .areas-group-title span { font-weight: 400; font-size: 0.95rem; color: var(--text-light); }
+
+  .areas-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+  .area-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    border-left: 3px solid var(--teal);
+    padding: 1.5rem 1.75rem;
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.2s, transform 0.15s;
+  }
+  .area-card-wider { border-left-color: var(--gold); }
+  .area-card:hover { box-shadow: 0 6px 24px rgba(26, 138, 122, 0.12); transform: translateY(-2px); }
+  .area-card-town {
+    font-family: "Raleway", sans-serif;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 0.5rem;
+  }
+  .area-card-summary { color: var(--text-mid); font-size: 0.92rem; line-height: 1.65; margin-bottom: 0.9rem; }
+  .area-card-pcs {
+    color: var(--text-light);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.75rem;
+  }
+  .area-card-link { color: var(--teal); font-weight: 700; font-size: 0.86rem; letter-spacing: 0.02em; margin-top: auto; }
+
+  .areas-note {
+    margin: 2.5rem 0 4rem;
+    text-align: center;
+    color: var(--text-light);
+    font-size: 0.92rem;
+    line-height: 1.7;
+  }
+  .areas-note a { color: var(--teal); }
+
+  @media (max-width: 768px) {
+    .areas-hero h1 { font-size: 2rem; }
+    .areas-list { grid-template-columns: 1fr; }
+  }
+</style>
