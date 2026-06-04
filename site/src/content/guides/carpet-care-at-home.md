@@ -1,6 +1,6 @@
 ---
-title: "Carpet Care at Home: Treating Spills and Preventing Stains"
-description: "Practical, honest advice on what you can safely do yourself: how to treat a fresh spill before it sets, the mistakes that cause permanent damage, and the everyday care that keeps your carpet looking good between professional cleans."
+title: "Carpet Care at Home: Spills and Stains"
+description: "What you can safely do yourself: treating a spill before it sets, the mistakes that cause permanent damage, and everyday care between professional cleans."
 summary: "What you can safely do yourself: treat a spill the right way before it sets, avoid the mistakes that cause permanent damage, and keep your carpet well between professional cleans."
 order: 15
 updated: "2026-06-03"

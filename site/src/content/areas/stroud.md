@@ -1,7 +1,7 @@
 ---
 town: "Stroud"
 title: "Carpet Cleaning in Stroud | Intelligent Carpet Cleaning"
-description: "Professional carpet and upholstery cleaning in Stroud and the Five Valleys. Part of the wider Gloucestershire area we serve, with a flat £15 + VAT out-of-area surcharge and the low-moisture method that suits period homes."
+description: "Carpet and upholstery cleaning in Stroud and the Five Valleys. Wider-area service with a flat £15 + VAT surcharge and low-moisture care for period homes."
 summary: "Stroud and the Five Valleys — wider Gloucestershire area. A flat £15 + VAT out-of-area surcharge applies, shown up front."
 tier: "wider"
 postcodes: ["GL5", "GL6"]

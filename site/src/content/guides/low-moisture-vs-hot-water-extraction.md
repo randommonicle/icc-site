@@ -1,6 +1,6 @@
 ---
-title: "Low-Moisture vs Hot-Water Extraction: Which Is Right for Your Carpet"
-description: "Hot-water extraction (\"steam cleaning\") and low-moisture cleaning both have their place. An honest comparison of how each works, drying times, residue and re-soiling, and which method suits wool, synthetics, and delicate fibres."
+title: "Low-Moisture vs Hot-Water Extraction"
+description: "Hot-water extraction and low-moisture cleaning both have their place. How each works, drying times, residue, and which suits wool and delicate fibres."
 summary: "How the two main professional cleaning methods differ, the trade-offs in drying time and depth of clean, and how to match the method to your carpet."
 order: 30
 updated: "2026-06-03"

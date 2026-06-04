@@ -1,6 +1,6 @@
 ---
-title: "Cleaning Natural-Fibre Carpets and Rugs: Sisal, Seagrass, Coir and Jute"
-description: "Sisal, seagrass, coir and jute look beautiful but are easily ruined by the wrong clean. An expert guide to cleaning natural-fibre carpets and rugs, why water is the enemy, and the low-moisture approach that protects them."
+title: "Cleaning Natural-Fibre Carpets and Rugs"
+description: "Sisal, seagrass, coir and jute are easily ruined by the wrong clean. How to care for natural-fibre carpets and rugs with a protective low-moisture method."
 summary: "Why natural plant fibres are the most water-sensitive floor coverings of all, the damage over-wetting causes, and how to clean and care for them safely."
 order: 12
 updated: "2026-06-04"

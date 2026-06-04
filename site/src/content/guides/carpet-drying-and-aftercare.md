@@ -1,6 +1,6 @@
 ---
-title: "How Long Does Carpet Take to Dry? Drying Times and Aftercare"
-description: "How long a professional carpet clean takes to dry, what affects it, and how to look after a freshly cleaned carpet so it stays cleaner for longer — and why low-moisture cleaning dries faster."
+title: "How Long Does Carpet Take to Dry?"
+description: "How long a professional carpet clean takes to dry, what affects drying time, and how to care for a freshly cleaned carpet so it stays cleaner for longer."
 summary: "What drives carpet drying time, how to speed it up safely, and the aftercare that keeps a freshly cleaned carpet looking good for longer."
 order: 35
 updated: "2026-06-04"

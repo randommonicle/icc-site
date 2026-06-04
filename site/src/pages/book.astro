@@ -17,7 +17,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 <BaseLayout
   title="Book a Carpet Clean | Intelligent Carpet Cleaning"
-  description="Chat with our AI assistant for an instant, fully-explained quote, expert carpet advice, and to book your clean in minutes across Cheltenham and Gloucestershire."
+  description="Chat with our AI assistant for an instant, fully-explained quote, expert carpet advice, and booking across Cheltenham and Gloucestershire."
 >
   <div class="chat-page">
     <div class="chat-page-header">
@@ -43,16 +43,16 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           </div>
         </div>
         <div class="quick-suggestions" id="quickSuggestions">
-          <div class="suggestion-chip" onclick="sendSuggestion('I need a quote for my lounge carpet')">Get a quote</div>
-          <div class="suggestion-chip" onclick="sendSuggestion('How do I identify what type of carpet I have?')">Identify my carpet</div>
-          <div class="suggestion-chip" onclick="sendSuggestion('Is professional cleaning better than a Rug Doctor hire?')">DIY vs professional</div>
-          <div class="suggestion-chip" onclick="sendSuggestion('I have a red wine stain, can you help?')">Stain advice</div>
+          <button type="button" class="suggestion-chip" onclick="sendSuggestion('I need a quote for my lounge carpet')">Get a quote</button>
+          <button type="button" class="suggestion-chip" onclick="sendSuggestion('How do I identify what type of carpet I have?')">Identify my carpet</button>
+          <button type="button" class="suggestion-chip" onclick="sendSuggestion('Is professional cleaning better than a Rug Doctor hire?')">DIY vs professional</button>
+          <button type="button" class="suggestion-chip" onclick="sendSuggestion('I have a red wine stain, can you help?')">Stain advice</button>
         </div>
         <div class="chat-input-area">
           <label for="imageUpload" style="width:38px;height:38px;background:rgba(26,138,122,0.15);border:1px solid rgba(26,138,122,0.3);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:16px;transition:background 0.2s;" title="Upload carpet photo">📷</label>
-          <input type="file" id="imageUpload" accept="image/*" style="display:none" onchange="handleImageUpload(event)" />
-          <textarea class="chat-input" id="chatInput" placeholder="Ask about quotes, carpet types, stains, or upload a photo..." rows="1" onkeydown="handleKeyDown(event)" oninput="autoResize(this);onInputActivity();"></textarea>
-          <button class="chat-send-btn" id="sendBtn" onclick="sendMessage()">▶</button>
+          <input type="file" id="imageUpload" accept="image/*" aria-label="Upload a photo of your carpet" style="display:none" onchange="handleImageUpload(event)" />
+          <textarea class="chat-input" id="chatInput" aria-label="Type your message to the carpet cleaning assistant" placeholder="Ask about quotes, carpet types, stains, or upload a photo..." rows="1" onkeydown="handleKeyDown(event)" oninput="autoResize(this);onInputActivity();"></textarea>
+          <button class="chat-send-btn" id="sendBtn" aria-label="Send message" onclick="sendMessage()">▶</button>
         </div>
         <div id="imagePreviewArea" style="display:none;padding:0.5rem 1.25rem;background:#fff;border-top:1px solid var(--border);">
           <div style="display:flex;align-items:center;gap:8px;background:rgba(26,138,122,0.08);border:1px solid rgba(26,138,122,0.2);border-radius:8px;padding:8px 12px;">
@@ -103,7 +103,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   .chat-input{flex:1;border:1px solid var(--border);border-radius:10px;padding:0.75rem 1rem;font-family:"Lato",sans-serif;font-size:0.9rem;color:var(--text-dark);resize:none;outline:none;transition:border-color 0.2s;max-height:120px;min-height:44px;line-height:1.5;}
   .chat-input:focus{border-color:var(--teal);}
   .chat-send-btn{width:44px;height:44px;background:var(--teal);border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.2s,transform 0.15s;font-size:16px;color:#fff;}
-  .chat-send-btn:hover{background:var(--teal-light);transform:scale(1.05);}
+  .chat-send-btn:hover{background:var(--green-mid);transform:scale(1.05);}
   .chat-send-btn:disabled{background:var(--border);cursor:not-allowed;transform:none;}
   .quick-suggestions{padding:0.75rem 1.25rem;background:#fff;border-top:1px solid var(--border);display:flex;gap:0.5rem;flex-wrap:wrap;}
   .suggestion-chip{background:rgba(26,138,122,0.08);border:1px solid rgba(26,138,122,0.25);border-radius:100px;padding:0.35rem 0.9rem;font-size:0.78rem;color:var(--teal);cursor:pointer;transition:background 0.2s;font-family:"Lato",sans-serif;}

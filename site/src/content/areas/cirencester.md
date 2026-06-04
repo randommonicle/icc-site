@@ -1,7 +1,7 @@
 ---
 town: "Cirencester"
 title: "Carpet Cleaning in Cirencester | Intelligent Carpet Cleaning"
-description: "Professional carpet and upholstery cleaning in Cirencester and the surrounding GL7 villages. Part of the wider Gloucestershire area we serve, with a flat £15 + VAT out-of-area surcharge, shown up front."
+description: "Carpet and upholstery cleaning in Cirencester and the GL7 villages. Wider-area service with a flat £15 + VAT surcharge, shown up front before you book."
 summary: "Cirencester and the GL7 villages — wider Gloucestershire area. A flat £15 + VAT out-of-area surcharge applies, shown up front."
 tier: "wider"
 postcodes: ["GL7"]

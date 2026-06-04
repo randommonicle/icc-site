@@ -2,15 +2,15 @@
 
 Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file at the end of every working session so the next person (or AI) can continue cold.
 
-**Last updated:** 4 June 2026 (session — pre-cutover QA audit of the Phase 1 Astro site, then D-011 resolved: Winchcombe added to the core/no-surcharge area and a flat **£15 + VAT** out-of-area surcharge encoded across the site + assistant + docs; home-page prices aligned to the assistant + VAT. Committed (`892d11d`) and **merged to `main`** this session — Phase 1 is now in `main` but **NOT cut over**; see "State (end of session)".)
+**Last updated:** 4 June 2026 (session — pre-cutover QA audit of the Phase 1 Astro site, then D-011 resolved: Winchcombe added to the core/no-surcharge area and a flat **£15 + VAT** out-of-area surcharge encoded across the site + assistant + docs; home-page prices aligned to the assistant + VAT. Committed (`892d11d`) and **merged to `main`** this session — Phase 1 is now in `main` but **NOT cut over**; see "State (end of session)".) **Evening follow-up (same day):** the safe pre-cutover polish set is built and verified on `feat/pre-cutover-polish` (SEO meta + social tags, chat a11y, WCAG AA contrast, removal of the unsubstantiated 500+/98% stats, and softening of the "first/Guaranteed" launch claims). Build green, 22 pages. Not pushed yet.
 
 ---
 
 ## Current state
 
 - **Phase 0 PoC** is live on the Netlify-assigned URL (not a custom domain, not promoted anywhere). Single-page `index.html` + AI assistant (`chat.js`), availability + booking via Netlify Blobs, Resend emails, PDF job card, admin dashboard. The live `index.html` chrome is still the **old blue** and is silent on the surcharge (no contradiction with the new £15 fact, but it should be brought in line at cutover).
-- **`main`** is unchanged this session (still PRs #1–#3). Nothing merged.
-- **Phase 1 (public Astro site) — IN PROGRESS on `feat/phase1-public-site`. Built clean (22 routes), NOT merged, NOT cut over.** The live site still serves the Phase 0 `index.html`.
+- **`main`** now contains all of Phase 1, merged via PR #4 (commit `9a124cc`). That merge redeployed `chat.js`, so the **live AI assistant already quotes the flat £15 + VAT surcharge and treats Winchcombe as core** (confirm the Netlify production deploy went green). It did **not** cut over the public site: `main`'s `netlify.toml` is still Phase 0, so the live page is still the Phase 0 `index.html`.
+- **Phase 1 (public Astro site)** is in `main`, built clean (22 routes), and **dormant until the cutover PR**. Pre-cutover polish is staged on `feat/pre-cutover-polish` (see the evening follow-up note above).
 
 ## State (end of session — merged to main)
 
@@ -49,8 +49,8 @@ This session's work is committed and **merged to `main`** (deliberate merge, Ben
 ## Immediate next steps (suggested order)
 
 1. **(Done — committed `892d11d` + merged to `main` this session.)** From home: `git checkout main && git pull`, branch off `main`, then start at step 2.
-2. **Safe SEO/a11y polish set** (offered, not yet done — all on-branch, build-verifiable, no live impact): tighten meta descriptions to ≤155 chars on the ~18 long pages; shorten the 4–5 over-long guide titles; add a default `og:image` (=`/logo.jpg`) + `twitter:card` in `BaseLayout`; add `aria-label`s to the chat textarea + send button and make suggestion chips keyboard-reachable.
-3. **Before any promotion off the Netlify name:** remove/replace the `500+` and `98%` stats (home + about); decide on "Guaranteed Results" / "first AI-assisted" (substantiate or soften); fill privacy `[to confirm: …]` + DP review.
+2. **Safe SEO/a11y polish set: DONE on `feat/pre-cutover-polish`** (build-verified, 22 pages, no live impact). Trimmed every meta description to ≤155 (longest 155); shortened 6 long guide titles; added `og:image` (`/logo.jpg`) + Twitter card in `BaseLayout`; gave the chat textarea, send button and photo upload `aria-label`s and converted the suggestion chips to keyboard-operable `<button>`s. Folded in from step 3 and the audit: removed the unsubstantiated `500+`/`98%` stats (replaced with capability/fact tiles), softened the "first fully AI-assisted" and "Guaranteed Results" claims, and fixed WCAG AA contrast (teal `#1a8a7a` to `#178072`; button hovers darken to `--green-mid`; new `--gold-deep` for the wider-area tag).
+3. **Before any promotion off the Netlify name:** the fabricated `500+`/`98%` stats are removed and the "Guaranteed Results"/"first AI-assisted" claims softened (done in step 2). **Still outstanding:** fill the privacy `[to confirm: …]` placeholders and get a data-protection review (Mark).
 4. **Cutover PR** — point `netlify.toml` at the Astro build (`command`, `publish = site/dist`), carry over the `/api/*` + `/admin` redirects + security headers, and **lock `astro.config.mjs` `site`** to the real domain (D-013, currently a placeholder). Then Ben's deliberate merge.
 5. **Server-side surcharge enforcement (Phase 2).** `validateBooking` ([chat.js:456](netlify/functions/chat.js:456)) only bounds the total price; the £15 + VAT lives in the assistant's quote, not the server. Encode the precise out-of-area **postcode boundary** + apply the surcharge in `validateBooking` when pricing/area logic moves server-side (D-007), so the website and the field app (D-012) apply it identically.
 6. **External SEO** (needs Mark / the domain) — Search Console + Google Business Profile + NAP, once the domain (D-013) is chosen.
@@ -59,7 +59,7 @@ This session's work is committed and **merged to `main`** (deliberate merge, Ben
 
 - **Surcharge VAT assumption:** encoded as **£15 + VAT** (consistent with the "+ VAT throughout" convention). If Mark meant £15 all-in, it changes in one place per file — flag and re-grep.
 - **Boundary-ambiguous towns:** the area *pages* now carry concrete tiers, but the sitewide `LocalBusiness.areaServed` (BaseLayout) and the contact-page chips still list Bishops Cleeve / Charlton Kings / Prestbury without a tier — they make no surcharge claim, so no contradiction, but the precise core-vs-£15 postcode boundary (step 5) will settle them.
-- **Green rebrand is provisional** (L-010) — `--green-dark:#0c2c25` / `--green:#15564a` in `site/src/styles/global.css`. The contrast finding above may push a tweak.
+- **Green rebrand is provisional** (L-010): `--green-dark:#0c2c25` / `--green:#15564a` in `site/src/styles/global.css`. The WCAG AA contrast fix is now applied (teal darkened to `#178072`, new `--gold-deep` for gold-on-white text, button hovers darkened to `--green-mid`); if you tone the green down later, re-check those text and button ratios.
 - **The LIVE `index.html` is still blue** and still shows the old `500+/98%` stats and "first"/"Guaranteed" copy; bring it in line at/by cutover (a live change, needs deploy sign-off).
 - **`astro dev` still fails in this worktree** (Vite/esbuild dep-scan; restricted install skipped esbuild setup). Production build is unaffected — use `npm run preview --prefix site`, or a fresh `npm install` on a normal machine.
 - D-006 alignment now holds across the assistant AND the site (assistant prompt, guides, services, area pages, home prices) — keep it that way (grep the whole repo when correcting a claim, L-009).

@@ -4,7 +4,7 @@ The phased forward plan, derived from [docs/DESIGN.md](docs/DESIGN.md) §12 and 
 
 **Status key (RAG):** 🟢 done · 🟡 in progress · 🔴 not started · ⚪ deferred/optional
 
-**Last updated:** 3 June 2026
+**Last updated:** 4 June 2026
 
 ---
 
