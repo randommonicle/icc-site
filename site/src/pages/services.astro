@@ -1,0 +1,287 @@
+---
+// Services page. Expands the Phase 0 home-page service cards into full
+// descriptions, adds the authoritative price list (figures copied verbatim
+// from netlify/functions/chat.js), and explains the Texatherm method. All
+// page-specific CSS is scoped below; shared tokens/classes come from global.css.
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+<BaseLayout
+  title="Carpet & Upholstery Cleaning Services | Intelligent Carpet Cleaning"
+  description="Specialist carpet and upholstery cleaning across Cheltenham and Gloucestershire. Clear per-room pricing, the low-moisture Texatherm method, and honest advice on every fibre type."
+>
+  <section class="page-hero">
+    <div class="page-hero-inner">
+      <div class="section-label" style="color:var(--teal-light);">Our Services</div>
+      <h1>Carpet &amp; Upholstery Cleaning</h1>
+      <p>We match the cleaning method to the fibre, pile construction, and soiling on every job. Below is what we do, what it costs, and how the low-moisture Texatherm system protects your carpets while getting them genuinely clean.</p>
+    </div>
+  </section>
+
+  <div class="services-section">
+    <div class="section-label">What We Do</div>
+    <h2 class="section-title">Specialist Cleaning Services</h2>
+    <p class="section-sub">Four core services, each carried out to professional standard with a method chosen for your specific carpet or upholstery.</p>
+
+    <div class="svc-detail-grid">
+      <article class="svc-detail">
+        <div class="svc-detail-icon">🏠</div>
+        <h3 class="svc-detail-title">Residential Carpet Cleaning</h3>
+        <p class="svc-detail-desc">Deep cleaning for all domestic carpet types, including wool, Axminster and Wilton, polypropylene, nylon, polyester, Berber loop pile, and natural fibres such as sisal and seagrass. We identify the fibre and construction first, then clean with hot water extraction, low-moisture, or a dry method as appropriate. Wool and natural fibres are cleaned with the low-moisture method only, which avoids the shrinkage and browning that overwetting can cause.</p>
+      </article>
+
+      <article class="svc-detail">
+        <div class="svc-detail-icon">🏢</div>
+        <h3 class="svc-detail-title">Commercial Cleaning</h3>
+        <p class="svc-detail-desc">Regular maintenance programmes and one-off cleans for offices, hospitality venues, and rental properties across Gloucestershire. The low-moisture method means fast drying and minimal disruption, so areas are back in use quickly. Commercial carpet tiles can be cleaned with either method. Pricing for commercial work is tailored to the site, and full-house and contract packages carry a significant discount, quoted on request.</p>
+      </article>
+
+      <article class="svc-detail">
+        <div class="svc-detail-icon">🍷</div>
+        <h3 class="svc-detail-title">Stain Treatment</h3>
+        <p class="svc-detail-desc">Specialist treatment for red wine, pet urine, blood, food, oil-based marks, and ingrained soiling, with a pre-assessment included. We use an enzyme-based pre-spray on protein stains and a solvent spotter on oil-based marks, applied before the main clean. We are honest about outcomes: fresh stains are highly treatable, but some older staining and bleach damage is permanent, and we will tell you that upfront rather than let you be disappointed on the day.</p>
+      </article>
+
+      <article class="svc-detail">
+        <div class="svc-detail-icon">🛋️</div>
+        <h3 class="svc-detail-title">Upholstery Cleaning</h3>
+        <p class="svc-detail-desc">Safe, effective cleaning for sofas, armchairs, and other upholstered furniture using fabric-appropriate methods and the same low-moisture system we use on carpets. Two-seater and three-seater sofas and individual armchairs are each priced separately. The low-moisture approach dries quickly, leaves minimal residue, and is well suited to homes with children and pets.</p>
+      </article>
+    </div>
+  </div>
+
+  <div class="pricing-section">
+    <div class="pricing-inner">
+      <div class="section-label">Pricing</div>
+      <h2 class="section-title">Clear, Itemised Pricing</h2>
+      <p class="section-sub">All prices below are <strong>plus VAT</strong>. The first room includes the base call-out. A flat £15 + VAT out-of-area surcharge applies outside Cheltenham, Gloucester and Winchcombe.</p>
+
+      <div class="price-tables">
+        <div class="price-table">
+          <h3 class="price-table-title">Carpets</h3>
+          <ul class="price-list">
+            <li><span class="price-item">Base call-out / first room (up to 15m²)</span><span class="price-figure">£75 + VAT</span></li>
+            <li><span class="price-item">Medium room (15–20m²)</span><span class="price-figure">£95 + VAT</span></li>
+            <li><span class="price-item">Large room / lounge (20–30m²)</span><span class="price-figure">£115 + VAT</span></li>
+            <li><span class="price-item">Hallway</span><span class="price-figure">£55 + VAT</span></li>
+            <li><span class="price-item">Landing</span><span class="price-figure">£45 + VAT</span></li>
+            <li><span class="price-item">Stairs (up to 13 steps)</span><span class="price-figure">£65 + VAT</span></li>
+            <li><span class="price-item">Stairs (14+ steps)</span><span class="price-figure">£80 + VAT</span></li>
+          </ul>
+        </div>
+
+        <div class="price-table">
+          <h3 class="price-table-title">Upholstery &amp; extras</h3>
+          <ul class="price-list">
+            <li><span class="price-item">Upholstery, 2-seater sofa</span><span class="price-figure">£75 + VAT</span></li>
+            <li><span class="price-item">Upholstery, 3-seater sofa</span><span class="price-figure">£90 + VAT</span></li>
+            <li><span class="price-item">Upholstery, armchair</span><span class="price-figure">£50 + VAT</span></li>
+            <li><span class="price-item">Stain treatment</span><span class="price-figure">from £45 + VAT</span></li>
+            <li><span class="price-item">Furniture-moving surcharge</span><span class="price-figure">£30 + VAT</span></li>
+            <li><span class="price-item">Outside Cheltenham, Gloucester &amp; Winchcombe</span><span class="price-figure">£15 + VAT</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <p class="price-note">Full-house packages carry a significant discount and commercial work is priced to the site. Both are quoted on request.</p>
+    </div>
+  </div>
+
+  <div class="method-section">
+    <div class="method-inner">
+      <div class="method-text">
+        <div class="section-label">Our Method</div>
+        <h2 class="section-title">The Texatherm Low-Moisture System</h2>
+        <p>We use a professional Texatherm machine that cleans with far less water than a standard hot-water extraction unit. It is a low-moisture, heat-assisted system: rather than soaking the carpet and relying on powerful suction to draw the water back out, it cleans the pile with much less water and lifts soil with a gentle mechanical action, so your carpets come out genuinely clean and dry far sooner than after a traditional wet clean.</p>
+        <p>Because the carpet is never soaked, there is far less risk of the shrinkage, browning, or slow-drying damp that over-wetting can cause, which makes low-moisture cleaning particularly well suited to wool, Axminster, Wilton, and delicate natural fibres.</p>
+      </div>
+      <ul class="method-points">
+        <li><strong>Fast drying.</strong> Texatherm states a typical drying time of 30 to 60 minutes, far quicker than the several hours a standard wet extraction clean can need.</li>
+        <li><strong>Much less water.</strong> Texatherm states the system uses up to 80% less water than standard extraction, so there is far less risk of over-wetting.</li>
+        <li><strong>Safe for wool and delicate fibres.</strong> Low-moisture cleaning is the recognised approach for wool, natural fibres, and other carpets that harsher wet methods can damage.</li>
+        <li><strong>Low residue.</strong> A thorough low-moisture clean leaves little detergent behind, and less residue means a carpet attracts soil more slowly and stays cleaner for longer.</li>
+        <li><strong>Sanitising option where needed.</strong> For jobs that call for it, we can use cleaning products the manufacturer states meet BS EN 1040, a laboratory screen for basic bactericidal activity.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="svc-cta">
+    <h2>Ready for a quote?</h2>
+    <p>Our AI assistant will identify your carpet type, recommend the right method, and give you a fully itemised price in minutes.</p>
+    <a class="btn-primary" href="/book">Get an Instant Quote</a>
+  </div>
+</BaseLayout>
+
+<style>
+  /* Page header band — ports the .about-hero / .book-hero dark gradient from the
+     Phase 0 index.html so this page matches the rest of the site. */
+  .page-hero {
+    background: linear-gradient(135deg, var(--navy-dark), var(--navy));
+    padding: 4rem 2rem;
+    margin-top: 70px; /* clear the fixed nav */
+  }
+  .page-hero-inner { max-width: 1100px; margin: 0 auto; }
+  .page-hero h1 {
+    font-family: "Raleway", sans-serif;
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #fff;
+    margin: 0.5rem 0 0.75rem;
+    letter-spacing: -0.02em;
+  }
+  .page-hero p {
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 1rem;
+    font-weight: 300;
+    max-width: 640px;
+    line-height: 1.7;
+  }
+
+  /* Service detail cards */
+  .svc-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+  .svc-detail {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.75rem;
+    border-top: 3px solid var(--teal);
+    transition: box-shadow 0.2s;
+  }
+  .svc-detail:hover { box-shadow: 0 8px 30px rgba(26, 138, 122, 0.12); }
+  .svc-detail-icon {
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(135deg, var(--teal), var(--navy));
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    margin-bottom: 1rem;
+  }
+  .svc-detail-title {
+    font-family: "Raleway", sans-serif;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 0.6rem;
+  }
+  .svc-detail-desc {
+    font-size: 0.9rem;
+    color: var(--text-mid);
+    line-height: 1.7;
+  }
+
+  /* Pricing */
+  .pricing-section { background: var(--off-white); padding: 5rem 2rem; }
+  .pricing-inner { max-width: 1100px; margin: 0 auto; }
+  .price-tables {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+    margin-top: 1rem;
+  }
+  .price-table {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.75rem;
+  }
+  .price-table-title {
+    font-family: "Raleway", sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--teal);
+  }
+  .price-list { list-style: none; }
+  .price-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .price-list li:last-child { border-bottom: none; }
+  .price-item { font-size: 0.9rem; color: var(--text-mid); }
+  .price-figure {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--teal);
+    white-space: nowrap;
+    text-align: right;
+  }
+  .price-note {
+    font-size: 0.9rem;
+    color: var(--text-mid);
+    line-height: 1.7;
+    margin-top: 1.5rem;
+  }
+
+  /* Method */
+  .method-section { padding: 5rem 2rem; }
+  .method-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3.5rem;
+    align-items: center;
+  }
+  .method-text p {
+    font-size: 0.95rem;
+    color: var(--text-mid);
+    line-height: 1.75;
+    margin-bottom: 1rem;
+  }
+  .method-points {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .method-points li {
+    background: var(--off-white);
+    border-radius: 10px;
+    border-left: 3px solid var(--teal);
+    padding: 1.1rem 1.25rem;
+    font-size: 0.9rem;
+    color: var(--text-mid);
+    line-height: 1.6;
+  }
+  .method-points strong { color: var(--navy); }
+
+  /* CTA band */
+  .svc-cta {
+    background: linear-gradient(135deg, var(--navy), var(--teal));
+    padding: 4rem 2rem;
+    text-align: center;
+  }
+  .svc-cta h2 {
+    font-family: "Raleway", sans-serif;
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 0.6rem;
+  }
+  .svc-cta p {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 1rem;
+    font-weight: 300;
+    max-width: 540px;
+    margin: 0 auto 1.75rem;
+    line-height: 1.7;
+  }
+
+  @media (max-width: 820px) {
+    .page-hero h1 { font-size: 2rem; }
+    .svc-detail-grid { grid-template-columns: 1fr; }
+    .price-tables { grid-template-columns: 1fr; }
+    .method-inner { grid-template-columns: 1fr; gap: 2rem; }
+  }
+</style>

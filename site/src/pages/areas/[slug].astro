@@ -1,0 +1,332 @@
+---
+// Service-area template (D-011). One template renders every town in the `areas`
+// collection. Structured facts (tier, postcodes, nearby, FAQ) come from
+// frontmatter and are emitted as BreadcrumbList + Service + FAQPage JSON-LD via
+// BaseLayout's head slot; the Markdown body is the local prose. The `tier`
+// field is the honesty switch — 'core' (Cheltenham, Gloucester, Winchcombe)
+// shows "no travel surcharge"; 'wider' shows the flat £15 + VAT out-of-area
+// surcharge (confirmed by Mark, June 2026; D-011). Styling mirrors the
+// care-guide template.
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+export async function getStaticPaths() {
+  const areas = await getCollection('areas', ({ data }) => !data.draft);
+  return areas.map((area) => ({ params: { slug: area.id }, props: { area } }));
+}
+
+const { area } = Astro.props;
+const { Content } = await render(area);
+const { town, title, description, tier, postcodes, nearby, faq } = area.data;
+
+const siteUrl = (Astro.site?.href ?? 'https://www.intelligentcarpetcleaning.co.uk/').replace(/\/$/, '');
+const pageUrl = new URL(Astro.url.pathname, Astro.site).href;
+
+// Breadcrumb: Home › Service Areas › {town}.
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: `${siteUrl}/` },
+    { '@type': 'ListItem', position: 2, name: 'Service Areas', item: `${siteUrl}/areas/` },
+    { '@type': 'ListItem', position: 3, name: town, item: pageUrl },
+  ],
+};
+
+// Service scoped to this town, tied to the site-wide LocalBusiness by @id
+// (defined once in BaseLayout) rather than re-declaring the business here.
+const serviceSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Service',
+  serviceType: 'Carpet and upholstery cleaning',
+  name: `Carpet cleaning in ${town}`,
+  url: pageUrl,
+  provider: { '@type': 'LocalBusiness', '@id': `${siteUrl}/#business` },
+  areaServed: { '@type': 'City', name: town },
+};
+
+// FAQ structured data — only when the page defines questions. Mirrors the
+// visible FAQ below so the markup matches the rendered page.
+const faqSchema = faq.length
+  ? {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: faq.map((f) => ({
+        '@type': 'Question',
+        name: f.question,
+        acceptedAnswer: { '@type': 'Answer', text: f.answer },
+      })),
+    }
+  : null;
+
+const services = [
+  { icon: '🏠', name: 'Residential carpets', desc: 'Wool, Axminster, Wilton, synthetic and natural-fibre carpets, cleaned to the right method for the fibre.' },
+  { icon: '🛋️', name: 'Upholstery', desc: 'Sofas, armchairs and other furniture, cleaned with fabric-appropriate low-moisture methods.' },
+  { icon: '🍷', name: 'Stain treatment', desc: 'Red wine, pet, food and oil marks, with an honest pre-assessment of what will and will not lift.' },
+  { icon: '🏢', name: 'Commercial', desc: 'Offices, lettings and hospitality, with fast drying that gets rooms back in use quickly.' },
+];
+---
+<BaseLayout title={title} description={description}>
+  <Fragment slot="head">
+    <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+    <script type="application/ld+json" set:html={JSON.stringify(serviceSchema)} />
+    {faqSchema && <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />}
+  </Fragment>
+
+  <section class="area-page">
+    <div class="area-hero">
+      <div class="section-label area-hero-label"><a href="/areas">Service Areas</a></div>
+      <h1>Carpet Cleaning in {town}</h1>
+      {tier === 'core' ? (
+        <div class="area-badge area-badge-core">Core service area &mdash; no travel surcharge</div>
+      ) : (
+        <div class="area-badge area-badge-wider">Wider Gloucestershire &mdash; flat £15 + VAT out-of-area surcharge</div>
+      )}
+    </div>
+
+    <article class="area-article">
+      <div class="area-body">
+        <Content />
+      </div>
+
+      <aside class="area-coverage">
+        <h2 class="area-coverage-title">Where we cover around {town}</h2>
+        {postcodes.length > 0 && (
+          <div class="area-postcodes">
+            {postcodes.map((pc) => <span class="postcode-chip">{pc}</span>)}
+          </div>
+        )}
+        {nearby.length > 0 && <p class="area-nearby">Including {nearby.join(', ')}.</p>}
+      </aside>
+
+      <div class={`area-surcharge area-surcharge-${tier}`}>
+        {tier === 'core' ? (
+          <p><strong>No travel surcharge.</strong> {town} is within our core Cheltenham, Gloucester and Winchcombe service area, so you pay the standard per-room pricing on our <a href="/services">services page</a>, plus VAT.</p>
+        ) : (
+          <p><strong>A flat £15 + VAT out-of-area surcharge applies.</strong> {town} sits outside our core Cheltenham, Gloucester and Winchcombe area, so a flat £15 + VAT travel surcharge is added and shown up front &mdash; no hidden charges, and you will have the full price before you commit. Everything else follows the standard pricing on our <a href="/services">services page</a>.</p>
+        )}
+      </div>
+
+      <section class="area-services">
+        <h2 class="area-services-title">What we clean in {town}</h2>
+        <div class="area-services-grid">
+          {services.map((s) => (
+            <a class="area-service-card" href="/services">
+              <span class="area-service-icon">{s.icon}</span>
+              <span class="area-service-name">{s.name}</span>
+              <span class="area-service-desc">{s.desc}</span>
+            </a>
+          ))}
+        </div>
+      </section>
+
+      {faq.length > 0 && (
+        <section class="area-faq">
+          <h2 class="section-title">{town} carpet cleaning &mdash; your questions</h2>
+          {faq.map((f) => (
+            <div class="area-faq-item">
+              <h3>{f.question}</h3>
+              <p>{f.answer}</p>
+            </div>
+          ))}
+        </section>
+      )}
+
+      <div class="area-cta">
+        <h2 class="area-cta-title">Get a quote for your {town} carpets</h2>
+        <p class="area-cta-sub">Our AI assistant identifies your carpet, tells you honestly what can and cannot be cleaned, and gives you an itemised price before we ever step through your door.</p>
+        <a class="btn-primary" href="/book">Get an Instant Quote</a>
+        <p class="area-cta-back"><a href="/areas">&larr; All service areas</a></p>
+      </div>
+    </article>
+  </section>
+</BaseLayout>
+
+<style>
+  /* Page-specific styling for the service-area template. Scoped by Astro;
+     shared design tokens come from global.css. Mirrors the care-guide reading
+     column so the two page types feel like one site. */
+  .area-page { padding-top: 70px; }
+
+  .area-hero {
+    background: linear-gradient(135deg, var(--navy-dark), var(--navy));
+    padding: 4rem 2rem 3rem;
+    text-align: center;
+  }
+  .area-hero-label { margin-bottom: 0.75rem; }
+  .area-hero-label a { color: var(--teal-light); text-decoration: none; }
+  .area-hero-label a:hover { text-decoration: underline; }
+  .area-hero h1 {
+    font-family: "Raleway", sans-serif;
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: #fff;
+    margin: 0 auto;
+    max-width: 760px;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+  .area-badge {
+    display: inline-block;
+    margin-top: 1.25rem;
+    padding: 0.5rem 1.1rem;
+    border-radius: 100px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .area-badge-core {
+    background: rgba(26, 138, 122, 0.2);
+    border: 1px solid rgba(42, 184, 164, 0.5);
+    color: var(--teal-light);
+  }
+  .area-badge-wider {
+    background: rgba(200, 168, 75, 0.15);
+    border: 1px solid rgba(200, 168, 75, 0.5);
+    color: var(--gold);
+  }
+
+  .area-article { max-width: 760px; margin: 0 auto; padding: 3.5rem 2rem 1rem; }
+
+  .area-body :global(h2) {
+    font-family: "Raleway", sans-serif;
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--navy);
+    margin: 2.75rem 0 1rem;
+    letter-spacing: -0.01em;
+  }
+  .area-body :global(h2:first-child) { margin-top: 0; }
+  .area-body :global(p) {
+    color: var(--text-mid);
+    font-size: 1rem;
+    line-height: 1.85;
+    margin-bottom: 1.1rem;
+  }
+  .area-body :global(strong) { color: var(--navy); font-weight: 700; }
+  .area-body :global(a) { color: var(--teal); }
+
+  /* Coverage card — postcode chips + nearby places. */
+  .area-coverage {
+    margin-top: 2.5rem;
+    background: var(--off-white);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--teal);
+    border-radius: 12px;
+    padding: 1.5rem 1.75rem;
+  }
+  .area-coverage-title {
+    font-family: "Raleway", sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 1rem;
+  }
+  .area-postcodes { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.9rem; }
+  .postcode-chip {
+    background: #fff;
+    border: 1px solid var(--teal);
+    color: var(--teal);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    padding: 0.25rem 0.7rem;
+    border-radius: 6px;
+  }
+  .area-nearby { color: var(--text-mid); font-size: 0.92rem; line-height: 1.7; margin: 0; }
+
+  /* Surcharge callout — the honest core vs wider distinction. */
+  .area-surcharge {
+    margin-top: 1.5rem;
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+  }
+  .area-surcharge p { font-size: 0.95rem; line-height: 1.75; color: var(--text-mid); margin: 0; }
+  .area-surcharge strong { color: var(--navy); }
+  .area-surcharge a { color: var(--teal); }
+  .area-surcharge-core { background: var(--chat-bg); border: 1px solid rgba(26, 138, 122, 0.25); }
+  .area-surcharge-wider { background: rgba(200, 168, 75, 0.08); border: 1px solid rgba(200, 168, 75, 0.35); }
+
+  /* Services offered — quick links into /services. */
+  .area-services { margin-top: 3rem; }
+  .area-services-title {
+    font-family: "Raleway", sans-serif;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--navy);
+    margin-bottom: 1.25rem;
+  }
+  .area-services-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+  .area-service-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    border-top: 3px solid var(--teal);
+    padding: 1.25rem;
+    text-decoration: none;
+    transition: box-shadow 0.2s, transform 0.15s;
+  }
+  .area-service-card:hover { box-shadow: 0 6px 24px rgba(26, 138, 122, 0.12); transform: translateY(-2px); }
+  .area-service-icon { font-size: 1.4rem; margin-bottom: 0.5rem; }
+  .area-service-name {
+    font-family: "Raleway", sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 0.35rem;
+  }
+  .area-service-desc { font-size: 0.85rem; color: var(--text-mid); line-height: 1.6; }
+
+  /* FAQ — visible copy mirrors the FAQPage JSON-LD. */
+  .area-faq {
+    margin-top: 3rem;
+    border-top: 1px solid var(--border);
+    padding-top: 2rem;
+  }
+  .area-faq .section-title { font-size: 1.5rem; margin-bottom: 1.5rem; }
+  .area-faq-item { margin-bottom: 1.5rem; }
+  .area-faq-item h3 {
+    font-family: "Raleway", sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 0.4rem;
+  }
+  .area-faq-item p { color: var(--text-mid); font-size: 0.97rem; line-height: 1.75; }
+
+  /* CTA. */
+  .area-cta {
+    margin: 3.5rem 0 4rem;
+    padding: 2.5rem 2rem;
+    background: var(--off-white);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--teal);
+    border-radius: 12px;
+    text-align: center;
+  }
+  .area-cta-title {
+    font-family: "Raleway", sans-serif;
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--navy);
+    margin-bottom: 0.75rem;
+  }
+  .area-cta-sub {
+    font-size: 0.95rem;
+    color: var(--text-mid);
+    line-height: 1.7;
+    max-width: 560px;
+    margin: 0 auto 1.75rem;
+  }
+  .area-cta-back { margin-top: 1.5rem; font-size: 0.88rem; }
+  .area-cta-back a { color: var(--teal); text-decoration: none; }
+  .area-cta-back a:hover { text-decoration: underline; }
+
+  @media (max-width: 768px) {
+    .area-hero h1 { font-size: 1.9rem; }
+    .area-article { padding-top: 2.5rem; }
+    .area-body :global(h2) { font-size: 1.4rem; }
+    .area-services-grid { grid-template-columns: 1fr; }
+  }
+</style>

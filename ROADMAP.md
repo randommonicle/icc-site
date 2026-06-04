@@ -26,14 +26,16 @@ Outstanding before this can safely take real traffic (carried into Phase 1, trac
 
 ---
 
-## Phase 1 — Public site and findability 🔴
+## Phase 1 — Public site and findability 🟡
 
 **Outcome:** a fast, expert, fully indexable site that ranks and converts. No new backend yet.
+
+🟡 In progress on `feat/phase1-public-site` (built, not yet cut over). Done on the branch: Astro scaffold + pages (home, services, about, contact, history, privacy, book, guides, **service-area pages**), shared `BaseLayout` with per-page SEO + site-wide LocalBusiness JSON-LD, `@astrojs/sitemap`, a **care-guides content collection** (7 guides) carrying per-guide **Breadcrumb + Article + FAQ JSON-LD**, and a **service-area content collection** (6 towns) carrying **Breadcrumb + Service + FAQ JSON-LD** with the honest D-011 surcharge wording; a home-page "Areas we cover" strip; a CSS-only mobile nav; the chrome rebranded from ASH-blue onto the ICC logo's green (L-010). Remaining: encode the surcharge figure once Mark confirms it (D-011), Search Console/GBP + NAP (Mark-owned, needs the domain), the review-request engine, and the cutover PR. Carry the Phase 0 hardening items below into go-live.
 
 Front end and content:
 - [ ] Convert the single-file PoC to a multi-page static site (D-001). Decide hand-built HTML vs Astro before starting (open in DECISIONS.md D-001).
 - [ ] Build pages: Home, Services, Booking, About, History of carpet cleaning, Carpet science & care guides, Area pages, Contact.
-- [ ] Area pages reflect the service-area model (D-011): Cheltenham and Gloucester as core/no-surcharge pages, plus wider-Gloucestershire pages (Stroud, Tewkesbury, Cirencester and surrounding towns) that honestly state a small out-of-area surcharge applies. Confirm the exact surcharge figure and postcode boundary with Mark before quoting a number on a page.
+- [x] Area pages reflect the service-area model (D-011): Cheltenham, Gloucester and Winchcombe as core/no-surcharge pages, plus wider-Gloucestershire pages (Stroud, Tewkesbury, Cirencester) stating the **flat £15 + VAT out-of-area surcharge** (confirmed by Mark, June 2026). **Built** with a `tier` switch; the £15 + VAT figure is now encoded on the area pages, the services page, the home-page strip and the assistant prompt. Still to do: encode the precise postcode boundary and apply the surcharge in `validateBooking` server-side (Phase 2, pairs with D-007); add surrounding towns as wanted.
 - [ ] Move the AI knowledge into a single maintainable source shared between site content and the assistant prompt (D-006).
 - [ ] Expand the AI knowledge base (fibre science, stain chemistry, method justification, history).
 
@@ -113,12 +115,12 @@ When the app is scoped, give it its own roadmap section here.
 ## Open questions (from DESIGN §13)
 
 Resolved with Mark (June 2026):
-- ✅ **Service area:** Cheltenham + Gloucester core (no surcharge); wider Gloucestershire (Stroud, Tewkesbury, Cirencester, surrounding GL towns) with a small out-of-area surcharge (D-011).
+- ✅ **Service area:** Cheltenham + Gloucester + Winchcombe core (no surcharge); wider Gloucestershire (Stroud, Tewkesbury, Cirencester, surrounding GL towns) with a flat £15 + VAT out-of-area surcharge (D-011, figure confirmed June 2026).
 - ✅ **Field app:** built concurrently with the website and fully integrated via the shared API, not deferred (D-012).
 - ⏸️ **Domain:** still to be chosen — parked, non-blocking for Phases 0–2 (D-013). Needed before Phase 1 go-live and `ALLOWED_ORIGINS` strict mode.
 
 Still to resolve before the phase that needs each:
-- Exact out-of-area surcharge figure and the precise postcode boundary for "out of area" (D-011) — needed before area pages quote a number and before server-side surcharge logic.
+- ✅ Out-of-area surcharge figure resolved — flat £15 + VAT (D-011). Still to encode: the precise postcode boundary for "out of area" and server-side surcharge enforcement in `validateBooking` (Phase 2).
 - Deposit policy — amount or percentage at booking (Phase 3).
 - Which calendar Mark actually uses day to day (Phase 3).
 - Account ownership (domain, Stripe, Google Business Profile, database) sitting with Mark from the start (D-009).

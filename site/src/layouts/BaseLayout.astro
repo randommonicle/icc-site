@@ -1,0 +1,74 @@
+---
+// Base layout: one <head> (per-page title/description/canonical), shared fonts
+// and global CSS, and the Nav + Footer chrome. Every page renders through this,
+// so SEO metadata and chrome stay consistent and DRY (CLAUDE.md rule #6).
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description: string;
+}
+const { title, description } = Astro.props;
+// Astro.site comes from astro.config.mjs; canonical is the absolute page URL.
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const siteUrl = (Astro.site?.href ?? 'https://www.intelligentcarpetcleaning.co.uk/').replace(/\/$/, '');
+
+// Site-wide LocalBusiness structured data. Only confirmed contact/geo facts —
+// no cleaning-method or USP claims (those wait on the verified Texatherm brief).
+const localBusiness = {
+  '@context': 'https://schema.org',
+  '@type': 'LocalBusiness',
+  '@id': `${siteUrl}/#business`,
+  name: 'Intelligent Carpet Cleaning',
+  description: 'Specialist carpet and upholstery cleaning serving Cheltenham and the wider Gloucestershire area.',
+  url: siteUrl,
+  image: `${siteUrl}/logo.jpg`,
+  telephone: '+441242279590',
+  email: 'talktoregency@gmail.com',
+  address: {
+    '@type': 'PostalAddress',
+    addressLocality: 'Cheltenham',
+    addressRegion: 'Gloucestershire',
+    addressCountry: 'GB',
+  },
+  areaServed: [
+    'Cheltenham', 'Gloucester', 'Stroud', 'Tewkesbury', 'Cirencester',
+    'Winchcombe', 'Bishops Cleeve', 'Charlton Kings', 'Prestbury', 'Gloucestershire',
+  ],
+  openingHoursSpecification: [{
+    '@type': 'OpeningHoursSpecification',
+    dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+    opens: '08:00',
+    closes: '18:00',
+  }],
+  priceRange: '££',
+};
+---
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" type="image/jpeg" href="/logo.jpg" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <script type="application/ld+json" set:html={JSON.stringify(localBusiness)} />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;600;700;800&family=Lato:wght@300;400;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Optional per-page head content (e.g. care-guide FAQ/Article JSON-LD). -->
+    <slot name="head" />
+  </head>
+  <body>
+    <Nav />
+    <slot />
+    <Footer />
+  </body>
+</html>

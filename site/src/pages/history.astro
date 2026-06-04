@@ -1,0 +1,135 @@
+---
+// History of carpet cleaning — new long-form expert content for SEO and to
+// demonstrate ICC's technical authority. Nav + Footer come from BaseLayout.
+// The article-column and heading styles are page-specific, so they sit in the
+// scoped <style> block below; shared --vars come from global.css.
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+<BaseLayout
+  title="The History of Carpet Cleaning | Intelligent Carpet Cleaning"
+  description="From hand-knotted rugs and Britain's Axminster and Wilton looms to vacuum cleaners, hot-water extraction, and today's low-moisture systems — a clear, expert guide to how carpet cleaning evolved, and why matching method to fibre matters."
+>
+  <section class="history-page">
+    <div class="history-hero">
+      <div class="section-label history-hero-label">Carpet Knowledge</div>
+      <h1>The History of Carpet Cleaning</h1>
+      <p>Carpets have warmed and decorated British homes for centuries. Understanding how they are made — and how we have learned to care for them — is the foundation of cleaning them well. Here is the story, and why it still shapes the way we work today.</p>
+    </div>
+
+    <article class="history-article">
+      <h2 class="section-title">Origins: weaving, knotting, and Britain's looms</h2>
+      <p>The carpet is one of the oldest furnishings in human history. Long before machines, rugs were made by hand, with weavers tying individual knots of wool around a foundation of warp and weft threads. This painstaking craft, refined over generations across the Middle East and Central Asia, produced floor coverings prized as much for their artistry as their warmth. A single large rug could take many months to complete, and the finest examples were treated as heirlooms.</p>
+      <p>Britain developed its own celebrated weaving heritage. The towns of <strong>Axminster</strong> and <strong>Wilton</strong> lent their names to entire styles of carpet, and from the eighteenth and nineteenth centuries the arrival of power looms transformed production. Mechanisation meant that hard-wearing, finely patterned carpets were no longer the preserve of the wealthy alone; they began to reach a far wider public. That shift created something new: a great many carpets that needed to be kept clean, year after year, in homes that were often heated by coal and open to soot and grime.</p>
+
+      <h2 class="section-title">From beating and shaking to soap and water</h2>
+      <p>For most of history, cleaning a carpet meant physically removing the dirt trapped in its pile. Rugs were lifted, hung over a line or rail, and beaten with a cane or wicker carpet beater until the dust flew out. Smaller rugs were shaken or swept; larger ones were turned and brushed by hand. It was effective at shifting loose grit, but laborious, and it did little for grease, spills, or ingrained staining.</p>
+      <p>In time, people turned to soap-and-water washing, scrubbing carpets by hand with mild solutions and brushes. This tackled marks that beating could not, but it carried real risks that are still relevant today: too much water, the wrong soap, or poor drying could shrink natural fibres, cause colours to run, or leave residues that attracted dirt more quickly than before. Even at this early stage, the central lesson of carpet care was emerging — that method and moisture must be matched to the material.</p>
+
+      <h2 class="section-title">The powered vacuum and the chemical era</h2>
+      <p>The early twentieth century brought a genuine revolution. The powered vacuum cleaner, commonly credited to <strong>Hubert Cecil Booth</strong> around 1901, used suction rather than brute force to draw dust out of the pile. Early machines were enormous, horse-drawn affairs parked outside a building with hoses fed through the windows, but the principle was transformative, and domestic models followed as homes were wired for electricity. Regular vacuuming became the everyday backbone of carpet care, removing the dry soil that does most of the long-term damage to fibres.</p>
+      <p>Vacuuming alone, however, could not lift oily soiling or restore a tired pile. The middle of the century saw the rise of chemical methods. <strong>Dry-powder compounds</strong> were worked into the carpet to absorb soil and then vacuumed away, offering a low-moisture clean with minimal drying time. Shampoo systems and rotary machines also became common, generating foam to loosen dirt. These approaches cleaned more deeply than ever before, though some left residues behind if not carefully rinsed.</p>
+      <p>The most significant development of this period was <strong>hot-water extraction</strong>, often loosely called steam cleaning. By injecting a heated cleaning solution into the carpet and immediately extracting it under powerful suction, the method flushed out soil from deep within the pile. It quickly became, and in many settings remains, a professional standard for a thorough deep clean.</p>
+
+      <h2 class="section-title">The modern era: low-moisture systems and method matching</h2>
+      <p>Today the emphasis has shifted towards cleaning that is not only effective but gentle, fast-drying, and kinder to delicate materials. <strong>Low-moisture systems</strong> use far less water than traditional extraction, which means carpets are ready to use again in a fraction of the time and there is far less risk of over-wetting the backing or the floor beneath.</p>
+      <p>This is the approach we favour at Intelligent Carpet Cleaning. We use the <strong>Texatherm</strong> low-moisture method, which is designed to clean thoroughly while drying quickly. Low-moisture cleaning is widely recognised as the safer approach for wool and other natural fibres that can be damaged by harsher, wetter methods, and the Texatherm system is rated by its manufacturer as safe for use on wool. For wool carpets in particular, that gentleness matters: get it wrong and you risk shrinkage, browning, or a permanently dulled pile.</p>
+      <p>The thread that runs through this entire history is a simple one. There has never been a single correct way to clean every carpet. A robust synthetic carpet in a busy hallway, a delicate hand-knotted wool rug, and a natural-fibre runner each call for a different method, a different amount of moisture, and a different judgement about what is achievable. <strong>Matching the method to the fibre</strong> is not a marketing slogan; it is the accumulated wisdom of more than a century of practice, and it is the difference between a carpet that is refreshed and one that is harmed.</p>
+
+      <div class="history-cta">
+        <h2 class="history-cta-title">Care that matches your carpet</h2>
+        <p class="history-cta-sub">Not sure what your carpet is made of or how it should be cleaned? Our AI assistant identifies the fibre and recommends the right method before we ever step through your door.</p>
+        <a class="btn-primary" href="/book">Get an Instant Quote</a>
+      </div>
+    </article>
+  </section>
+</BaseLayout>
+
+<style>
+  /* Page-specific styling for the long-form history article. Scoped by Astro;
+     shared design tokens (--navy, --teal, etc.) come from global.css. */
+  .history-page { padding-top: 70px; }
+
+  .history-hero {
+    background: linear-gradient(135deg, var(--navy-dark), var(--navy));
+    padding: 4rem 2rem;
+    text-align: center;
+  }
+  .history-hero-label {
+    color: var(--teal-light);
+    margin-bottom: 0.75rem;
+  }
+  .history-hero h1 {
+    font-family: "Raleway", sans-serif;
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 1rem;
+    letter-spacing: -0.02em;
+  }
+  .history-hero p {
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 1.05rem;
+    font-weight: 300;
+    max-width: 680px;
+    margin: 0 auto;
+    line-height: 1.8;
+  }
+
+  /* Constrained reading column for comfortable long-form line length. */
+  .history-article {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 4rem 2rem 1rem;
+  }
+  .history-article .section-title {
+    font-size: 1.6rem;
+    margin-top: 2.75rem;
+    margin-bottom: 1rem;
+  }
+  .history-article .section-title:first-child {
+    margin-top: 0;
+  }
+  .history-article p {
+    color: var(--text-mid);
+    font-size: 1rem;
+    line-height: 1.85;
+    margin-bottom: 1.1rem;
+  }
+  .history-article strong {
+    color: var(--navy);
+    font-weight: 700;
+  }
+
+  /* Closing call-to-action. */
+  .history-cta {
+    margin-top: 3.5rem;
+    margin-bottom: 4rem;
+    padding: 2.5rem 2rem;
+    background: var(--off-white);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--teal);
+    border-radius: 12px;
+    text-align: center;
+  }
+  .history-cta-title {
+    font-family: "Raleway", sans-serif;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--navy);
+    margin-bottom: 0.75rem;
+  }
+  .history-cta-sub {
+    font-size: 0.95rem;
+    color: var(--text-mid);
+    line-height: 1.7;
+    max-width: 560px;
+    margin: 0 auto 1.75rem;
+  }
+
+  @media (max-width: 768px) {
+    .history-hero h1 { font-size: 2rem; }
+    .history-hero p { font-size: 1rem; }
+    .history-article { padding-top: 2.5rem; }
+    .history-article .section-title { font-size: 1.4rem; }
+  }
+</style>

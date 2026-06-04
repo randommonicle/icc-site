@@ -1,0 +1,438 @@
+---
+// Booking page = the AI assistant. The Phase 0 #chat-section ported faithfully:
+// same markup, same DOM-based (injection-safe) rendering, same /api/chat and
+// /api/chat?action=confirm_booking contract — only the SPA section-toggle
+// (showSection) and the unused showToast are dropped.
+//
+// The chat CSS is `is:global` because the message bubbles, typing indicator,
+// and confirmation block are created at runtime by JS — Astro's default scoped
+// styles attach a build-time hash that runtime-created elements never get, so
+// scoping would leave them unstyled. This <style> is still only bundled into
+// /book, so the global selectors don't leak to other pages.
+//
+// The script is `is:inline` so its functions stay on the global scope for the
+// existing inline on* handlers in the markup (Astro's default module <script>
+// would scope them and break the handlers).
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+<BaseLayout
+  title="Book a Carpet Clean | Intelligent Carpet Cleaning"
+  description="Chat with our AI assistant for an instant, fully-explained quote, expert carpet advice, and to book your clean in minutes across Cheltenham and Gloucestershire."
+>
+  <div class="chat-page">
+    <div class="chat-page-header">
+      <h1>AI Cleaning Assistant</h1>
+      <p>Instant quotes, carpet advice, stain guidance, and booking. Our AI knows carpets inside out.</p>
+    </div>
+    <div class="chat-container-outer">
+      <div class="chat-window">
+        <div class="chat-window-header">
+          <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid rgba(255,255,255,0.3);flex-shrink:0;">🧠</div>
+          <div class="chat-window-info">
+            <div class="chat-window-name">ICC Assistant</div>
+            <div class="chat-window-status"><span class="chat-status-dot"></span>Online — Intelligent Carpet Cleaning</div>
+          </div>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+          <div class="msg-row">
+            <div class="msg-avatar"><img src="/logo.jpg" alt="ICC" /></div>
+            <div>
+              <div class="msg-bubble bot" id="welcomeBubble">Hello and welcome to Intelligent Carpet Cleaning. I am here to help you with quotes, carpet advice, stain guidance, and booking.</div>
+              <div class="msg-time">Now</div>
+            </div>
+          </div>
+        </div>
+        <div class="quick-suggestions" id="quickSuggestions">
+          <div class="suggestion-chip" onclick="sendSuggestion('I need a quote for my lounge carpet')">Get a quote</div>
+          <div class="suggestion-chip" onclick="sendSuggestion('How do I identify what type of carpet I have?')">Identify my carpet</div>
+          <div class="suggestion-chip" onclick="sendSuggestion('Is professional cleaning better than a Rug Doctor hire?')">DIY vs professional</div>
+          <div class="suggestion-chip" onclick="sendSuggestion('I have a red wine stain, can you help?')">Stain advice</div>
+        </div>
+        <div class="chat-input-area">
+          <label for="imageUpload" style="width:38px;height:38px;background:rgba(26,138,122,0.15);border:1px solid rgba(26,138,122,0.3);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:16px;transition:background 0.2s;" title="Upload carpet photo">📷</label>
+          <input type="file" id="imageUpload" accept="image/*" style="display:none" onchange="handleImageUpload(event)" />
+          <textarea class="chat-input" id="chatInput" placeholder="Ask about quotes, carpet types, stains, or upload a photo..." rows="1" onkeydown="handleKeyDown(event)" oninput="autoResize(this);onInputActivity();"></textarea>
+          <button class="chat-send-btn" id="sendBtn" onclick="sendMessage()">▶</button>
+        </div>
+        <div id="imagePreviewArea" style="display:none;padding:0.5rem 1.25rem;background:#fff;border-top:1px solid var(--border);">
+          <div style="display:flex;align-items:center;gap:8px;background:rgba(26,138,122,0.08);border:1px solid rgba(26,138,122,0.2);border-radius:8px;padding:8px 12px;">
+            <img id="imagePreviewThumb" style="width:48px;height:48px;object-fit:cover;border-radius:6px;" src="" alt="" />
+            <div style="flex:1;font-size:0.8rem;color:var(--text-mid);" id="imagePreviewName">Image ready to send</div>
+            <button onclick="clearImage()" style="background:none;border:none;cursor:pointer;color:var(--text-light);font-size:1rem;">✕</button>
+          </div>
+        </div>
+      </div>
+      <p class="chat-fallback">Prefer to talk to a person? Call <a href="tel:01242279590">01242 279590</a> or email <a href="mailto:talktoregency@gmail.com">talktoregency@gmail.com</a>. We handle your details in line with our <a href="/privacy">Privacy Notice</a>.</p>
+    </div>
+  </div>
+</BaseLayout>
+
+<style is:global>
+  .chat-page{padding-top:70px;min-height:100vh;background:linear-gradient(180deg,var(--off-white) 0%,#fff 100%);}
+  .chat-page-header{background:linear-gradient(135deg,var(--navy-dark) 0%,var(--navy) 100%);padding:2.5rem 2rem;display:flex;flex-direction:column;align-items:center;gap:0.5rem;}
+  .chat-page-header img{height:65px;width:auto;margin-bottom:0.5rem;object-fit:contain;}
+  .chat-page-header h1{font-family:"Raleway",sans-serif;font-size:1.8rem;font-weight:800;color:#fff;}
+  .chat-page-header p{color:rgba(255,255,255,0.65);font-size:0.95rem;font-weight:300;text-align:center;}
+  .chat-container-outer{max-width:800px;margin:0 auto;padding:2rem;}
+  .chat-window{background:#fff;border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 4px 40px rgba(12,44,37,0.12);}
+  .chat-window-header{background:linear-gradient(135deg,var(--navy),var(--teal));padding:0.85rem 1.5rem;display:flex;align-items:center;gap:14px;}
+  .chat-window-info{flex:1;}
+  .chat-window-name{font-family:"Raleway",sans-serif;font-size:0.95rem;font-weight:700;color:#fff;}
+  .chat-window-status{font-size:0.72rem;color:rgba(255,255,255,0.7);}
+  .chat-status-dot{display:inline-block;width:6px;height:6px;background:#4ade80;border-radius:50%;margin-right:4px;}
+  .chat-messages{height:480px;overflow-y:auto;padding:1.5rem;display:flex;flex-direction:column;gap:1rem;background:var(--chat-bg);}
+  .chat-messages::-webkit-scrollbar{width:4px;}
+  .chat-messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+  .msg-row{display:flex;gap:10px;animation:fadeIn 0.3s ease;}
+  .msg-row.user{flex-direction:row-reverse;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .msg-avatar{width:34px;height:34px;flex-shrink:0;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-top:2px;overflow:hidden;background:linear-gradient(135deg,var(--teal),var(--navy));}
+  .msg-avatar img{width:100%;height:100%;object-fit:cover;}
+  .msg-avatar.user{background:var(--navy);font-size:11px;font-weight:700;color:#fff;font-family:"Raleway",sans-serif;}
+  .msg-bubble{max-width:72%;padding:0.75rem 1rem;border-radius:14px;font-size:0.9rem;line-height:1.6;}
+  .msg-bubble.bot{background:#fff;color:var(--text-dark);border:1px solid var(--border);border-bottom-left-radius:4px;}
+  .msg-bubble.user{background:var(--navy);color:#fff;border-bottom-right-radius:4px;}
+  .msg-time{font-size:0.68rem;color:var(--text-light);margin-top:4px;padding:0 4px;}
+  .msg-row.user .msg-time{text-align:right;}
+  .typing-indicator{display:flex;gap:5px;align-items:center;padding:0.75rem 1rem;}
+  .typing-dot{width:7px;height:7px;background:var(--teal);border-radius:50%;animation:typingBounce 1.2s infinite;}
+  .typing-dot:nth-child(2){animation-delay:0.2s;}
+  .typing-dot:nth-child(3){animation-delay:0.4s;}
+  @keyframes typingBounce{0%,60%,100%{transform:translateY(0);opacity:0.5}30%{transform:translateY(-6px);opacity:1}}
+  .chat-input-area{padding:1rem 1.25rem;background:#fff;border-top:1px solid var(--border);display:flex;gap:10px;align-items:flex-end;}
+  .chat-input{flex:1;border:1px solid var(--border);border-radius:10px;padding:0.75rem 1rem;font-family:"Lato",sans-serif;font-size:0.9rem;color:var(--text-dark);resize:none;outline:none;transition:border-color 0.2s;max-height:120px;min-height:44px;line-height:1.5;}
+  .chat-input:focus{border-color:var(--teal);}
+  .chat-send-btn{width:44px;height:44px;background:var(--teal);border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.2s,transform 0.15s;font-size:16px;color:#fff;}
+  .chat-send-btn:hover{background:var(--teal-light);transform:scale(1.05);}
+  .chat-send-btn:disabled{background:var(--border);cursor:not-allowed;transform:none;}
+  .quick-suggestions{padding:0.75rem 1.25rem;background:#fff;border-top:1px solid var(--border);display:flex;gap:0.5rem;flex-wrap:wrap;}
+  .suggestion-chip{background:rgba(26,138,122,0.08);border:1px solid rgba(26,138,122,0.25);border-radius:100px;padding:0.35rem 0.9rem;font-size:0.78rem;color:var(--teal);cursor:pointer;transition:background 0.2s;font-family:"Lato",sans-serif;}
+  .suggestion-chip:hover{background:rgba(26,138,122,0.15);}
+  .chat-fallback{max-width:800px;margin:0 auto;padding:0 2rem 2.5rem;text-align:center;font-size:0.82rem;color:var(--text-light);line-height:1.6;}
+  .chat-fallback a{color:var(--teal);text-decoration:none;font-weight:700;}
+  .chat-fallback a:hover{text-decoration:underline;}
+</style>
+
+<script is:inline>
+const LOGO="/logo.jpg";
+let conversationHistory=[];
+const AI_NAMES=["Jamie","Alex","Sam","Ellie","Tom"];
+const aiAssistantName=AI_NAMES[Math.floor(Math.random()*AI_NAMES.length)];
+
+// Personalise the welcome bubble with the AI's chosen name. Built via DOM nodes
+// so the name and any future copy can never inject HTML.
+(function(){
+  const wb = document.getElementById("welcomeBubble");
+  if(!wb) return;
+  while(wb.firstChild) wb.removeChild(wb.firstChild);
+  wb.appendChild(document.createTextNode("Hi, I'm " + aiAssistantName + ". Welcome to Intelligent Carpet Cleaning. I'm here to help you with quotes, carpet advice, stain guidance, and booking."));
+  wb.appendChild(document.createElement("br"));
+  wb.appendChild(document.createElement("br"));
+  wb.appendChild(document.createTextNode("To get started, could you tell me about your carpet and what you need? For example, the room type, approximate size, and any concerns such as staining or heavy soiling."));
+})();
+
+// Inactivity timer - 3 minutes between checks, max 3 reminders then session ends
+let inactivityTimer=null;
+let inactivityCount=0;
+const INACTIVITY_MS=3*60*1000;
+
+function scheduleInactivityCheck(){
+  if(inactivityTimer) clearTimeout(inactivityTimer);
+  inactivityTimer=setTimeout(handleInactivity,INACTIVITY_MS);
+}
+
+function cancelInactivityTimer(){
+  if(inactivityTimer) clearTimeout(inactivityTimer);
+  inactivityTimer=null;
+}
+
+function resetInactivityTimer(){
+  inactivityCount=0;
+  scheduleInactivityCheck();
+}
+
+function handleInactivity(){
+  inactivityCount++;
+  const input=document.getElementById("chatInput");
+  const btn=document.getElementById("sendBtn");
+  if(inactivityCount===1){
+    appendMessage("bot","Still there? No rush at all, happy to help whenever you're ready.");
+    scheduleInactivityCheck();
+  } else if(inactivityCount===2){
+    appendMessage("bot","Just checking in again. If now isn't a good moment, feel free to come back any time and we'll pick up from wherever you like.");
+    scheduleInactivityCheck();
+  } else {
+    appendMessage("bot","I'll leave you to it for now. Come back any time you'd like a quote or to get booked in. You can also reach us directly on 01242 279590 or at talktoregency@gmail.com. Take care!");
+    cancelInactivityTimer();
+    input.disabled=true;
+    btn.disabled=true;
+    input.placeholder="Chat session ended. Refresh the page to start a new conversation.";
+  }
+}
+
+function autoResize(el){el.style.height="auto";el.style.height=Math.min(el.scrollHeight,120)+"px";}
+// Reset the inactivity timer while the user is typing, but only once the
+// conversation is underway — otherwise we'd start a timer before they've
+// even sent their first message.
+function onInputActivity(){ if(conversationHistory.length>0) resetInactivityTimer(); }
+function handleKeyDown(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();}}
+function sendSuggestion(t){document.getElementById("chatInput").value=t;document.getElementById("quickSuggestions").style.display="none";sendMessage();}
+function getTime(){return new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});}
+
+function appendMessage(role,text){
+  const c=document.getElementById("chatMessages");
+  const row=document.createElement("div");row.className="msg-row "+role;
+  const av=document.createElement("div");av.className="msg-avatar"+(role==="user"?" user":"");
+  if(role==="bot"){const img=document.createElement("img");img.src=LOGO;img.alt="ICC";av.appendChild(img);}
+  else{av.textContent="You";}
+  const wrap=document.createElement("div");
+  const bub=document.createElement("div");bub.className="msg-bubble "+role;
+  // Build paragraphs via DOM nodes (textContent) instead of innerHTML so any
+  // markup in the AI response (or a prompt-injected reply) is rendered as text
+  // and never executed.
+  const paras=String(text==null?"":text).split(/\n{2,}/);
+  paras.forEach(function(p,i){
+    const pEl=document.createElement("p");
+    pEl.style.margin = (i===paras.length-1) ? "0" : "0 0 0.55em 0";
+    const lines=p.split("\n");
+    lines.forEach(function(line,li){
+      pEl.appendChild(document.createTextNode(line));
+      if(li<lines.length-1) pEl.appendChild(document.createElement("br"));
+    });
+    bub.appendChild(pEl);
+  });
+  const t=document.createElement("div");t.className="msg-time";t.textContent=getTime();
+  wrap.appendChild(bub);wrap.appendChild(t);row.appendChild(av);row.appendChild(wrap);c.appendChild(row);
+  c.scrollTop=c.scrollHeight;
+}
+
+function showTyping(){
+  const c=document.getElementById("chatMessages");
+  const row=document.createElement("div");row.className="msg-row";row.id="typingRow";
+  const av=document.createElement("div");av.className="msg-avatar";
+  const img=document.createElement("img");img.src=LOGO;img.alt="ICC";av.appendChild(img);
+  const bub=document.createElement("div");bub.className="msg-bubble bot";
+  bub.innerHTML='<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>';
+  row.appendChild(av);row.appendChild(bub);c.appendChild(row);c.scrollTop=c.scrollHeight;
+}
+
+function removeTyping(){const t=document.getElementById("typingRow");if(t)t.remove();}
+
+let pendingImage = null; // {base64: string, mediaType: string, name: string}
+
+function handleImageUpload(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const dataUrl = e.target.result;
+    const base64 = dataUrl.split(",")[1];
+    const mediaType = file.type || "image/jpeg";
+    pendingImage = {base64, mediaType, name: file.name};
+    document.getElementById("imagePreviewThumb").src = dataUrl;
+    document.getElementById("imagePreviewName").textContent = file.name + " - ready to send";
+    document.getElementById("imagePreviewArea").style.display = "block";
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearImage(){
+  pendingImage = null;
+  document.getElementById("imageUpload").value = "";
+  document.getElementById("imagePreviewArea").style.display = "none";
+}
+
+function appendImageMessage(src, name){
+  const container = document.getElementById("chatMessages");
+  const row = document.createElement("div");
+  row.className = "msg-row user";
+  const av = document.createElement("div");
+  av.className = "msg-avatar user";
+  av.textContent = "You";
+  const wrap = document.createElement("div");
+  const bub = document.createElement("div");
+  bub.className = "msg-bubble user";
+  bub.style.cssText = "padding:6px;";
+  const img = document.createElement("img");
+  img.src = src;
+  img.style.cssText = "max-width:200px;max-height:150px;border-radius:8px;display:block;";
+  const cap = document.createElement("div");
+  cap.style.cssText = "font-size:0.75rem;opacity:0.7;margin-top:4px;";
+  cap.textContent = name;
+  bub.appendChild(img);
+  bub.appendChild(cap);
+  const t = document.createElement("div");
+  t.className = "msg-time";
+  t.textContent = getTime();
+  wrap.appendChild(bub);
+  wrap.appendChild(t);
+  row.appendChild(av);
+  row.appendChild(wrap);
+  container.appendChild(row);
+  container.scrollTop = container.scrollHeight;
+}
+
+async function processBooking(booking){
+  try{
+    const availRes = await fetch("/api/chat",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({action:"check_availability",date:booking.date,slots_needed:booking.slots_needed})
+    });
+    const availData = await availRes.json();
+    const startHour = parseInt(booking.start_time.split(":")[0]);
+    const requestedSlots = Array.from({length:booking.slots_needed},function(_,i){return startHour+i;});
+    const isAvailable = !requestedSlots.some(function(s){return availData.booked&&availData.booked.includes(s);});
+
+    if(!isAvailable){
+      const parts=booking.date.split("-");const readableDate=new Date(parts[0],parts[1]-1,parts[2]).toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});appendMessage("bot","Sorry, that time has just been taken by another booking. The remaining available times for "+readableDate+" are: "+(availData.available||[]).join(", ")+". Which would you prefer?");
+      return;
+    }
+
+    const bookRes = await fetch("/api/chat",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({action:"confirm_booking",booking:Object.assign({},booking,{image:window.lastUploadedImage||null})})
+    });
+    const bookData = await bookRes.json();
+
+    if(bookData.error){
+      appendMessage("bot","Sorry - "+bookData.error+" Please choose another time.");
+      return;
+    }
+
+    const msgs = document.getElementById("chatMessages");
+    const confirmDiv = document.createElement("div");
+    confirmDiv.className = "msg-row";
+    const av = document.createElement("div");
+    av.className = "msg-avatar bot";
+    av.textContent = "✓";
+    av.style.cssText = "background:linear-gradient(135deg,#1a8a7a,#0c2c25);font-size:16px;color:#fff;";
+    const wrap = document.createElement("div");
+    const bub = document.createElement("div");
+    bub.className = "msg-bubble bot";
+    bub.style.cssText = "border-left:3px solid #1a8a7a;";
+    // Build the confirmation block via DOM nodes so booking fields are text-only.
+    function strong(txt){ const s=document.createElement("strong"); s.textContent=String(txt||""); return s; }
+    const title = document.createElement("strong");
+    title.style.color = "#1a8a7a";
+    title.textContent = "Booking Confirmed";
+    bub.appendChild(title);
+    bub.appendChild(document.createElement("br"));
+    bub.appendChild(document.createTextNode("Your appointment is secured for "));
+    bub.appendChild(strong(booking.date));
+    bub.appendChild(document.createTextNode(" at "));
+    bub.appendChild(strong(booking.start_time));
+    bub.appendChild(document.createTextNode("."));
+    bub.appendChild(document.createElement("br"));
+    bub.appendChild(document.createElement("br"));
+    bub.appendChild(document.createTextNode("Confirmation emails have been sent to "));
+    bub.appendChild(strong(booking.email));
+    bub.appendChild(document.createTextNode(" and to our team."));
+    // Calendar link: only render if it looks like a Google Calendar URL
+    if(bookData.calLink && typeof bookData.calLink === "string" && bookData.calLink.startsWith("https://calendar.google.com/")){
+      bub.appendChild(document.createElement("br"));
+      bub.appendChild(document.createElement("br"));
+      const a = document.createElement("a");
+      a.href = bookData.calLink;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.style.cssText = "display:inline-block;background:#1a8a7a;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-size:0.85rem;margin-top:6px;";
+      a.textContent = "Add to My Calendar";
+      bub.appendChild(a);
+    }
+    bub.appendChild(document.createElement("br"));
+    bub.appendChild(document.createElement("br"));
+    const footer = document.createElement("span");
+    footer.style.cssText = "font-size:0.82rem;color:#718096;";
+    footer.textContent = "Mark will be in touch to arrange your deposit of " + (booking.deposit||"") + ". Questions? Call 01242 279590.";
+    bub.appendChild(footer);
+    const t = document.createElement("div");
+    t.className = "msg-time";
+    t.textContent = "Now";
+    wrap.appendChild(bub);
+    wrap.appendChild(t);
+    confirmDiv.appendChild(av);
+    confirmDiv.appendChild(wrap);
+    msgs.appendChild(confirmDiv);
+    msgs.scrollTop = msgs.scrollHeight;
+  }catch(e){
+    appendMessage("bot","I have all your details noted. Please call 01242 279590 or email talktoregency@gmail.com to confirm your booking.");
+  }
+}
+
+async function sendMessage(){
+  const input=document.getElementById("chatInput");
+  const btn=document.getElementById("sendBtn");
+  const text=input.value.trim();
+  if(!text && !pendingImage) return;
+  cancelInactivityTimer();
+  document.getElementById("quickSuggestions").style.display="none";
+
+  let userContent;
+  if(pendingImage && text){
+    userContent=[
+      {type:"image",source:{type:"base64",media_type:pendingImage.mediaType,data:pendingImage.base64}},
+      {type:"text",text:text}
+    ];
+    appendImageMessage("data:"+pendingImage.mediaType+";base64,"+pendingImage.base64, pendingImage.name);
+    appendMessage("user",text);
+  } else if(pendingImage){
+    userContent=[
+      {type:"image",source:{type:"base64",media_type:pendingImage.mediaType,data:pendingImage.base64}},
+      {type:"text",text:"Please look at this photo of my carpet and tell me what type it is, what condition it is in, and what cleaning method you would recommend."}
+    ];
+    appendImageMessage("data:"+pendingImage.mediaType+";base64,"+pendingImage.base64, pendingImage.name);
+  } else {
+    userContent=text;
+    appendMessage("user",text);
+  }
+
+  if(pendingImage){
+    window.lastUploadedImage={base64:pendingImage.base64,mediaType:pendingImage.mediaType,name:pendingImage.name};
+    clearImage();
+  }
+
+  conversationHistory.push({role:"user",content:userContent});
+  input.value="";input.style.height="auto";btn.disabled=true;showTyping();
+  try{
+    const r=await fetch("/api/chat",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({messages:conversationHistory,assistantName:aiAssistantName})
+    });
+    const d=await r.json();removeTyping();
+    if(d.content&&d.content[0]){
+      const reply=d.content[0].text;
+      const bookingMatch=reply.match(/BOOKING_READY:(\{[\s\S]*?\})/);
+      if(bookingMatch){
+        try{
+          const booking=JSON.parse(bookingMatch[1]);
+          const cleanReply=reply.replace(/BOOKING_READY:\{[\s\S]*?\}/,"").trim();
+          if(cleanReply) appendMessage("bot",cleanReply);
+          appendMessage("bot","One moment, confirming your slot...");
+          await processBooking(booking);
+        }catch(e){
+          appendMessage("bot",reply.replace(/BOOKING_READY:[\s\S]*$/,"").trim());
+        }
+      } else {
+        appendMessage("bot",reply);
+      }
+      conversationHistory.push({role:"assistant",content:reply});
+      resetInactivityTimer();
+    } else if(d.error){
+      // Surface the real error so we can diagnose 403/429/500 instead of a
+      // generic "I encountered an issue" fallback.
+      appendMessage("bot","Sorry, "+d.error+" If this persists, please call 01242 279590 or email talktoregency@gmail.com.");
+    } else if(r.status >= 400){
+      appendMessage("bot","Sorry, the chat service returned an error (status "+r.status+"). Please try again or call 01242 279590.");
+    } else {
+      appendMessage("bot","I apologise, I encountered an issue. Please try again or contact us directly on 01242 279590.");
+    }
+  }catch(e){
+    removeTyping();
+    appendMessage("bot","I am unable to connect at the moment. Please try again shortly or contact us directly.");
+  }
+  btn.disabled=false;input.focus();
+}
+</script>

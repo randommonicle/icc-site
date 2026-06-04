@@ -174,7 +174,7 @@ Any marketing-email capability must record per-client consent (PECR soft opt-in 
 
 ### Business facts that live in the code
 These are real business rules encoded in `chat.js` (the system prompt) — keep them in sync with reality and with [DECISIONS.md](DECISIONS.md):
-- **Service area (D-011):** Cheltenham and Gloucester are core (no travel charge). The wider Gloucestershire area (Stroud, Tewkesbury, Cirencester and surrounding GL towns) is covered with a small out-of-area surcharge. The assistant flags the surcharge early for out-of-area addresses but does not invent a figure — Mark confirms it at booking. The exact figure and postcode boundary are still to be set; once they are, encode them so the assistant quotes a concrete number and `validateBooking` applies it server-side.
+- **Service area (D-011):** Cheltenham, Gloucester and Winchcombe are core (no travel charge). Everywhere else in Gloucestershire (Stroud, Tewkesbury, Cirencester and the surrounding GL towns) carries a **flat £15 + VAT out-of-area surcharge** (confirmed by Mark, June 2026). The assistant quotes the £15 + VAT concretely and includes it in the itemised quote for out-of-area addresses. Remaining: the precise postcode boundary for "out of area" and **server-side enforcement** — `validateBooking` currently only bounds the total price (£30–£5000), so the surcharge lives in the assistant's quote, not the server; encode the boundary + surcharge in `validateBooking` in Phase 2 (pairs with moving pricing/area logic server-side, D-007).
 - **Hours, slots, pricing, deposit:** all in the `STATIC_SYSTEM_PROMPT`. Pricing is "+ VAT" throughout. A 10% non-refundable deposit secures a slot.
 
 ### AI chat flow (`netlify/functions/chat.js` + `index.html`)

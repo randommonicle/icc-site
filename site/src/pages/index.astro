@@ -1,0 +1,119 @@
+---
+// Home page. Ported from the Phase 0 #home section; the showSection() toggles
+// become real links to /book (where the AI assistant + booking flow will live).
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+
+// Service areas for the home-page "Areas we cover" strip — pulled from the
+// `areas` collection so new towns appear here automatically (D-001, stays in
+// sync with /areas). Sorted core-first by `order`.
+const areas = (await getCollection('areas', ({ data }) => !data.draft)).sort(
+  (a, b) => a.data.order - b.data.order,
+);
+---
+<BaseLayout
+  title="Intelligent Carpet Cleaning | Cheltenham & Gloucestershire"
+  description="Cheltenham and Gloucestershire's first AI-assisted carpet cleaning service. Get an instant quote, understand your carpet type, and book in minutes."
+>
+  <section class="hero-wrap">
+    <div class="hero-grid"></div>
+    <div class="hero-content">
+      <div>
+        <div class="hero-badge"><div class="hero-badge-dot"></div>AI-Powered Carpet Care</div>
+        <h1 class="hero-title">Smarter Cleaning.<br /><span class="accent">Guaranteed Results.</span></h1>
+        <p class="hero-sub">Cheltenham and Gloucestershire's first fully AI-assisted carpet cleaning service. Get an instant quote, understand your carpet type, and book in minutes.</p>
+        <div class="hero-actions">
+          <a class="btn-primary" href="/book">Chat with Our AI</a>
+          <a class="btn-outline" href="/book">Book a Visit</a>
+        </div>
+        <div class="hero-stats">
+          <div><div class="hero-stat-num">500+</div><div class="hero-stat-label">Cleans Completed</div></div>
+          <div><div class="hero-stat-num">98%</div><div class="hero-stat-label">Satisfaction Rate</div></div>
+          <div><div class="hero-stat-num">15+</div><div class="hero-stat-label">Carpet Types</div></div>
+        </div>
+      </div>
+      <div class="hero-logo-panel">
+        <div class="hero-logo-frame">
+          <img src="/logo.jpg" alt="Intelligent Carpet Cleaning" />
+        </div>
+        <a class="hero-chat-teaser" href="/book">
+          <div class="chat-teaser-dot"></div>
+          <div class="chat-teaser-text">AI Assistant is online. Get an instant quote now.</div>
+          <div class="chat-teaser-arrow">&rsaquo;</div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <div class="features-strip">
+    <div class="features-inner">
+      <div class="feature-card"><div class="feature-icon">🔬</div><div class="feature-title">Carpet Type Identification</div><div class="feature-desc">Describe your carpet and our AI will identify the fibre type, pile construction, and the exact cleaning method required.</div></div>
+      <div class="feature-card"><div class="feature-icon">💬</div><div class="feature-title">Instant AI Quotes</div><div class="feature-desc">No waiting for a callback. Get a fully explained, itemised quote in real time with clear reasoning behind every figure.</div></div>
+      <div class="feature-card"><div class="feature-icon">📅</div><div class="feature-title">Seamless Booking</div><div class="feature-desc">The AI collects your details, checks availability, and hands a complete customer file directly to our team.</div></div>
+    </div>
+  </div>
+
+  <div class="services-section">
+    <div class="section-label">What We Do</div>
+    <h2 class="section-title">Specialist Cleaning Services</h2>
+    <p class="section-sub">Every carpet is different. We match the cleaning method to the fibre, construction, and soiling type every time.</p>
+    <div class="services-grid">
+      <a class="service-card" href="/book"><div class="service-card-icon">🏠</div><div><div class="service-card-title">Residential Carpet Cleaning</div><div class="service-card-desc">Hot water extraction, low-moisture, and dry cleaning options for all domestic carpet types including wool, synthetic, and natural fibres.</div><div class="service-price">From £75 per room + VAT</div></div></a>
+      <a class="service-card" href="/book"><div class="service-card-icon">🏢</div><div><div class="service-card-title">Commercial Contracts</div><div class="service-card-desc">Regular maintenance programmes for offices, hospitality venues, and rental properties across Gloucestershire.</div><div class="service-price">Contact for tailored pricing</div></div></a>
+      <a class="service-card" href="/book"><div class="service-card-icon">🍷</div><div><div class="service-card-title">Stain Treatment</div><div class="service-card-desc">Specialist treatment for red wine, pet staining, bleach damage, and ingrained soiling. Pre-assessment included.</div><div class="service-price">From £45 + VAT</div></div></a>
+      <a class="service-card" href="/book"><div class="service-card-icon">🛋️</div><div><div class="service-card-title">Upholstery Cleaning</div><div class="service-card-desc">Safe, effective cleaning for sofas, chairs, and curtains using fabric-appropriate methods.</div><div class="service-price">From £50 per item + VAT</div></div></a>
+    </div>
+  </div>
+
+  <div class="home-areas">
+    <div class="home-areas-inner">
+      <div class="section-label">Service Areas</div>
+      <h2 class="section-title">Carpet Cleaning Across Gloucestershire</h2>
+      <p class="section-sub">Cheltenham, Gloucester and Winchcombe are our core area, with no travel surcharge. Everywhere else in the county carries a flat £15 + VAT out-of-area surcharge, shown up front before you book.</p>
+      <div class="home-areas-grid">
+        {areas.map((a) => (
+          <a class="home-area-chip" href={`/areas/${a.id}`}>
+            <span class="home-area-town">{a.data.town}</span>
+            <span class={`home-area-tag home-area-tag-${a.data.tier}`}>
+              {a.data.tier === 'core' ? 'No surcharge' : 'Wider area'}
+            </span>
+          </a>
+        ))}
+      </div>
+      <a class="home-areas-cta" href="/areas">See all service areas &rarr;</a>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  /* Home-page "Areas we cover" strip. Surfaces the service-area pages from the
+     strongest page and passes internal-link authority to them. Off-white band
+     for rhythm against the white services section above it. */
+  .home-areas { background: var(--off-white); padding: 5rem 2rem; }
+  .home-areas-inner { max-width: 1100px; margin: 0 auto; }
+  .home-areas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0 2rem;
+  }
+  .home-area-chip {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--teal);
+    border-radius: 12px;
+    padding: 1.1rem 1.25rem;
+    text-decoration: none;
+    transition: box-shadow 0.2s, transform 0.15s;
+  }
+  .home-area-chip:hover { box-shadow: 0 6px 24px rgba(26, 138, 122, 0.12); transform: translateY(-2px); }
+  .home-area-town { font-family: "Raleway", sans-serif; font-size: 1.05rem; font-weight: 700; color: var(--navy); }
+  .home-area-tag { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+  .home-area-tag-core { color: var(--teal); }
+  .home-area-tag-wider { color: var(--gold); }
+  .home-areas-cta { color: var(--teal); font-weight: 700; font-size: 0.9rem; letter-spacing: 0.03em; text-decoration: none; }
+  .home-areas-cta:hover { text-decoration: underline; }
+</style>

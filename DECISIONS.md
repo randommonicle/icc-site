@@ -8,10 +8,14 @@ Same convention as the ASH app and PropOS. Reference decisions by ID from code c
 
 ---
 
-## D-001 — Multi-page static front end (not single-file, not an SPA)
-**Status:** Accepted (front-end tool still Open)
+## D-001 — Multi-page static front end, built with Astro
+**Status:** Accepted (front-end tool resolved: Astro, June 2026)
 
-The public site becomes a proper multi-page static site so each page is independently crawlable and can target its own search terms. This is the foundation of the SEO strategy (DESIGN §4, §9). Open sub-question: hand-built HTML vs a static site generator such as Astro. Astro gives components/layouts and content collections (useful once there are many guide/area pages) at the cost of a build step. Decide before Phase 1 build starts. Either way it deploys on Netlify and stays fully static.
+The public site becomes a proper multi-page static site so each page is independently crawlable and can target its own search terms — the foundation of the SEO strategy (DESIGN §4, §9).
+
+The front-end-tool sub-question is **resolved in favour of Astro** (a static site generator). Reasoning: Phase 1 is content- and SEO-heavy (Services, About, History, a growing library of care guides, and several core/wider-area pages per D-011), which is exactly where Astro's shared layouts/components and content collections remove duplication and keep per-page SEO consistent; `@astrojs/sitemap` generates the sitemap at build; output is zero-JS static HTML (fast, fully crawlable); and the existing chat widget ports cleanly as a client-side island with the `/api/*` serverless contract unchanged. The cost is a Node build step — already anticipated in CLAUDE.md, and immaterial on the project's paid Netlify plan. Hand-built HTML was the alternative; rejected because ~12+ pages would duplicate head/nav/footer and need hand-maintained meta, structured data, and sitemap, with drift being the exact failure mode Phase 1 is trying to avoid.
+
+Implementation: scaffolded under `site/` — a small, deliberate pull-forward of the D-014 monorepo layout, so the site is not relocated at Phase 2. TypeScript strict, vanilla CSS ported from the Phase 0 site, static output, deployed on Netlify. The Phase 0 single-page `index.html` keeps serving until the Astro site is cut over in a dedicated PR.
 
 ## D-002 — Supabase (managed Postgres) for the operational backend
 **Status:** Accepted
@@ -58,10 +62,10 @@ Domain, Netlify, Anthropic, Resend, Stripe, Supabase, and Google Business Profil
 
 Branch off `main`, never push to `main` directly, deploy by deliberate merge (not mid-traffic without sign-off). Real services in tests, no mocks. Honest RAG-tracked, standards-referenced, phased audits. Keep the doc set (CLAUDE/ROADMAP/DECISIONS/LESSONS_LEARNED/NEXT_SESSION) current. Clean prose, bold for structure only. Recorded here so the convention is explicit for this repo, not just assumed.
 
-## D-011 — Service area: Cheltenham/Gloucester core, wider Gloucestershire with an out-of-area surcharge
-**Status:** Accepted (confirmed by Mark, June 2026; exact surcharge figure still Open)
+## D-011 — Service area: Cheltenham/Gloucester/Winchcombe core, wider Gloucestershire with a flat £15 out-of-area surcharge
+**Status:** Accepted (confirmed by Mark, June 2026; surcharge figure resolved June 2026 — flat £15 + VAT)
 
-Cheltenham and Gloucester are the core service area with no travel charge. ICC also covers the wider Gloucestershire area — Stroud, Tewkesbury, Cirencester, and surrounding towns (all GL postcodes). Jobs outside Cheltenham and Gloucester incur a small out-of-area surcharge. The live AI assistant now states this and flags the surcharge early when an address is outside the core area, without inventing a figure (Mark confirms the amount at booking). Open: the exact surcharge amount and/or the precise postcode boundary for "out of area" — once Mark sets these, encode them so the assistant can quote a concrete number and `validateBooking` can apply it server-side. This also shapes the SEO area pages (D-001): core-area pages and wider-area pages with honest surcharge messaging.
+Cheltenham, Gloucester and Winchcombe are the core service area with no travel charge. ICC also covers the wider Gloucestershire area — Stroud, Tewkesbury, Cirencester, and surrounding towns (all GL postcodes). Jobs outside the core area incur a **flat £15 + VAT out-of-area surcharge** (confirmed by Mark, June 2026). The AI assistant and the site (area pages, services page, home-page strip) now state this concretely, and the assistant includes the £15 + VAT in the itemised quote for out-of-area addresses, shown up front. This shapes the SEO area pages (D-001): Cheltenham/Gloucester/Winchcombe are core/no-surcharge pages; Stroud/Tewkesbury/Cirencester and the wider GL towns are wider-area pages stating the flat £15 + VAT. **Still open (Phase 2):** the precise postcode boundary for "out of area" and **server-side enforcement** — `validateBooking` currently only bounds the total price, so the surcharge is applied in the assistant's quote, not enforced server-side. Encode the boundary + surcharge in `validateBooking` when pricing/area logic moves server-side (D-007), so the website and the future field app (D-012) apply it identically.
 
 ## D-012 — The field app is built concurrently with the website and fully integrated, not deferred
 **Status:** Accepted (confirmed by Mark, June 2026)

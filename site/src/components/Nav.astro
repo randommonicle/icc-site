@@ -1,0 +1,35 @@
+---
+// Site navigation. Real multi-page links replace the Phase 0 showSection()
+// single-page toggles. The active route is marked with aria-current for both
+// accessibility and the highlight style.
+const path = Astro.url.pathname;
+const isActive = (href: string) =>
+  href === '/' ? path === '/' : path === href || path.startsWith(href + '/');
+const links = [
+  { href: '/', label: 'Home' },
+  { href: '/services', label: 'Services' },
+  { href: '/areas', label: 'Areas' },
+  { href: '/guides', label: 'Guides' },
+  { href: '/about', label: 'About' },
+  { href: '/book', label: 'Book' },
+  { href: '/contact', label: 'Contact' },
+];
+---
+<nav>
+  <a class="nav-logo" href="/">
+    <div style="display:flex;flex-direction:column;line-height:1.2;">
+      <span style="font-family:Raleway,sans-serif;font-size:1rem;font-weight:800;color:#fff;letter-spacing:0.02em;">INTELLIGENT CARPET CLEANING</span>
+      <span style="font-size:0.6rem;font-weight:400;color:#2ab8a4;letter-spacing:0.15em;text-transform:uppercase;">Established Trust, Superior Cleaning</span>
+    </div>
+  </a>
+  <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-hidden="true" />
+  <label for="nav-toggle" class="nav-burger" aria-label="Open menu"><span></span><span></span><span></span></label>
+  <ul class="nav-links">
+    {links.map((l) => (
+      <li>
+        <a href={l.href} aria-current={isActive(l.href) ? 'page' : undefined}>{l.label}</a>
+      </li>
+    ))}
+  </ul>
+  <a class="nav-cta" href="/book">Get a Quote</a>
+</nav>
