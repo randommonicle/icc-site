@@ -28,6 +28,7 @@ select throws_ok(
   $$insert into jobs (customer_id, status, address, postcode, slot_date, start_hour, slots_needed)
     values ('00000000-0000-0000-0000-000000000001', 'booked', '1 Test St', 'GL50 1AA', '2026-07-01', 11, 2)$$,
   '23P01',
+  null,
   'overlapping non-cancelled job is rejected'
 );
 
