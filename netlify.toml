@@ -1,6 +1,12 @@
 [build]
   functions = "netlify/functions"
 
+# Pin Node 24 for the build AND the Functions runtime (AWS Lambda nodejs24.x).
+# Node 20 reached end-of-life on 30 Apr 2026; Node 24 is LTS until Apr 2028.
+# This NODE_VERSION takes precedence over .nvmrc and package.json "engines".
+[build.environment]
+  NODE_VERSION = "24"
+
 [[redirects]]
   from = "/api/chat"
   to = "/.netlify/functions/chat"
