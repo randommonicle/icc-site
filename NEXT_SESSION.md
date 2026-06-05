@@ -2,7 +2,7 @@
 
 Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file at the end of every working session so the next person (or AI) can continue cold.
 
-**Last updated:** 5 June 2026 — **Phase 2 (operational backend) underway.** Three stacked PRs are open and **none are merged**: Slice 0 (monorepo → `server/`, #6), Slice 1 (`shared/config` single source, #7), Slice 2 (Supabase schema, #8). **Slice 2 is authored but NOT verified** — Docker would not start on this machine, so the pgTAP test could not run; its PR is gated. Phase 1 (Astro site) remains in `main`, **not cut over**.
+**Last updated:** 5 June 2026 — **Phase 2 (operational backend) underway.** Three stacked PRs are open and **none are merged**: Slice 0 (monorepo → `server/`, #6), Slice 1 (`shared/config` single source, #7), Slice 2 (Supabase schema, #8). **Slice 2 is authored but NOT verified** — the work machine can't run the local Supabase stack (Docker OOM'd it), so the pgTAP test hasn't run; its PR is gated. **Picking this up at home: do step 1 below to verify Slice 2, then the merges.** Everything is committed + pushed; working tree clean. Phase 1 (Astro site) remains in `main`, **not cut over**.
 
 ---
 
@@ -34,7 +34,7 @@ Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file
 
 ## Immediate next steps (suggested order)
 
-1. **Verify Slice 2** as soon as a real Postgres is available — `supabase start && supabase test db` (needs Docker working, or run against Mark's hosted project once it exists). The pgTAP test is written and ready. **Until it passes, #8 must not merge.**
+1. **Verify Slice 2 at home** (the work machine can't run the Supabase stack — Docker ran but ate too much memory and forced a restart). On branch `feat/supabase-schema`: `npm install` (pulls the `supabase` CLI devDep), then `npx supabase start && npx supabase db reset && npx supabase test db`. The pgTAP test (`supabase/tests/schema_test.sql`) proves the double-booking guard. **Until it passes, #8 must not merge.** (First `supabase start` pulls a few GB of images.)
 2. **Merge the stack in order** with sign-off: **#6 → #7 → #8**. On each PR's **deploy preview**, confirm `/api/chat` (check_availability) + `/api/bookings` still respond — #6 moves the functions, #7 adds the `shared/config` requires to the bundle, so both change how the functions bundle. GitHub auto-retargets the next PR's base as each lands.
 3. **Slice 3 — `/api/v1/*` + server-side pricing/surcharge enforcement** (D-003/D-011/D-012). New versioned endpoints alongside the live ones; `shared/contract/` types; the `validateBooking` successor enforces the D-011 surcharge/boundary from `serviceArea.js`. Best started on a **verified** schema (do step 1 first).
 4. **Slice 4 — backend AI** through the `messages` table (draft→approve→send): photo-assessment re-run, invoice interpretation + chasing, summaries, NL admin queries (read-only/whitelisted), re-engagement (consent-gated, Phase 4).
@@ -44,7 +44,7 @@ Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file
 
 ## Things to watch / not yet decided
 
-- **Docker won't start on this work machine** (Linux engine pipe `npipe:////./pipe/dockerDesktopLinuxEngine` missing). Blocks the local Supabase stack → Slice 2 verification + any local `supabase start`. Fix Docker (WSL2/Hyper-V/Docker Desktop) or verify against Mark's project.
+- **Docker is unusable for the Supabase stack on the work machine.** It wouldn't start at first (engine-pipe missing); after a reinstall + restart it ran and began pulling images, but `supabase start` consumed too much memory and forced another restart. **Verify Slice 2 at home** (more headroom) or against Mark's project — not on the work machine.
 - **D-009 — local-first.** Do NOT create a hosted Supabase project under our identity; Mark owns it. Build locally; `supabase link && db push` to his project when it exists.
 - **D-011 boundary open (Mark):** `serviceArea.js core_postcodes` is seeded from the Astro frontmatter with a `TODO`; settle the precise out-of-area postcode list, kept in that one file. Server-side enforcement lands in Slice 3.
 - **D-016 — address private:** GBP-verification + privacy layer only; never on the public site / NAP / structured data.
