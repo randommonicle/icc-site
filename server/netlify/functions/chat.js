@@ -637,7 +637,7 @@ async function handleBooking(booking, resendKey, baseHeaders) {
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Rooms</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.rooms)}</td></tr>
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Carpet Types</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.carpet_types)}</td></tr>
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Concerns / Stains</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.concerns || "None noted")}</td></tr>
-            <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Furniture Moving</strong></td><td style="padding:8px 0;font-size:14px;">${booking.furniture_moving ? "Yes - \u00a330 + VAT surcharge applies" : "No"}</td></tr>
+            <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Furniture Moving</strong></td><td style="padding:8px 0;font-size:14px;">${booking.furniture_moving ? `Yes - \u00a3${pricing.priceOf("furniture_moving")} + VAT surcharge applies` : "No"}</td></tr>
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Pets on site</strong></td><td style="padding:8px 0;font-size:14px;">${booking.pets ? "Yes - remind customer to keep pets away" : "No"}</td></tr>
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Recommended Method</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.recommended_method)}</td></tr>
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>AI Assessment</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.ai_assessment)}</td></tr>
@@ -804,7 +804,7 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
       } catch(e){ return booking.date; }
     })();
     twoCol("DATE", dateFormatted, "START TIME", booking.start_time);
-    twoCol("ESTIMATED DURATION", `${booking.slots_needed} hour(s)`, "FURNITURE MOVING", booking.furniture_moving ? "Yes - £30 + VAT" : "No");
+    twoCol("ESTIMATED DURATION", `${booking.slots_needed} hour(s)`, "FURNITURE MOVING", booking.furniture_moving ? `Yes - £${pricing.priceOf("furniture_moving")} + VAT` : "No");
     twoCol("PETS ON SITE", booking.pets ? "Yes - keep away during clean and until dry" : "No", "", "");
     fullRow("ROOMS TO BE CLEANED", booking.rooms);
 
