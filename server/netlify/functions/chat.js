@@ -29,6 +29,14 @@ function buildAllowedOrigins(){
 const ALLOWED_ORIGINS = buildAllowedOrigins();
 const ORIGIN_CHECK_STRICT = process.env.ALLOWED_ORIGINS ? true : false;
 
+// Shared config — single source of truth (D-006, D-007). Model names, the
+// pricing table, and the service-area/surcharge facts live in shared/config and
+// generate the relevant prompt blocks below, so the assistant, the server and
+// the site cannot drift.
+const models = require("../../../shared/config/models.js");
+const pricing = require("../../../shared/config/pricing.js");
+const serviceArea = require("../../../shared/config/serviceArea.js");
+
 // Static portion of the system prompt — invariant between requests.
 // Anthropic caches this block (cache_control: ephemeral) so subsequent
 // messages in the same 5-minute window pay ~10% of normal input cost on
@@ -65,25 +73,9 @@ Service area: All GL postcodes - full Gloucestershire
 Hours: Monday to Saturday, 8am to 6pm
 Available slots: 9am, 10am, 11am, 12pm, 1pm, 2pm, 3pm, 4pm, 5pm (Mon-Sat)
 
-SERVICE AREA AND OUT OF AREA CHARGE:
-Cheltenham, Gloucester and Winchcombe are the core service area with no travel charge. ICC also covers the wider Gloucestershire area, including Stroud, Tewkesbury, Cirencester, and the surrounding towns (all GL postcodes). Jobs outside the core area (anywhere other than Cheltenham, Gloucester and Winchcombe) incur a flat out of area surcharge of £15 + VAT. When the customer's address is outside the core area, mention clearly and early that a flat £15 + VAT out of area surcharge applies, include it in the itemised quote, and state it plainly as a fixed figure — not something "to be confirmed".
+${serviceArea.serviceAreaBlock()}
 
-PRICING (all prices PLUS VAT - always state this clearly):
-Base call-out / first room (up to 15m2): £75 + VAT
-Medium room (15-20m2): £95 + VAT
-Large room / lounge (20-30m2): £115 + VAT
-Hallway: £55 + VAT
-Landing: £45 + VAT
-Stairs up to 13 steps: £65 + VAT
-Stairs 14+ steps: £80 + VAT
-Upholstery 2-seater sofa: £75 + VAT
-Upholstery 3-seater sofa: £90 + VAT
-Upholstery armchair: £50 + VAT
-Stain treatment: from £45 + VAT
-Furniture moving surcharge: £30 + VAT
-Out of area surcharge (address outside Cheltenham, Gloucester and Winchcombe): £15 + VAT, flat rate
-Full house packages: significant discount, quote on request
-Commercial: tailored pricing
+${pricing.pricingBlock()}
 
 TIME ESTIMATES - MINIMUM ONE HOUR PER ROOM:
 Always advise customers that each average-sized room requires a minimum of one hour, including set-up time.
@@ -360,7 +352,7 @@ ${availableDatesList.join("\n")}`;
     : null;
   const hasImage = lastUserMsg && Array.isArray(lastUserMsg.content)
     && lastUserMsg.content.some(c => c.type === "image");
-  const model = hasImage ? "claude-opus-4-5" : "claude-sonnet-4-6";
+  const model = hasImage ? models.vision : models.text;
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
