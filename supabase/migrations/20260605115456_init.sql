@@ -7,8 +7,11 @@
 -- `supabase db reset`; pushed to Mark's hosted project when it exists.
 --
 -- Design notes:
---   * Availability is DERIVED from jobs (hour-blocks 9..17 minus non-cancelled
---     jobs.hours on a date) — no second availability table to drift.
+--   * Business hours 09:00 to 16:30. Whole-hour slots: a job starts on the hour
+--     (09:00 to 15:00) and ends by 16:00, so the 16:00 to 16:30 half-hour is not
+--     bookable in this model (flagged: revisit if half-hour slots are wanted).
+--     Availability is DERIVED from jobs (bookable hour-blocks minus COMMITTED
+--     jobs.hours on a date), no second availability table to drift.
 --   * Double-booking is a DB INVARIANT via a btree_gist exclusion constraint,
 --     not an app-level read-modify-write check (which raced in Phase 0).
 --   * Marketing-consent columns on customers are RECORD-ONLY now (D-008/Phase 4).
@@ -54,15 +57,16 @@ create table customers (
   unsubscribed_at   timestamptz,
   notes             text
 );
-create index customers_email_idx on customers (email);
+create unique index customers_email_idx on customers (email);  -- one row per customer (repeat-booking dedupe)
 create index customers_phone_idx on customers (phone);
 create trigger trg_customers_updated_at before update on customers
   for each row execute function set_updated_at();
 
 -- jobs ----------------------------------------------------------------------
 -- One row per booking. `hours` is a generated half-open range of booked
--- hour-slots; the exclusion constraint forbids two non-cancelled jobs from
--- overlapping on the same date — the concurrency-safe double-booking guard.
+-- hour-slots; the exclusion constraint forbids two COMMITTED jobs (booked or
+-- in_progress) from overlapping on the same date, the concurrency-safe
+-- double-booking guard. Enquiries do not hold a slot (see the constraint).
 create table jobs (
   id                           uuid primary key default gen_random_uuid(),
   created_at                   timestamptz not null default now(),
@@ -73,8 +77,8 @@ create table jobs (
   postcode                     text not null,
   out_of_area                  boolean not null default false,    -- set server-side (Slice 3)
   slot_date                    date not null,
-  start_hour                   smallint not null check (start_hour between 9 and 17),
-  slots_needed                 smallint not null check (slots_needed between 1 and 9),
+  start_hour                   smallint not null check (start_hour between 9 and 15),
+  slots_needed                 smallint not null check (slots_needed between 1 and 7),
   rooms                        text,
   carpet_types                 text,
   concerns                     text,
@@ -92,9 +96,11 @@ create table jobs (
   legacy_blob_id               text,                               -- Phase-0 Blobs id (Slice 5 trace)
   hours int4range generated always as
     (int4range(start_hour::int, (start_hour + slots_needed)::int, '[)')) stored,
-  constraint jobs_trading_hours check (start_hour + slots_needed <= 18),
+  constraint jobs_trading_hours check (start_hour + slots_needed <= 16),  -- jobs end by 16:00 (09:00-16:30 day)
   constraint jobs_no_double_booking
-    exclude using gist (slot_date with =, hours with &&) where (status <> 'cancelled')
+    -- Only COMMITTED jobs hold a slot. An enquiry does not (an abandoned enquiry
+    -- must never block availability); the slot is claimed at the 'booked' transition.
+    exclude using gist (slot_date with =, hours with &&) where (status in ('booked','in_progress'))
 );
 create index jobs_status_idx    on jobs (status);
 create index jobs_slot_date_idx on jobs (slot_date);
@@ -123,7 +129,7 @@ create table job_assessments (
   job_id             uuid not null references jobs(id) on delete cascade,
   created_at         timestamptz not null default now(),
   model              text not null,        -- from shared/config/models
-  source             text not null,        -- 'booking' | 'admin_rerun'
+  source             text not null check (source in ('booking','admin_rerun')),
   assessment         text not null,
   recommended_method clean_method
 );
@@ -135,7 +141,7 @@ create table invoices (
   id            uuid primary key default gen_random_uuid(),
   job_id        uuid not null references jobs(id) on delete restrict,
   status        invoice_status not null default 'draft',
-  amount_ex_vat numeric(10,2) not null,
+  amount_ex_vat numeric(10,2) not null check (amount_ex_vat > 0),
   issued_at     timestamptz,
   due_at        timestamptz,
   paid_at       timestamptz,
@@ -167,7 +173,8 @@ create table messages (
   subject          text,
   body             text,
   approved_at      timestamptz,
-  sent_at          timestamptz
+  sent_at          timestamptz,
+  constraint messages_sent_has_body check (status <> 'sent' or body is not null)
 );
 create index messages_customer_idx on messages (customer_id);
 create index messages_status_idx   on messages (status);

@@ -5,7 +5,7 @@
 -- cannot both exist, while cancelled jobs are exempt.
 
 begin;
-select plan(8);
+select plan(10);
 
 -- enums + core tables exist
 select has_type('job_status');
@@ -39,11 +39,29 @@ select lives_ok(
   'adjacent non-overlapping job is allowed'
 );
 
--- a CANCELLED job may overlap (the partial WHERE excludes cancelled rows)
+-- a CANCELLED job may overlap (the partial WHERE includes only booked/in_progress)
 select lives_ok(
   $$insert into jobs (customer_id, status, address, postcode, slot_date, start_hour, slots_needed)
     values ('00000000-0000-0000-0000-000000000001', 'cancelled', '1 Test St', 'GL50 1AA', '2026-07-01', 10, 2)$$,
   'cancelled job is exempt from the guard'
+);
+
+-- an ENQUIRY may overlap a booked job: it does not hold the slot (an abandoned
+-- enquiry must never block availability).
+select lives_ok(
+  $$insert into jobs (id, customer_id, status, address, postcode, slot_date, start_hour, slots_needed)
+    values ('00000000-0000-0000-0000-0000000000e9', '00000000-0000-0000-0000-000000000001', 'enquiry', '1 Test St', 'GL50 1AA', '2026-07-01', 10, 2)$$,
+  'overlapping enquiry is allowed (enquiries do not hold a slot)'
+);
+
+-- but PROMOTING that enquiry to booked, over the existing booked 10..12 slot,
+-- is rejected: the slot is claimed at the booked transition.
+select throws_ok(
+  $$update jobs set status = 'booked'
+    where id = '00000000-0000-0000-0000-0000000000e9'$$,
+  '23P01',
+  null,
+  'promoting an overlapping enquiry to booked is rejected by the guard'
 );
 
 select * from finish();
