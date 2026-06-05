@@ -2,54 +2,57 @@
 
 Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file at the end of every working session so the next person (or AI) can continue cold.
 
-**Last updated:** 5 June 2026 — **Phase 2 (operational backend) kicked off.** A sliced implementation plan was approved (Supabase + API + backend AI, built local-first per D-009). **Slice 0 (the D-014 monorepo restructure → `server/`) is staged on `chore/d014-monorepo`, verified green locally (`node --test` 8/8), NOT merged — awaiting Ben's sign-off.** Phase 1 (the Astro public site) is fully in `main` (PR #4 + the PR #5 pre-cutover polish) but still **NOT cut over**.
+**Last updated:** 5 June 2026 — **Phase 2 (operational backend) underway.** Three stacked PRs are open and **none are merged**: Slice 0 (monorepo → `server/`, #6), Slice 1 (`shared/config` single source, #7), Slice 2 (Supabase schema, #8). **Slice 2 is authored but NOT verified** — Docker would not start on this machine, so the pgTAP test could not run; its PR is gated. Phase 1 (Astro site) remains in `main`, **not cut over**.
 
 ---
 
 ## Current state — three streams
 
-**1. Live (Phase 0 PoC).** `index.html` + `admin.html` + the two serverless functions, on the Netlify-assigned URL (no custom domain, not promoted). Booking/availability via Netlify Blobs, Resend email, PDF job card. The live AI assistant already quotes the flat **£15 + VAT** out-of-area surcharge and treats Winchcombe as core (PR #4 redeployed `chat.js`). The live `index.html` chrome is still the **old blue** and still shows the old `500+/98%` stats + "first/Guaranteed" copy — bring it in line at/by cutover.
+**1. Live (Phase 0 PoC).** `index.html` + `admin.html` + the serverless functions, on the Netlify URL (not promoted). Booking/availability via Netlify Blobs, Resend, PDF job card. Live assistant quotes the flat £15 + VAT surcharge, treats Winchcombe as core. Live `index.html` is still the old blue with the old stats — fix at/by cutover.
 
-**2. Phase 1 public site (Astro, `site/`).** In `main`, 22 routes, built clean, **dormant** until the cutover PR. All pre-cutover polish is merged (PR #5): SEO meta + `og:image`/Twitter card, chat a11y, WCAG AA contrast, the unsubstantiated `500+`/`98%` stats removed (→ capability tiles, D-015), "first/Guaranteed" softened. **Cutover is blocked on Mark** (privacy `[to confirm: …]` placeholders + a DP review) **and the domain** (D-013). This stream is independent of Phase 2 below.
+**2. Phase 1 public site (Astro, `site/`).** In `main`, 22 routes, polished (PR #5), **dormant** until the cutover PR. Blocked on Mark (privacy `[to confirm]` + DP review) and the domain (D-013). Independent of Phase 2.
 
-**3. Phase 2 operational backend — IN PROGRESS (this session).** Plan approved; building in slices that each leave `main` deployable, **local-first** (no hosted Supabase project created under our identity — D-009). Slice 0 staged on `chore/d014-monorepo` (see below).
+**3. Phase 2 operational backend — IN PROGRESS.** Built in slices that each leave `main` deployable, **local-first** (no hosted Supabase project — D-009). Three stacked PRs (below). Plan in the approved session plan; slice summaries in "Immediate next steps".
 
-**No CI in this repo** — local `node --test` + `npm run build --prefix site` are the only gates. Netlify auto-deploys `main`.
+### Phase 2 PRs (stacked — merge in order; none merged)
+
+| Slice | Branch | PR | What | State |
+|---|---|---|---|---|
+| 0 | `chore/d014-monorepo` | **#6** → `main` | Functions → `server/` (D-014) | ✅ green (`node --test` 8/8) |
+| 1 | `feat/shared-config` | **#7** → #6 | `shared/config` models/pricing/area (D-006/D-007) | ✅ green; prompt byte-identical |
+| 2 | `feat/supabase-schema` | **#8** → #7 | Supabase schema + pgTAP (D-002) | ⚠️ **authored, NOT verified** (Docker) |
+
+`node --test` is the only logic gate locally; **no CI** — Netlify auto-deploys `main` from GitHub. Each PR's deploy preview is where `/api/*` is confirmed before merge.
 
 ## What was done this session (5 June 2026)
 
-- Synced local `main` to `origin/main` (was 28 behind — the PR #5 polish session had moved it on); read the doc set.
-- Agreed to open the Phase 2 backend while the Phase 1 cutover waits on Mark. Approved a sliced plan. Decisions locked: backend folder = **`server/`** (D-014 was open); **local-first Supabase** (D-009); backend-AI scope = **all of it** — persisted/re-runnable photo assessment, AI job/customer summaries, NL admin queries, AI-drafted comms (review requests + re-engagement), **plus invoice interpretation + AI-assisted chasing**.
-- **Slice 0 — monorepo restructure (D-014), on `chore/d014-monorepo`:**
-  - `git mv` `chat.js` + `bookings.js` → `server/netlify/functions/` (history preserved — both show as renames).
-  - `netlify.toml`: `functions = "server/netlify/functions"` (one line; all 4 redirects + 2 header blocks byte-identical).
-  - `test/hardening.test.js`: require paths repointed to `../server/netlify/functions/`; added root `"test": "node --test"` script.
-  - `app/README.md` placeholder (D-012 field-app track).
-  - Docs updated (CLAUDE.md structure + deep-dive headings, README, ROADMAP Phase 2 bullet, DECISIONS D-014 addendum, this file).
-  - **Verified:** `node --test` green **8/8** after the move (baseline was 8/8). Config diffs are exactly one concern each.
-  - **Deliberately deferred (documented in the D-014 addendum) to keep the structural change minimal + low deploy-risk:** npm workspaces + a `server/package.json` (add when `server/` first needs its own dep — `@supabase/supabase-js`, Slice 2; until then functions resolve root `node_modules`, so Netlify install/bundle is unchanged) and the `netlify.toml` build-scope `ignore` directive (no consumer until `app/` has a real build; Phase 0 still publishes the repo root, so it needs care).
-  - **NOT merged.** No live behaviour changes. Awaiting sign-off.
+- Synced `main` (was 28 behind), read the doc set, approved a sliced Phase 2 plan. Locked: backend folder = **`server/`**; **local-first Supabase** (D-009); backend-AI scope = all of it incl. invoice interpretation + AI chasing.
+- **Slice 0 (#6)** — `git mv` functions → `server/netlify/functions/` (history kept); `netlify.toml` functions path; test require paths repointed + root `"test"` script; `app/` placeholder; docs. Deferred (D-014 addendum): npm workspaces + `server/package.json`, and the build-scope `ignore`. `node --test` 8/8.
+- **Slice 1 (#7)** — extracted model names + pricing table + service-area/surcharge into `shared/config/*.js` (CommonJS, so the CJS functions + `node --test` can load them; `.ts` would break that). `chat.js` imports the model and **generates** the PRICING + SERVICE AREA prompt blocks from config. **Parity verified: the assembled prompt is byte-identical**, so the prompt-cache prefix is unchanged (L-002). `core_postcodes` seeded from the Astro frontmatter with a `TODO(D-011 boundary)`.
+- **Slice 2 (#8)** — `supabase/migrations/20260605115456_init.sql`: `customers / jobs / job_photos / job_assessments / invoices / messages`; enums; `updated_at` triggers; **RLS enabled, no policies** (service-role only); **double-booking is a DB invariant** via a `btree_gist` exclusion constraint; availability derived from jobs. `supabase/tests/schema_test.sql` (pgTAP) proves the guard. Supabase CLI added as a devDependency. **Could not run `supabase test db` — Docker daemon would not start (Linux engine pipe missing).** PR #8 is gated "do not merge until verified".
+- Recorded **D-016** — registered address (11 Horsbere Road, Hucclecote, Gloucester, GL3 3BT) kept **private**; ICC runs as a service-area business; address used only for GBP verification + the privacy/data-controller layer, never published (better for SEO than publishing — see D-016).
 
 ## Immediate next steps (suggested order)
 
-1. **Merge Slice 0** — Ben's sign-off. Before merge: confirm in the Netlify dashboard whether prod is **git-linked** (builds on push) or **manual/drag-drop** (only `netlify.toml functions` honoured); merge on a quiet window and verify `/api/chat` (check_availability) + `/api/bookings` resolve on the deploy preview (functions now bundle from the new path). From `main`, branch fresh for each subsequent slice.
-2. **Slice 1 — `shared/config` (D-006/D-007).** Extract `models.ts` (one value: `{text:"claude-sonnet-4-6", vision:"claude-opus-4-5"}`), `pricing.ts` (the prose pricing table in `STATIC_SYSTEM_PROMPT` as data; generate the assistant's PRICING block from it), `serviceArea.ts` (`core_postcodes` + `surcharge_ex_vat:15`, seeded from `site/src/content.config.ts` area frontmatter `tier`+`postcodes`). Pure refactor — assistant output identical.
-3. **Slice 2 — Supabase schema, local-first (D-002).** `supabase init` + `0001_init.sql` (`customers / jobs / job_photos / job_assessments / invoices / messages`; jobs carry a `btree_gist` exclusion constraint that makes double-booking a hard DB invariant; availability is **derived** from jobs, not a second table). **Prereqs:** install the Supabase CLI (`npm i -g supabase`) and start Docker Desktop (`supabase start` needs the daemon — it is installed but was not running). No prod cutover; Blobs stays live.
-4. **Slice 3 — `/api/v1/*` + server-side pricing/surcharge enforcement (D-003/D-011/D-012).** New versioned endpoints **alongside** the live `/api/chat`+`/api/bookings`; `shared/contract/` types imported by site/app/server. This is where the D-011 surcharge/boundary finally gets enforced server-side (the `validateBooking` successor).
-5. **Slice 4 — backend AI** (sequenced; all drafts go through the `messages` table, Mark approves before send): photo-assessment re-run, invoice interpretation + chasing (transactional), job/customer summaries, NL admin queries (read-only, whitelisted — never model-authored SQL), re-engagement (Phase 4, consent-gated D-008).
-6. **Slice 5 — data migration + cutover (sign-off-gated, LAST).** One-time Blobs→Postgres (`legacy_blob_id` trace), repoint the public client to `/api/v1/*`, retire static-Bearer for Supabase Auth. The only slice that changes live behaviour.
-7. **Separate stream — Phase 1 site cutover** (blocked on Mark privacy + domain D-013): point `netlify.toml` at `publish = site/dist`, carry redirects/headers, lock `astro.config.mjs` `site`. Independent of Phase 2.
+1. **Verify Slice 2** as soon as a real Postgres is available — `supabase start && supabase test db` (needs Docker working, or run against Mark's hosted project once it exists). The pgTAP test is written and ready. **Until it passes, #8 must not merge.**
+2. **Merge the stack in order** with sign-off: **#6 → #7 → #8**. On each PR's **deploy preview**, confirm `/api/chat` (check_availability) + `/api/bookings` still respond — #6 moves the functions, #7 adds the `shared/config` requires to the bundle, so both change how the functions bundle. GitHub auto-retargets the next PR's base as each lands.
+3. **Slice 3 — `/api/v1/*` + server-side pricing/surcharge enforcement** (D-003/D-011/D-012). New versioned endpoints alongside the live ones; `shared/contract/` types; the `validateBooking` successor enforces the D-011 surcharge/boundary from `serviceArea.js`. Best started on a **verified** schema (do step 1 first).
+4. **Slice 4 — backend AI** through the `messages` table (draft→approve→send): photo-assessment re-run, invoice interpretation + chasing, summaries, NL admin queries (read-only/whitelisted), re-engagement (consent-gated, Phase 4).
+5. **Slice 5 — Blobs→Postgres migration + client repoint + Supabase Auth** (sign-off-gated, LAST; only slice that changes live behaviour).
+6. **Separate stream — Phase 1 site cutover** (blocked on Mark privacy + domain D-013): `netlify.toml` `publish = site/dist`, lock `astro.config.mjs` `site`. Independent of Phase 2.
+7. **Follow-ups noted:** wire the Astro home/services price cards to `shared/config/pricing.js` (closes the site-side price drift); fill the privacy data-controller slot with the D-016 address (gated on Mark + DP review).
 
 ## Things to watch / not yet decided
 
-- **D-009 — local-first.** Do NOT create a hosted Supabase project under our identity; Mark owns it from day one. Build locally; `supabase link && db push` to Mark's project when it exists.
-- **Slice 0 deferrals** (npm workspaces, build-scope `ignore`) — see the D-014 addendum in DECISIONS.md; revisit at Slice 2 and at the app/site-cutover respectively.
-- **Confirm Netlify git-linked vs manual deploy** before merging Slice 0 (changes the deploy-risk profile and whether `ignore` matters).
-- **D-011 boundary is open (Mark):** `serviceArea.ts` will be seeded from the Astro frontmatter with a `TODO`; settle the precise out-of-area postcode list with Mark, kept in one config file.
-- **Surcharge VAT assumption:** encoded as **£15 + VAT**. If Mark meant £15 all-in, change in one place per file and re-grep.
-- **Green rebrand provisional** (L-010): `--green-dark:#0c2c25` / `--green:#15564a` in `site/src/styles/global.css`; AA contrast fix applied — re-check ratios if toned down.
-- **`astro dev` still fails in this worktree** (Vite/esbuild dep-scan); use `npm run build`/`preview --prefix site`. Phase 2 backend work doesn't need it.
-- **D-006 alignment** holds across assistant + site — grep the whole repo when correcting any claim (L-009).
+- **Docker won't start on this work machine** (Linux engine pipe `npipe:////./pipe/dockerDesktopLinuxEngine` missing). Blocks the local Supabase stack → Slice 2 verification + any local `supabase start`. Fix Docker (WSL2/Hyper-V/Docker Desktop) or verify against Mark's project.
+- **D-009 — local-first.** Do NOT create a hosted Supabase project under our identity; Mark owns it. Build locally; `supabase link && db push` to his project when it exists.
+- **D-011 boundary open (Mark):** `serviceArea.js core_postcodes` is seeded from the Astro frontmatter with a `TODO`; settle the precise out-of-area postcode list, kept in that one file. Server-side enforcement lands in Slice 3.
+- **D-016 — address private:** GBP-verification + privacy layer only; never on the public site / NAP / structured data.
+- **Slice 0 deferrals** (npm workspaces, build-scope `ignore`) — see the D-014 addendum in DECISIONS.md; revisit at Slice 2/3 and at the app/site-cutover.
+- **`shared/config` is `.js` (CommonJS), not `.ts`** — required by the CJS functions + the plain-Node test runner. Slice 3 contract *types* can be `.ts`.
+- **Surcharge VAT assumption:** £15 + VAT (if Mark meant £15 all-in, change in `serviceArea.js` + re-grep).
+- **The LIVE `index.html` is still blue** with the old stats — fix at/by the Phase 1 cutover (a live change, needs deploy sign-off).
+- **`astro dev` fails in this worktree** — use `npm run build/preview --prefix site`.
 - Domain (D-013) and account ownership (D-009) still open; monorepo rename `icc-site`→`icc-platform` is cosmetic/deferred.
 
 ## Local dev reminder
@@ -59,18 +62,18 @@ Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file
 npm install
 npm test                         # node --test -> test/hardening.test.js (8 tests)
 
-# Phase 0 / Phase 2 functions now live under server/netlify/functions/
+# Phase 0 / Phase 2 functions live under server/netlify/functions/
 cp .env.example .env             # ANTHROPIC_API_KEY, RESEND_API_KEY, ADMIN_SECRET, NETLIFY_SITE_ID, NETLIFY_TOKEN
 npx netlify dev                  # serves site + functions; /api/* via netlify.toml redirects
 
 # Phase 1 Astro site
-npm run build --prefix site      # -> site/dist (what Netlify will run at cutover)
-npm run preview --prefix site    # serve the build at localhost:4321 (use this, not dev, in this worktree)
+npm run build --prefix site      # -> site/dist (what Netlify runs at cutover)
+npm run preview --prefix site
 
-# Phase 2 Supabase (Slice 2 onward — local-first; needs Docker Desktop running)
-npm i -g supabase                # CLI not yet installed
-supabase start                   # local Postgres in Docker
-supabase db reset                # apply supabase/migrations/
+# Phase 2 Supabase (local-first; needs Docker Desktop running)
+npx supabase start               # local Postgres in Docker  (CURRENTLY BLOCKED: Docker won't start here)
+npx supabase db reset            # apply supabase/migrations/
+npx supabase test db             # run supabase/tests/ (pgTAP) — verifies Slice 2
 ```
 
-Phase 2 backend work is on branch `chore/d014-monorepo` (Slice 0) → subsequent slices branch fresh off `main` (GitHub `randommonicle/icc-site`).
+Phase 2 work is a stack of branches off `main`: `chore/d014-monorepo` → `feat/shared-config` → `feat/supabase-schema` (GitHub `randommonicle/icc-site`).
