@@ -104,6 +104,8 @@ icc-platform/
 
 Sessions stay separate by working on branches (existing discipline, D-010) or git worktrees — the monorepo makes separate site/app sessions easier, not harder, because each has the shared contract and docs to hand. The repo is currently named `icc-site`; rename to `icc-platform` when convenient (GitHub redirects the old URL) or leave it as a cosmetic mismatch. Do the monorepo restructure before building the Phase 2 API, so the contract is born in `shared/` rather than extracted later.
 
+**Addendum (5 June 2026 — implementation):** backend folder resolved to **`server/`** (not `functions/`). Phase 2 Slice 0 moved `chat.js`/`bookings.js` to `server/netlify/functions/` (history preserved) on `chore/d014-monorepo`, updated the `netlify.toml` `functions` path, and repointed the test require paths — `node --test` green 8/8 locally, awaiting sign-off, not merged. Two things were deliberately deferred to keep the structural change minimal and reduce live-deploy risk: **npm workspaces + a `server/package.json`** (introduced when `server/` first needs its own dependency — e.g. `@supabase/supabase-js` in Slice 2; until then the functions resolve root `node_modules` exactly as before, so Netlify's install/bundle is unchanged), and the **build-scope `ignore` directive** (no consumer until `app/` has a real build, and Phase 0 still publishes the repo root incl. the live `index.html`/`admin.html`, so it needs care — better introduced with the site cutover). `shared/` and `supabase/migrations/` are created in their own slices.
+
 ## D-015 — No quantified trust or marketing claims until independently substantiated
 **Status:** Accepted (June 2026)
 

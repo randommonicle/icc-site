@@ -7,7 +7,7 @@ Currently a working proof of concept on its way to a full platform. See [docs/DE
 ## Stack (Phase 0)
 
 - Static site on **Netlify** (`index.html`, `admin.html`)
-- **Netlify serverless functions** (`netlify/functions/`) for the AI proxy, bookings, email, and PDF job cards
+- **Netlify serverless functions** (`server/netlify/functions/`) for the AI proxy, bookings, email, and PDF job cards
 - **Netlify Blobs** for booking storage (migrates to Supabase in Phase 2)
 - **Claude API** (Anthropic) for the assistant, **Resend** for email
 

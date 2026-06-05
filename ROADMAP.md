@@ -57,7 +57,7 @@ Carry the Phase 0 hardening items above into this phase.
 
 **Outcome:** Mark runs the operational side from one place.
 
-- [ ] **Restructure to the monorepo layout first** (D-014): `site/`, `app/`, `functions/`, `shared/`, `supabase/migrations/`, docs at root. Scope the Netlify build to `site/`+`shared/`. Do this before the API exists so the contract is born in `shared/`, not extracted later.
+- [ ] **Restructure to the monorepo layout first** (D-014): `site/`, `app/`, `server/`, `shared/`, `supabase/migrations/`, docs at root. Scope the Netlify build to `site/`+`shared/`. Do this before the API exists so the contract is born in `shared/`, not extracted later. **In progress — Slice 0 (`chore/d014-monorepo`):** folder resolved to `server/`; `chat.js`/`bookings.js` moved there (history preserved), test repointed, `netlify.toml functions` path updated — `node --test` green locally, awaiting sign-off. `shared/`, `supabase/migrations/`, npm workspaces and the Netlify build-scoping land in later slices.
 - [ ] Stand up Supabase: relational DB, admin auth, file storage for job photos, API (D-002).
 - [ ] Design the API surface deliberately so the future field app is a client, not a rebuild (D-003). Document it as an integration contract from day one (mirror the ASH/PropOS convention).
 - [ ] Migrate bookings off Netlify Blobs into Postgres (one-time migration + cutover).
