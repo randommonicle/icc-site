@@ -9,8 +9,8 @@
 
 const { test } = require("node:test");
 const assert = require("node:assert");
-const { rateLimit } = require("../netlify/functions/chat.js");
-const { safeEqual } = require("../netlify/functions/bookings.js");
+const { rateLimit } = require("../server/netlify/functions/chat.js");
+const { safeEqual } = require("../server/netlify/functions/bookings.js");
 
 // In-memory stand-in for the Blobs store: the same async get/set contract.
 function memStore(){

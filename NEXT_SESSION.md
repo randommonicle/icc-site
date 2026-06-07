@@ -2,81 +2,75 @@
 
 Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file at the end of every working session so the next person (or AI) can continue cold.
 
-**Last updated:** 4 June 2026 (session — pre-cutover QA audit of the Phase 1 Astro site, then D-011 resolved: Winchcombe added to the core/no-surcharge area and a flat **£15 + VAT** out-of-area surcharge encoded across the site + assistant + docs; home-page prices aligned to the assistant + VAT. Committed (`892d11d`) and **merged to `main`** this session — Phase 1 is now in `main` but **NOT cut over**; see "State (end of session)".) **Evening follow-up (same day):** the safe pre-cutover polish set is built and verified on `feat/pre-cutover-polish` (SEO meta + social tags, chat a11y, WCAG AA contrast, removal of the unsubstantiated 500+/98% stats, and softening of the "first/Guaranteed" launch claims). Build green, 22 pages. Not pushed yet.
+**Last updated:** 5 June 2026 — **Phase 2 (operational backend) kicked off.** A sliced implementation plan was approved (Supabase + API + backend AI, built local-first per D-009). **Slice 0 (the D-014 monorepo restructure → `server/`) is staged on `chore/d014-monorepo`, verified green locally (`node --test` 8/8), NOT merged — awaiting Ben's sign-off.** Phase 1 (the Astro public site) is fully in `main` (PR #4 + the PR #5 pre-cutover polish) but still **NOT cut over**.
 
 ---
 
-## Current state
+## Current state — three streams
 
-- **Phase 0 PoC** is live on the Netlify-assigned URL (not a custom domain, not promoted anywhere). Single-page `index.html` + AI assistant (`chat.js`), availability + booking via Netlify Blobs, Resend emails, PDF job card, admin dashboard. The live `index.html` chrome is still the **old blue** and is silent on the surcharge (no contradiction with the new £15 fact, but it should be brought in line at cutover).
-- **`main`** now contains all of Phase 1, merged via PR #4 (commit `9a124cc`). That merge redeployed `chat.js`, so the **live AI assistant already quotes the flat £15 + VAT surcharge and treats Winchcombe as core** (confirm the Netlify production deploy went green). It did **not** cut over the public site: `main`'s `netlify.toml` is still Phase 0, so the live page is still the Phase 0 `index.html`.
-- **Phase 1 (public Astro site)** is in `main`, built clean (22 routes), and **dormant until the cutover PR**. Pre-cutover polish is staged on `feat/pre-cutover-polish` (see the evening follow-up note above).
+**1. Live (Phase 0 PoC).** `index.html` + `admin.html` + the two serverless functions, on the Netlify-assigned URL (no custom domain, not promoted). Booking/availability via Netlify Blobs, Resend email, PDF job card. The live AI assistant already quotes the flat **£15 + VAT** out-of-area surcharge and treats Winchcombe as core (PR #4 redeployed `chat.js`). The live `index.html` chrome is still the **old blue** and still shows the old `500+/98%` stats + "first/Guaranteed" copy — bring it in line at/by cutover.
 
-## State (end of session — merged to main)
+**2. Phase 1 public site (Astro, `site/`).** In `main`, 22 routes, built clean, **dormant** until the cutover PR. All pre-cutover polish is merged (PR #5): SEO meta + `og:image`/Twitter card, chat a11y, WCAG AA contrast, the unsubstantiated `500+`/`98%` stats removed (→ capability tiles, D-015), "first/Guaranteed" softened. **Cutover is blocked on Mark** (privacy `[to confirm: …]` placeholders + a DP review) **and the domain** (D-013). This stream is independent of Phase 2 below.
 
-This session's work is committed and **merged to `main`** (deliberate merge, Ben's go-ahead — out of time, picking up from home). Sequence: commit `892d11d` (D-011 + price alignment + docs) on `feat/phase1-public-site`, pushed, then merged into `main` via PR.
+**3. Phase 2 operational backend — IN PROGRESS (this session).** Plan approved; building in slices that each leave `main` deployable, **local-first** (no hosted Supabase project created under our identity — D-009). Slice 0 staged on `chore/d014-monorepo` (see below).
 
-**What the merge did / didn't do:**
-- **Did:** brought all of Phase 1 (the Astro `site/`) into `main`, and — because Netlify auto-deploys `main` — redeployed `chat.js`, so the **live AI assistant now quotes the flat £15 + VAT surcharge and treats Winchcombe as core**. (Confirm the production deploy succeeded in Netlify.)
-- **Did NOT cut over the public site.** `main`'s `netlify.toml` is still Phase 0 (no Astro build / `publish = site/dist`), so the live page is still the Phase 0 `index.html`; the 22-page Astro site sits in `main`, dormant, until the cutover PR (step 4 below).
-- **Carried the deferred audit items into `main` (unserved):** the `500+`/`98%` stats, "first"/"Guaranteed Results" wording, missing `og:image`, chat a11y gaps, privacy `[to confirm]` placeholders. None are user-facing until cutover — but they must be resolved before cutover/promotion.
+**No CI in this repo** — local `node --test` + `npm run build --prefix site` are the only gates. Netlify auto-deploys `main`.
 
-`npm run build --prefix site` was green and the built `dist` grepped clean before merge. **There is no CI in this repo** (no GitHub Actions / other) — the local build is the only gate.
+## What was done this session (5 June 2026)
 
-## What was done this session (4 June 2026)
-
-**1. Pre-cutover QA audit (read-only) of the Phase 1 site.** Honest RAG findings:
-- 🔴 **Fabricated trust stats** — `500+ Cleans`, `98% Satisfaction` / `98% 5-Star Reviews` on the home ([index.astro](site/src/pages/index.astro)) and About ([about.astro](site/src/pages/about.astro)) pages. Violates L-009 + ASA/CAP; no `aggregateRating` backs them. **Mark: this is a new business, there are no stats yet.** Decision: **deferred** — not promoted, so not urgent, but **must be removed/replaced before the site is promoted off the Netlify name.** `15+ Carpet Types` / `15+ Fibre Types` is confirmed fine (a capability, not a track record).
-- 🔴 **Privacy `[to confirm: …]` placeholders** ([privacy.astro](site/src/pages/privacy.astro)) — Mark to fill (legal status, postal address, ICO no., retention) + a DP review. Known standing blocker.
-- 🟡 **Pricing drift (D-006)** — FIXED this session (see below).
-- 🟡 **"Guaranteed Results" H1 + "first fully AI-assisted" claim** ([index.astro](site/src/pages/index.astro)) — substantiate or soften (CAP). **Not actioned** (not directed this session).
-- 🟡 **Meta descriptions >160 chars on ~18/22 pages**; several **guide `<title>`s 88–101 chars** — truncated in SERPs. **Not yet actioned** (safe polish; offered).
-- 🟡 **No `og:image` / `twitter:card`** sitewide ([BaseLayout.astro](site/src/layouts/BaseLayout.astro)) — poor social/link previews. `public/logo.jpg` exists. **Not yet actioned** (safe polish; offered).
-- 🟡 **Chat-form a11y** ([book.astro](site/src/pages/book.astro)) — `<textarea>` has no label/aria-label, send `<button>▶</button>` has no accessible name, suggestion chips are `<div onclick>` (not keyboard-reachable). Inherited Phase 0 patterns. **Not yet actioned** (safe polish; offered).
-- 🟡 **Contrast (WCAG 1.4.3)** — teal `#1a8a7a` = **4.23:1** (just under AA 4.5 for small text: links, prices, section labels, nav CTA); white on `--teal-light #2ab8a4` = **2.47:1 fails** on primary-button hover. Touches the provisional green (L-010) — Ben's call.
-- 🟢 Verified good: one H1/page; unique titles+descriptions; canonicals correct; **all JSON-LD valid**; no fake `aggregateRating` in structured data; sitemap+robots correct; **all internal links resolve**; NAP consistent; **banned Texatherm claims clean in source AND built HTML** (80% figure attributed); injection-safe DOM rendering preserved (L-003); `lang="en"`.
-
-**2. D-011 resolved and encoded (Mark, June 2026).** Core / no-surcharge area is now **Cheltenham, Gloucester and Winchcombe**; everywhere else is a **flat £15 + VAT** out-of-area surcharge.
-- **Winchcombe flipped from `wider` → `core`** ([winchcombe.md](site/src/content/areas/winchcombe.md)); its prose/FAQ now say "no travel surcharge".
-- **Stroud, Tewkesbury, Cirencester** ([stroud.md](site/src/content/areas/stroud.md), [tewkesbury.md](site/src/content/areas/tewkesbury.md), [cirencester.md](site/src/content/areas/cirencester.md)) now state the **flat £15 + VAT** surcharge (replacing the "confirmed at booking" placeholder).
-- Updated the **area template** ([areas/[slug].astro](site/src/pages/areas/[slug].astro): badge + both tier callouts), the **areas index** ([areas/index.astro](site/src/pages/areas/index.astro): meta, hero, group title, note), the **collection schema comments** ([content.config.ts](site/src/content.config.ts)), the **services page** ([services.astro](site/src/pages/services.astro): intro + price-table row), the **home strip** ([index.astro](site/src/pages/index.astro)), and the **assistant prompt** ([chat.js](netlify/functions/chat.js): SERVICE AREA block + pricing line) so the assistant quotes the concrete £15 + VAT and includes it in the itemised quote.
-- **Cheltenham page FAQ** updated so "just outside town" points at the flat £15 + VAT.
-
-**3. Home-page prices aligned to the assistant + VAT (D-006).** `index.astro` service cards were stale (`From £55 per room`, `£35`, `£45`, no VAT). Now: **From £75 per room + VAT**, **From £45 + VAT** (stain), **From £50 per item + VAT** (upholstery) — matching [chat.js](netlify/functions/chat.js) pricing. (`services.astro` was already correct.)
-
-**Verification:** `npm run build --prefix site` clean (22 pages, sitemap regenerated); built `dist` grepped — **0** occurrences of "confirmed at booking"/"small surcharge", and £15 + VAT / Winchcombe render across all pages. Repo-wide grep confirms no stale two-town-core wording in the Phase 1 site or assistant.
+- Synced local `main` to `origin/main` (was 28 behind — the PR #5 polish session had moved it on); read the doc set.
+- Agreed to open the Phase 2 backend while the Phase 1 cutover waits on Mark. Approved a sliced plan. Decisions locked: backend folder = **`server/`** (D-014 was open); **local-first Supabase** (D-009); backend-AI scope = **all of it** — persisted/re-runnable photo assessment, AI job/customer summaries, NL admin queries, AI-drafted comms (review requests + re-engagement), **plus invoice interpretation + AI-assisted chasing**.
+- **Slice 0 — monorepo restructure (D-014), on `chore/d014-monorepo`:**
+  - `git mv` `chat.js` + `bookings.js` → `server/netlify/functions/` (history preserved — both show as renames).
+  - `netlify.toml`: `functions = "server/netlify/functions"` (one line; all 4 redirects + 2 header blocks byte-identical).
+  - `test/hardening.test.js`: require paths repointed to `../server/netlify/functions/`; added root `"test": "node --test"` script.
+  - `app/README.md` placeholder (D-012 field-app track).
+  - Docs updated (CLAUDE.md structure + deep-dive headings, README, ROADMAP Phase 2 bullet, DECISIONS D-014 addendum, this file).
+  - **Verified:** `node --test` green **8/8** after the move (baseline was 8/8). Config diffs are exactly one concern each.
+  - **Deliberately deferred (documented in the D-014 addendum) to keep the structural change minimal + low deploy-risk:** npm workspaces + a `server/package.json` (add when `server/` first needs its own dep — `@supabase/supabase-js`, Slice 2; until then functions resolve root `node_modules`, so Netlify install/bundle is unchanged) and the `netlify.toml` build-scope `ignore` directive (no consumer until `app/` has a real build; Phase 0 still publishes the repo root, so it needs care).
+  - **NOT merged.** No live behaviour changes. Awaiting sign-off.
 
 ## Immediate next steps (suggested order)
 
-1. **(Done — committed `892d11d` + merged to `main` this session.)** From home: `git checkout main && git pull`, branch off `main`, then start at step 2.
-2. **Safe SEO/a11y polish set: DONE on `feat/pre-cutover-polish`** (build-verified, 22 pages, no live impact). Trimmed every meta description to ≤155 (longest 155); shortened 6 long guide titles; added `og:image` (`/logo.jpg`) + Twitter card in `BaseLayout`; gave the chat textarea, send button and photo upload `aria-label`s and converted the suggestion chips to keyboard-operable `<button>`s. Folded in from step 3 and the audit: removed the unsubstantiated `500+`/`98%` stats (replaced with capability/fact tiles), softened the "first fully AI-assisted" and "Guaranteed Results" claims, and fixed WCAG AA contrast (teal `#1a8a7a` to `#178072`; button hovers darken to `--green-mid`; new `--gold-deep` for the wider-area tag).
-3. **Before any promotion off the Netlify name:** the fabricated `500+`/`98%` stats are removed and the "Guaranteed Results"/"first AI-assisted" claims softened (done in step 2). **Still outstanding:** fill the privacy `[to confirm: …]` placeholders and get a data-protection review (Mark).
-4. **Cutover PR** — point `netlify.toml` at the Astro build (`command`, `publish = site/dist`), carry over the `/api/*` + `/admin` redirects + security headers, and **lock `astro.config.mjs` `site`** to the real domain (D-013, currently a placeholder). Then Ben's deliberate merge.
-5. **Server-side surcharge enforcement (Phase 2).** `validateBooking` ([chat.js:456](netlify/functions/chat.js:456)) only bounds the total price; the £15 + VAT lives in the assistant's quote, not the server. Encode the precise out-of-area **postcode boundary** + apply the surcharge in `validateBooking` when pricing/area logic moves server-side (D-007), so the website and the field app (D-012) apply it identically.
-6. **External SEO** (needs Mark / the domain) — Search Console + Google Business Profile + NAP, once the domain (D-013) is chosen.
+1. **Merge Slice 0** — Ben's sign-off. Before merge: confirm in the Netlify dashboard whether prod is **git-linked** (builds on push) or **manual/drag-drop** (only `netlify.toml functions` honoured); merge on a quiet window and verify `/api/chat` (check_availability) + `/api/bookings` resolve on the deploy preview (functions now bundle from the new path). From `main`, branch fresh for each subsequent slice.
+2. **Slice 1 — `shared/config` (D-006/D-007).** Extract `models.ts` (one value: `{text:"claude-sonnet-4-6", vision:"claude-opus-4-5"}`), `pricing.ts` (the prose pricing table in `STATIC_SYSTEM_PROMPT` as data; generate the assistant's PRICING block from it), `serviceArea.ts` (`core_postcodes` + `surcharge_ex_vat:15`, seeded from `site/src/content.config.ts` area frontmatter `tier`+`postcodes`). Pure refactor — assistant output identical.
+3. **Slice 2 — Supabase schema, local-first (D-002).** `supabase init` + `0001_init.sql` (`customers / jobs / job_photos / job_assessments / invoices / messages`; jobs carry a `btree_gist` exclusion constraint that makes double-booking a hard DB invariant; availability is **derived** from jobs, not a second table). **Prereqs:** install the Supabase CLI (`npm i -g supabase`) and start Docker Desktop (`supabase start` needs the daemon — it is installed but was not running). No prod cutover; Blobs stays live.
+4. **Slice 3 — `/api/v1/*` + server-side pricing/surcharge enforcement (D-003/D-011/D-012).** New versioned endpoints **alongside** the live `/api/chat`+`/api/bookings`; `shared/contract/` types imported by site/app/server. This is where the D-011 surcharge/boundary finally gets enforced server-side (the `validateBooking` successor).
+5. **Slice 4 — backend AI** (sequenced; all drafts go through the `messages` table, Mark approves before send): photo-assessment re-run, invoice interpretation + chasing (transactional), job/customer summaries, NL admin queries (read-only, whitelisted — never model-authored SQL), re-engagement (Phase 4, consent-gated D-008).
+6. **Slice 5 — data migration + cutover (sign-off-gated, LAST).** One-time Blobs→Postgres (`legacy_blob_id` trace), repoint the public client to `/api/v1/*`, retire static-Bearer for Supabase Auth. The only slice that changes live behaviour.
+7. **Separate stream — Phase 1 site cutover** (blocked on Mark privacy + domain D-013): point `netlify.toml` at `publish = site/dist`, carry redirects/headers, lock `astro.config.mjs` `site`. Independent of Phase 2.
 
 ## Things to watch / not yet decided
 
-- **Surcharge VAT assumption:** encoded as **£15 + VAT** (consistent with the "+ VAT throughout" convention). If Mark meant £15 all-in, it changes in one place per file — flag and re-grep.
-- **Boundary-ambiguous towns:** the area *pages* now carry concrete tiers, but the sitewide `LocalBusiness.areaServed` (BaseLayout) and the contact-page chips still list Bishops Cleeve / Charlton Kings / Prestbury without a tier — they make no surcharge claim, so no contradiction, but the precise core-vs-£15 postcode boundary (step 5) will settle them.
-- **Green rebrand is provisional** (L-010): `--green-dark:#0c2c25` / `--green:#15564a` in `site/src/styles/global.css`. The WCAG AA contrast fix is now applied (teal darkened to `#178072`, new `--gold-deep` for gold-on-white text, button hovers darkened to `--green-mid`); if you tone the green down later, re-check those text and button ratios.
-- **The LIVE `index.html` is still blue** and still shows the old `500+/98%` stats and "first"/"Guaranteed" copy; bring it in line at/by cutover (a live change, needs deploy sign-off).
-- **`astro dev` still fails in this worktree** (Vite/esbuild dep-scan; restricted install skipped esbuild setup). Production build is unaffected — use `npm run preview --prefix site`, or a fresh `npm install` on a normal machine.
-- D-006 alignment now holds across the assistant AND the site (assistant prompt, guides, services, area pages, home prices) — keep it that way (grep the whole repo when correcting a claim, L-009).
-- Not cut over; monorepo restructure (D-014) is Phase 2's first task; domain (D-013) and account ownership (D-009) still open.
+- **D-009 — local-first.** Do NOT create a hosted Supabase project under our identity; Mark owns it from day one. Build locally; `supabase link && db push` to Mark's project when it exists.
+- **Slice 0 deferrals** (npm workspaces, build-scope `ignore`) — see the D-014 addendum in DECISIONS.md; revisit at Slice 2 and at the app/site-cutover respectively.
+- **Confirm Netlify git-linked vs manual deploy** before merging Slice 0 (changes the deploy-risk profile and whether `ignore` matters).
+- **D-011 boundary is open (Mark):** `serviceArea.ts` will be seeded from the Astro frontmatter with a `TODO`; settle the precise out-of-area postcode list with Mark, kept in one config file.
+- **Surcharge VAT assumption:** encoded as **£15 + VAT**. If Mark meant £15 all-in, change in one place per file and re-grep.
+- **Green rebrand provisional** (L-010): `--green-dark:#0c2c25` / `--green:#15564a` in `site/src/styles/global.css`; AA contrast fix applied — re-check ratios if toned down.
+- **`astro dev` still fails in this worktree** (Vite/esbuild dep-scan); use `npm run build`/`preview --prefix site`. Phase 2 backend work doesn't need it.
+- **D-006 alignment** holds across assistant + site — grep the whole repo when correcting any claim (L-009).
+- Domain (D-013) and account ownership (D-009) still open; monorepo rename `icc-site`→`icc-platform` is cosmetic/deferred.
 
 ## Local dev reminder
 
 ```bash
-# Phase 0 functions (repo root):
+# Root: tests (the only logic gate today)
 npm install
-cp .env.example .env   # ANTHROPIC_API_KEY, RESEND_API_KEY, ADMIN_SECRET, NETLIFY_SITE_ID, NETLIFY_TOKEN
-npx netlify dev
+npm test                         # node --test -> test/hardening.test.js (8 tests)
 
-# Phase 1 Astro site (on branch feat/phase1-public-site):
-npm install --prefix site
-npm run build --prefix site     # -> site/dist (this is what Netlify will run)
-npm run preview --prefix site   # serve the build at localhost:4321 (use this, not dev, in this worktree)
+# Phase 0 / Phase 2 functions now live under server/netlify/functions/
+cp .env.example .env             # ANTHROPIC_API_KEY, RESEND_API_KEY, ADMIN_SECRET, NETLIFY_SITE_ID, NETLIFY_TOKEN
+npx netlify dev                  # serves site + functions; /api/* via netlify.toml redirects
+
+# Phase 1 Astro site
+npm run build --prefix site      # -> site/dist (what Netlify will run at cutover)
+npm run preview --prefix site    # serve the build at localhost:4321 (use this, not dev, in this worktree)
+
+# Phase 2 Supabase (Slice 2 onward — local-first; needs Docker Desktop running)
+npm i -g supabase                # CLI not yet installed
+supabase start                   # local Postgres in Docker
+supabase db reset                # apply supabase/migrations/
 ```
 
-The Phase 1 work lives on branch `feat/phase1-public-site` (GitHub `randommonicle/icc-site`), checked out locally per machine.
+Phase 2 backend work is on branch `chore/d014-monorepo` (Slice 0) → subsequent slices branch fresh off `main` (GitHub `randommonicle/icc-site`).

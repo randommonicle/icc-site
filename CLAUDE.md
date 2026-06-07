@@ -125,17 +125,20 @@ Netlify's build is scoped to `site/` (and `shared/`) so app-only commits do not 
 ### Current (Phase 0)
 
 ```
-icc-site/
-├── index.html                  # Public single-page site (hero, services, about, booking, chat client)
+icc-site/                        # Phase 2 D-014 restructure underway (chore/d014-monorepo)
+├── index.html                  # LIVE Phase 0 public single-page site (hero, services, booking, chat client)
 ├── admin.html                  # Password-gated bookings dashboard (Bearer token, in-memory only)
 ├── logo.jpg                    # Brand logo (extracted from inline base64 — keep as a real file)
-├── netlify.toml                # Redirects (/api/* → functions, /admin) + security headers
-├── package.json                # Node 20; deps: @netlify/blobs, pdfkit
+├── netlify.toml                # functions = server/netlify/functions; redirects (/api/*, /admin) + headers
+├── package.json                # Node 20; deps: @netlify/blobs, pdfkit; "test": node --test
 ├── .env.example                # Documented env vars — copy to .env for local dev
-├── netlify/
-│   └── functions/
+├── server/                     # backend tier (D-014) — serverless functions live here now
+│   └── netlify/functions/
 │       ├── chat.js             # AI proxy + availability + booking confirmation + email + PDF
 │       └── bookings.js         # Admin-only: list all bookings from Blobs
+├── site/                       # Phase 1 public Astro site (built, not cut over)
+├── app/                        # field-app placeholder (D-012) — empty until the Phase 2 API exists
+├── test/                       # node --test suite (hardening.test.js)
 └── docs/
     └── DESIGN.md               # The agreed product brief (scope reference for Mark)
 
@@ -177,7 +180,7 @@ These are real business rules encoded in `chat.js` (the system prompt) — keep 
 - **Service area (D-011):** Cheltenham, Gloucester and Winchcombe are core (no travel charge). Everywhere else in Gloucestershire (Stroud, Tewkesbury, Cirencester and the surrounding GL towns) carries a **flat £15 + VAT out-of-area surcharge** (confirmed by Mark, June 2026). The assistant quotes the £15 + VAT concretely and includes it in the itemised quote for out-of-area addresses. Remaining: the precise postcode boundary for "out of area" and **server-side enforcement** — `validateBooking` currently only bounds the total price (£30–£5000), so the surcharge lives in the assistant's quote, not the server; encode the boundary + surcharge in `validateBooking` in Phase 2 (pairs with moving pricing/area logic server-side, D-007).
 - **Hours, slots, pricing, deposit:** all in the `STATIC_SYSTEM_PROMPT`. Pricing is "+ VAT" throughout. A 10% non-refundable deposit secures a slot.
 
-### AI chat flow (`netlify/functions/chat.js` + `index.html`)
+### AI chat flow (`server/netlify/functions/chat.js` + `index.html`)
 - The browser keeps `conversationHistory` and POSTs it to `/api/chat` with a randomised assistant name (Jamie/Alex/Sam/Ellie/Tom).
 - The system prompt is sent in two blocks: a large static block (business knowledge, pricing, method, booking script) with `cache_control: ephemeral`, and a small dynamic block (assistant name, today's date, the pre-computed list of bookable dates). The split keeps the cache prefix stable so repeat messages in a 5-minute window pay roughly 10% of normal input cost (see LESSONS_LEARNED.md L-002).
 - Dates are never calculated by the model. The function pre-computes the bookable date list (Mon–Sat, 7+ days out) and the model only quotes from it.
@@ -188,7 +191,7 @@ These are real business rules encoded in `chat.js` (the system prompt) — keep 
 - `confirm_booking` validates, blocks the slots in Blobs (keyed by date), stores the full booking record + index, builds a Google Calendar link, generates a PDF job card (pdfkit, includes a RAMS risk assessment), and emails both Mark and the customer via Resend.
 - Availability and booking write through Blobs date keys; concurrent double-booking is guarded by a conflict check before write.
 
-### Admin dashboard (`admin.html` + `netlify/functions/bookings.js`)
+### Admin dashboard (`admin.html` + `server/netlify/functions/bookings.js`)
 - Password entered at login is sent as `Authorization: Bearer <pw>` and held in memory only (cleared on refresh/logout — nothing in localStorage).
 - `bookings.js` compares the token to `ADMIN_SECRET` and returns all bookings (newest first). Cards render customer/job detail, photo, AI assessment, price, and a calendar link.
 
