@@ -49,6 +49,14 @@ function priceLine(it) {
   return `${it.label}: ${it.prefix || ""}£${it.price_ex_vat} + VAT${it.suffix || ""}`;
 }
 
+// Ex-VAT price for a known item code (used by the confirmation email/PDF and,
+// from Slice 3, the server quote). Throws on an unknown code so drift is loud.
+function priceOf(code) {
+  const it = items.find((i) => i.code === code);
+  if (!it) throw new Error(`Unknown price code: ${code}`);
+  return it.price_ex_vat;
+}
+
 // Generates the PRICING block of the assistant system prompt, byte-for-byte
 // equal to the prose it replaces.
 function pricingBlock() {
@@ -62,5 +70,6 @@ module.exports = {
   custom_lines,
   deposit_rate,
   priceLine,
+  priceOf,
   pricingBlock,
 };

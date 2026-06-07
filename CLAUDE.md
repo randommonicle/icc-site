@@ -65,7 +65,7 @@ The public marketing site and the operational platform are separated cleanly, sh
 
 | Service | Purpose | Notes |
 |---------|---------|-------|
-| **Netlify** | Static hosting + serverless functions | Auto-deploys on push (confirm branch in Netlify settings) |
+| **Netlify** | Static hosting + serverless functions | Site `super-frangollo-c3a14a` (super-frangollo-c3a14a.netlify.app); auto-deploys `main` (confirm branch in Netlify settings) |
 | **Netlify Blobs** | Booking + slot storage (Phase 0 only) | Migrate to Supabase in Phase 2 (D-002) |
 | **Anthropic (Claude)** | AI assistant — chat + vision | Called server-side only |
 | **Resend** | Transactional email (confirmations) | Sandbox domain until a sending domain is verified |
@@ -130,7 +130,7 @@ icc-site/                        # Phase 2 D-014 restructure underway (chore/d01
 ├── admin.html                  # Password-gated bookings dashboard (Bearer token, in-memory only)
 ├── logo.jpg                    # Brand logo (extracted from inline base64 — keep as a real file)
 ├── netlify.toml                # functions = server/netlify/functions; redirects (/api/*, /admin) + headers
-├── package.json                # Node 20; deps: @netlify/blobs, pdfkit; "test": node --test
+├── package.json                # Node 24 (D-017); deps: @netlify/blobs, pdfkit; "test": node --test
 ├── .env.example                # Documented env vars — copy to .env for local dev
 ├── server/                     # backend tier (D-014) — serverless functions live here now
 │   └── netlify/functions/
@@ -257,7 +257,7 @@ This project is deliberately built so that anyone could pick it up and carry on 
 - **What will bite you:** [LESSONS_LEARNED.md](LESSONS_LEARNED.md). Read it before touching the chat proxy, bookings, email, or deploy config.
 - **Where you left off:** [NEXT_SESSION.md](NEXT_SESSION.md), updated at the end of every session.
 - **The client:** Mark McClymont, Intelligent Carpet Cleaning, Cheltenham — phone 01242 279590, email talktoregency@gmail.com.
-- **Where the code runs:** GitHub `randommonicle/icc-site` → Netlify auto-deploys `main`. Static site + serverless functions; no build step in Phase 0.
+- **Where the code runs:** GitHub `randommonicle/icc-site` → Netlify site `super-frangollo-c3a14a` (super-frangollo-c3a14a.netlify.app) auto-deploys `main`. Static site + serverless functions; no build step in Phase 0.
 - **Where the secrets are:** Netlify → Site settings → Environment variables (never in git). The list and what each does is in [.env.example](.env.example) and the Environment Variables section above. These are the only things not reconstructable from the repo — make sure Mark owns the accounts that hold them (D-009).
 - **The data:** Phase 0 bookings live in Netlify Blobs (store `icc-bookings`). From Phase 2 they live in Supabase. There is no other hidden state.
 
