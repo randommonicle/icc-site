@@ -57,6 +57,12 @@ Marketing email to past customers relies on the PECR soft opt-in: details collec
 
 Domain, Netlify, Anthropic, Resend, Stripe, Supabase, and Google Business Profile should be owned by Mark / the business from day one, so nothing needs transferring later. Build-lead access is granted on top of Mark's ownership, not in place of it (DESIGN §13).
 
+**Addendum (7 June 2026) — hosted Supabase goes in a dedicated ICC organisation, not the build-lead's personal org.** Until now Phase 2 was local-first (no hosted project, D-002). Refined because the work machine cannot run the local Supabase stack (Docker OOM) and Slices 3+ build far faster against a hosted instance: we stand one up now, in a **dedicated Supabase organisation for ICC** ("Intelligent Carpet Cleaning"), separate from the build-lead's personal `randommonicle's Org`. The build lead is owner/admin to build and grants Mark a member role for access; org ownership and billing transfer to Mark or an ICC-controlled login later, with no data migration (a Supabase org is a clean ownership boundary). This keeps D-009's principle intact: ICC owns its data and account, build-lead access sits on top.
+
+Rejected alternative: hosting the ICC project inside `randommonicle's Org` and adding Mark as a member. That inverts D-009 (build-lead owns, Mark visits), pools ICC's customer PII with other clients' projects under one personal login (an undocumented processor arrangement the privacy notice would have to describe), and makes ICC's backend hostage to the build-lead's personal account and billing (the continuity failure D-009 exists to prevent). Member access is not ownership.
+
+Cost and hard rule: Supabase Pro is per-organisation, so the ICC org runs on **Free** for build/staging and upgrades to Pro at go-live (an ICC business cost). **No real customer PII on any instance under the build-lead's personal org**; the production instance holding real data must be on the ICC-owned org before launch (gates the Slice 5 cutover). Server-side secrets (service-role key, DB password) follow the secrets-server-side rule: Netlify env + local `.env`, never committed.
+
 ## D-010 — Engineering discipline inherited from the ASH app / PropOS
 **Status:** Accepted
 
