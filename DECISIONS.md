@@ -79,9 +79,11 @@ Cheltenham, Gloucester and Winchcombe are the core service area with no travel c
 The field app has not been designed yet, but Mark wants it built alongside the website and fully integrated rather than treated as a final, separate phase. This raises the priority of the API-first design (D-003): the backend API surface must be designed from the first backend build (Phase 2) to serve both the website and the app as equal clients, with a documented integration contract. The app is no longer "Phase 5 only" — it is a parallel track that consumes the same API as it matures. Practical consequence: front-load API design in Phase 2, keep all business logic server-side (never only in the website client), and version the API/contract from day one so the two clients never drift. Supersedes the roadmap's earlier framing of the app as a deferred Phase 5 item.
 
 ## D-013 — Domain registration is deferred but non-blocking
-**Status:** Accepted (June 2026)
+**Status:** Accepted (June 2026); **resolved 7 June 2026 — `intelligentclean.co.uk`**
 
 The live domain is not yet chosen. This does not block Phases 0–2: development continues on the Netlify-assigned URL, and `ALLOWED_ORIGINS` / Resend / Google Business Profile / structured data are configured once the domain is registered. Recorded so the open question is visibly parked rather than forgotten. Must be resolved before the SEO/findability launch (Phase 1 go-live) and before `ALLOWED_ORIGINS` strict mode (L-001).
+
+**Resolved (7 June 2026):** the domain is **`intelligentclean.co.uk`**, registered with 123reg (1 year), DNS propagating (123reg quoted 24–48h). Chosen for brevity and brand fit; it deliberately omits "carpet" and "cheltenham" (a weak SEO signal now, and "clean" future-proofs for upholstery and other services). Unblocks, before promotion and when convenient: `ALLOWED_ORIGINS` strict mode in Netlify (`https://intelligentclean.co.uk,https://www.intelligentclean.co.uk`, closes L-001); updating the now-stale hardcoded fallback origins in `chat.js` (they guessed `intelligentcarpetcleaning.co.uk`); locking `astro.config.mjs` `site` for the sitemap/canonicals at cutover; and verifying a Resend sending domain (L-004). 123reg DNS points at Netlify at go-live. None of this blocks the Phase 2 Supabase build.
 
 ## D-014 — One monorepo for the whole ICC platform (site + app + backend + shared contract)
 **Status:** Accepted (June 2026)
