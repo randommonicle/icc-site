@@ -57,6 +57,12 @@ Marketing email to past customers relies on the PECR soft opt-in: details collec
 
 Domain, Netlify, Anthropic, Resend, Stripe, Supabase, and Google Business Profile should be owned by Mark / the business from day one, so nothing needs transferring later. Build-lead access is granted on top of Mark's ownership, not in place of it (DESIGN §13).
 
+**Addendum (7 June 2026) — hosted Supabase goes in a dedicated ICC organisation, not the build-lead's personal org.** Until now Phase 2 was local-first (no hosted project, D-002). Refined because the work machine cannot run the local Supabase stack (Docker OOM) and Slices 3+ build far faster against a hosted instance: we stand one up now, in a **dedicated Supabase organisation for ICC** ("Intelligent Carpet Cleaning"), separate from the build-lead's personal `randommonicle's Org`. The build lead is owner/admin to build and grants Mark a member role for access; org ownership and billing transfer to Mark or an ICC-controlled login later, with no data migration (a Supabase org is a clean ownership boundary). This keeps D-009's principle intact: ICC owns its data and account, build-lead access sits on top.
+
+Rejected alternative: hosting the ICC project inside `randommonicle's Org` and adding Mark as a member. That inverts D-009 (build-lead owns, Mark visits), pools ICC's customer PII with other clients' projects under one personal login (an undocumented processor arrangement the privacy notice would have to describe), and makes ICC's backend hostage to the build-lead's personal account and billing (the continuity failure D-009 exists to prevent). Member access is not ownership.
+
+Cost and hard rule: Supabase Pro is per-organisation, so the ICC org runs on **Free** for build/staging and upgrades to Pro at go-live (an ICC business cost). **No real customer PII on any instance under the build-lead's personal org**; the production instance holding real data must be on the ICC-owned org before launch (gates the Slice 5 cutover). Server-side secrets (service-role key, DB password) follow the secrets-server-side rule: Netlify env + local `.env`, never committed.
+
 ## D-010 — Engineering discipline inherited from the ASH app / PropOS
 **Status:** Accepted
 
@@ -73,9 +79,11 @@ Cheltenham, Gloucester and Winchcombe are the core service area with no travel c
 The field app has not been designed yet, but Mark wants it built alongside the website and fully integrated rather than treated as a final, separate phase. This raises the priority of the API-first design (D-003): the backend API surface must be designed from the first backend build (Phase 2) to serve both the website and the app as equal clients, with a documented integration contract. The app is no longer "Phase 5 only" — it is a parallel track that consumes the same API as it matures. Practical consequence: front-load API design in Phase 2, keep all business logic server-side (never only in the website client), and version the API/contract from day one so the two clients never drift. Supersedes the roadmap's earlier framing of the app as a deferred Phase 5 item.
 
 ## D-013 — Domain registration is deferred but non-blocking
-**Status:** Accepted (June 2026)
+**Status:** Accepted (June 2026); **resolved 7 June 2026 — `intelligentclean.co.uk`**
 
 The live domain is not yet chosen. This does not block Phases 0–2: development continues on the Netlify-assigned URL, and `ALLOWED_ORIGINS` / Resend / Google Business Profile / structured data are configured once the domain is registered. Recorded so the open question is visibly parked rather than forgotten. Must be resolved before the SEO/findability launch (Phase 1 go-live) and before `ALLOWED_ORIGINS` strict mode (L-001).
+
+**Resolved (7 June 2026):** the domain is **`intelligentclean.co.uk`**, registered with 123reg (1 year), DNS propagating (123reg quoted 24–48h). Chosen for brevity and brand fit; it deliberately omits "carpet" and "cheltenham" (a weak SEO signal now, and "clean" future-proofs for upholstery and other services). Unblocks, before promotion and when convenient: `ALLOWED_ORIGINS` strict mode in Netlify (`https://intelligentclean.co.uk,https://www.intelligentclean.co.uk`, closes L-001); updating the now-stale hardcoded fallback origins in `chat.js` (they guessed `intelligentcarpetcleaning.co.uk`); locking `astro.config.mjs` `site` for the sitemap/canonicals at cutover; and verifying a Resend sending domain (L-004). 123reg DNS points at Netlify at go-live. None of this blocks the Phase 2 Supabase build.
 
 ## D-014 — One monorepo for the whole ICC platform (site + app + backend + shared contract)
 **Status:** Accepted (June 2026)
