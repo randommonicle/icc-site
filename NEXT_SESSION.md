@@ -2,7 +2,7 @@
 
 Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file at the end of every working session so the next person (or AI) can continue cold.
 
-**Last updated:** 7 June 2026. **Phase 2 backend Slices 0–2 are merged to `main` and live in production.** The stack `#6 → #7 → #8` (functions to `server/`, `shared/config` single source, Supabase schema) was merged in order and verified: production now serves `09a5417`, `node --test` is 8/8 on merged `main`, and the live `/api/chat` (check_availability) + `/api/bookings` respond correctly. **Next action: Slice 3** (`/api/v1/*` + server-side D-011 surcharge/boundary enforcement). Working tree clean. Phase 1 (Astro site) remains in `main`, **not cut over**. The Supabase schema is in the repo but **local-first and not wired to the live functions**, so the merge changed no live behaviour.
+**Last updated:** 10 June 2026. **This session: the hosted ICC Supabase project is live + CLI-linked, and the full email stack on `intelligentclean.co.uk` (Resend + Google Workspace + DNS + app From-addresses) is set up and verified end-to-end — see the 10 June section below.** **Phase 2 backend Slices 0–2 are merged to `main` and live in production.** The stack `#6 → #7 → #8` (functions to `server/`, `shared/config` single source, Supabase schema) was merged in order and verified: production now serves `09a5417`, `node --test` is 8/8 on merged `main`, and the live `/api/chat` (check_availability) + `/api/bookings` respond correctly. **Next action: Slice 3** (`/api/v1/*` + server-side D-011 surcharge/boundary enforcement). Working tree clean. Phase 1 (Astro site) remains in `main`, **not cut over**. The Supabase schema is in the repo but **local-first and not wired to the live functions**, so the merge changed no live behaviour.
 
 ---
 
@@ -25,7 +25,18 @@ Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file
 
 `node --test` is the only logic gate locally; **no CI**, Netlify auto-deploys `main` from GitHub. Branches `chore/d014-monorepo` and `feat/shared-config` were deleted after merge; `feat/supabase-schema` is kept (checked out in another worktree).
 
-## What was done this session (7 June 2026)
+## What was done this session (10 June 2026)
+
+**Hosted Supabase stood up (realises the D-009 addendum).** Created the dedicated **Intelligent Carpet Cleaning** org (Free) + **`icc-platform`** project (ref `qzcfgpfvzpynnjgriqqn`, org `byanmzeomiwnkvhtmsus`, London/eu-west-2), owned by the build-lead account for now (transfers to ICC before the Slice 5 cutover). Loaded the Slice 2 schema via the SQL Editor and verified it (6 tables, RLS on all 6, the `jobs_no_double_booking` exclusion constraint); `supabase migration repair` reconciled history so a future `db push` is clean. **Linked the Supabase CLI** to the repo. Key lesson: **use the Supabase CLI, not the MCP, for ICC** — the MCP connector's OAuth is single-org (scoped to `randommonicle's Org`) and cannot see the ICC org; the CLI's token is account-wide (L-013).
+
+**Email stack live on `intelligentclean.co.uk` (closes L-004 sending-domain).**
+- **Resend** verified (DKIM `resend._domainkey`, SPF + bounce MX on the `send` subdomain). One clean DMARC (`_dmarc`, `p=none`) after deleting a GoDaddy-default `p=quarantine` duplicate. "Enable Receiving" left OFF (inbound = Workspace).
+- **Google Workspace** (Business Starter): `ben@` super-admin (recovery → Ben's personal Gmail), `mark@` owner mailbox (Ben administers; Mark is non-technical). Domain verified; Gmail MX `smtp.google.com`; root SPF; 2048-bit DKIM (`google._domainkey`, verified byte-exact) authenticated. Aliases `hello@`/`info@`/`bookings@` on `mark@`.
+- **App From-addresses** set in Netlify + redeployed: `OPERATOR_EMAIL=mark@`, `OPERATOR_FROM="ICC Bookings <bookings@…>"`, `CUSTOMER_FROM="Intelligent Carpet Cleaning <hello@…>"`. **Verified end-to-end** via a live `confirm_booking` test — confirmation delivered from `hello@` to a real inbox. DNS is at 123reg/GoDaddy (nameservers `*.domaincontrol.com`); every record verified live with `Resolve-DnsName`.
+
+**Live-app fix (this branch `chore/contact-email-and-handover`).** `chat.js`: stale `talktoregency@gmail.com` → `hello@intelligentclean.co.uk` (system prompt, confirmation email, PDF job card) and fallback origins `intelligentcarpetcleaning.co.uk` → `intelligentclean.co.uk`. `node --test` 8/8.
+
+## Previous session (7 June 2026)
 
 - **Merged the Phase 2 stack `#6 → #7 → #8` into `main`, in order, with sign-off**, and verified each slice live. Production serves `09a5417` (`ready`, 19s build), `node --test` 8/8 on merged `main`.
 - **The predicted Node 24 merge conflict did not materialise.** Each slice branch was cut before PR #9 (Node 24), but the edits don't overlap, so git's 3-way merge kept `NODE_VERSION=24`, `engines: 24`, `.nvmrc 24`, the `server/netlify/functions` path, and the redirects/headers with no conflict. Confirmed by inspecting the merged tree before each merge.
@@ -61,6 +72,12 @@ Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file
 5. **Follow-ups noted:** wire the Astro home/services price cards to `shared/config/pricing.js` (now has `priceOf`); fill the privacy data-controller slot with the D-016 address (gated on Mark + DP review); the root `package-lock.json` now exists (Slice 2) so builds are reproducible.
 
 ## Things to watch / not yet decided
+
+- **Website contact sweep (follow-up to this session).** The old `talktoregency@gmail.com` and old domain `intelligentcarpetcleaning.co.uk` still appear across the **live `index.html`** (contact/privacy/chat-fallbacks) and the **dormant Astro site**: `site/astro.config.mjs`, `site/public/robots.txt`, `site/src/layouts/BaseLayout.astro`, `site/src/pages/{contact,privacy,book}.astro`, and the `siteUrl` fallbacks in `pages/guides/[slug]`, `pages/areas/index`, `pages/areas/[slug]`. Sweep email → `hello@` and domain → `intelligentclean.co.uk` (pairs with the cutover; `chat.js` is already done).
+- **Test booking to clean up.** A live `confirm_booking` test left a record in Blobs — slot **2026-06-24 10:00** blocked + a TEST booking + index entry. Delete it (needs `NETLIFY_TOKEN` + `NETLIFY_SITE_ID`) to free the slot.
+- **Workspace cost before the 14-day trial converts.** Two licensed seats (`ben@` + `mark@`). If `ben@` needs no mailbox, switch it to **Cloud Identity Free** so only `mark@` is billable. Keep billing on Mark's business card; give `mark@` an admin/recovery path (D-009 bus factor).
+- **`ALLOWED_ORIGINS` now settable.** Domain confirmed + `chat.js` fallbacks fixed — set `ALLOWED_ORIGINS=https://intelligentclean.co.uk,https://www.intelligentclean.co.uk` in Netlify to close L-001 (currently fail-open).
+- **`deposit` guard (hardening).** The `chat.js` calendar link renders `Deposit due: undefined` when a booking omits `deposit` — add a default/guard.
 
 - **The Supabase schema is NOT wired to the live functions.** It is in the repo, local-first; the live `/api/chat` availability still uses the Phase 0 Blobs grid (09:00–17:00). The schema's hardened **09:00–16:30** hours only take effect when the functions move to Postgres (Slice 5). No live behaviour changed at the merge.
 - **The Supabase stack runs at home, not on the work machine** (the work machine OOM'd on `supabase start`). Slice 2 verified at home (pgTAP 10/10). Local data persists in a Docker volume; `npx supabase start` / `stop` to bring it up and down.
