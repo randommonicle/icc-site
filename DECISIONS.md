@@ -32,6 +32,15 @@ The backend exposes a clean, documented set of endpoints. The website is one cli
 
 Stripe handles card security, so no card data is ever stored on the platform, keeping ICC out of scope for the heaviest payment-security obligations. Covers the deposit at booking and the balance on completion. True open-banking links are heavier and parked as optional/later (not needed to take deposits).
 
+**Addendum (June 2026) — processor kept swappable; Revolut Merchant is a live alternative.** Mark is considering **Revolut Pro** (the sole-trader account) for the business banking. That does not change this decision and is compatible with it: the **card processor** and the **receiving bank account** are different layers. Two viable processor strategies, to choose at Phase 3:
+
+- **Stripe** (default): best API/ecosystem for a custom embedded deposit-plus-balance flow, serves the website and the field app identically, and pays out to whatever bank account Mark nominates — **including Revolut Pro** (UK sort code + account number). Slightly higher UK card fees (~1.5% + 20p).
+- **Revolut Merchant API**: custom checkout + Revolut Pay, ~0.8% + 2p (0.5% + 2p for Revolut Pay), next-day settlement straight into the Revolut account Mark already uses. Younger API/ecosystem than Stripe, and it ties payments to Revolut.
+
+There is no "Stripe is built into Revolut" — they are separate (and partly competing) products; the only Stripe↔Revolut tie is **Revolut Pay** as a checkout method Stripe can offer. Open banking / "pay by bank" (e.g. via the Revolut Pay bank route) is the low-fee option worth considering for the **deposit** specifically.
+
+**Design rule locked now:** the payment processor sits **behind our own server-side API (D-003); the website and field app never call the processor directly.** So Stripe ↔ Revolut Merchant (or adding pay-by-bank) is a server-side swap, not a client rebuild — the choice is not a one-way door, and we don't have to make it until Phase 3. Whichever is chosen, the merchant + payout accounts are **Mark/business-owned (D-009)**. *(Fees/eligibility verified against Stripe + Revolut docs June 2026; reconfirm current figures at build time — L-009.)*
+
 ## D-005 — Calendar: ICS + per-booking links first, API sync later
 **Status:** Accepted
 
