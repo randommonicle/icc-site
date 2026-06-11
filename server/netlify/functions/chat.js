@@ -107,6 +107,9 @@ Preparation advice even before they book: move small ornaments and lightweight i
 If they mention mould: strongly advise fixing the source of moisture first and explain why cleaning alone will not solve the problem long-term.
 Make this feel like advice from a knowledgeable friend in the trade, not a script.
 
+WHEN TO HAND OVER TO A HUMAN:
+You have a tool called escalate_to_human. Use it instead of guessing whenever a question falls outside your carpet-cleaning knowledge, whenever following your advice could risk damaging the customer's carpet, upholstery or property (aftercare, self-treating a stain, unusual fibres or materials, or anything you are not certain about), whenever you cannot point to something in your knowledge to back up the answer, or whenever the customer asks to speak to a person. Safety comes first: for anything that could damage a carpet, hand over rather than guess. After you hand over, reassure the customer that the team will confirm the answer, and ask how they would like to be contacted if you do not already have their details. Never invent an answer just to avoid handing over.
+
 BOOKING PROCESS:
 Collect in this order, one question at a time:
 1. Customer full name
@@ -131,6 +134,27 @@ The rams field must contain a plain-English risk assessment tailored to this spe
 Activity: [e.g. Texatherm low-moisture carpet cleaning, domestic premises]\\nHazards: [comma-separated list of relevant hazards only from: wet surface slip risk, trip hazard from equipment cables, cleaning chemicals (low toxicity), manual handling if furniture moving, pets on site, mould or biological material if present]\\nControls: [corresponding control measures matching the hazards listed]\\nPPE: [gloves as minimum standard; add P2 mask if mould or biological hazard present]\\nNotes: [any specific on-the-day notes, e.g. pets to be secured before work begins, customer to be advised carpet will be damp for 30-60 minutes]
 
 This triggers the booking confirmation system. Do not output this until the customer has explicitly confirmed they want to proceed.`;
+
+// Custom tool the assistant calls instead of guessing when it is out of its depth
+// (D-019). The description names WHEN to call it because recent Claude models
+// under-reach for custom tools without explicit triggers; damage-risk questions
+// escalate FIRST (never a guess/web fallback) — the safety exit that prevents the
+// L-009 failure mode (advice that could ruin a customer's carpet). Module-level
+// constant so the tools array stays byte-stable and the L-002 prompt cache holds.
+const ESCALATION_TOOL = {
+  name: "escalate_to_human",
+  description: "Hand the customer's question to Mark (the owner) instead of answering it yourself, and log it as a lead. CALL THIS WHENEVER: (1) the question falls outside your vetted carpet-cleaning knowledge; (2) there is ANY chance that following your advice could damage the customer's carpet, upholstery or property - aftercare, self-treating a stain, unusual fibres or materials, or anything you are not sure about - in which case escalate FIRST and never guess; (3) you cannot point to something in your knowledge to support the answer; or (4) the customer asks to speak to a person. Do NOT call it for ordinary booking, availability, pricing, or questions you can answer confidently from your knowledge. After calling it, reassure the customer the team will confirm and ask how they would like to be contacted if you do not already have their details.",
+  input_schema: {
+    type: "object",
+    properties: {
+      question: { type: "string", description: "The customer's question or situation, in your own words." },
+      reason: { type: "string", enum: ["out_of_scope", "damage_risk", "no_citable_source", "customer_request"], description: "Why you are handing it over." },
+      customer_name: { type: "string", description: "The customer's name if you have it, otherwise omit." },
+      customer_contact: { type: "string", description: "The customer's email or phone if you have it, otherwise omit." }
+    },
+    required: ["question", "reason"]
+  }
+};
 
 function getOrigin(event){
   const raw = event.headers.origin || event.headers.referer || "";
@@ -308,7 +332,12 @@ ${availableDatesList.join("\n")}`;
     && lastUserMsg.content.some(c => c.type === "image");
   const model = hasImage ? models.vision : models.text;
 
-  try {
+  // One Anthropic call. Closured over the per-request model + system blocks so
+  // runAssistantTurn can re-call it with the growing message list across a tool
+  // round. Tools render before system, so the existing cache_control on the last
+  // system block caches tools + system together (L-002); ESCALATION_TOOL is a
+  // module constant, so the cached prefix stays byte-stable across requests.
+  const callModel = async (messages) => {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -326,16 +355,27 @@ ${availableDatesList.join("\n")}`;
           { type: "text", text: STATIC_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
           { type: "text", text: dynamicContext }
         ],
-        messages: body.messages
+        tools: [ESCALATION_TOOL],
+        messages: messages
       })
     });
+    return await response.json();
+  };
 
-    const data = await response.json();
+  try {
+    // Resolve any escalate_to_human round(s) server-side, then hand the browser a
+    // single final text message — index.html reads data.content[0].text and never
+    // inspects stop_reason, so withSingleTextBlock keeps that contract intact.
+    const data = await runAssistantTurn(
+      body.messages,
+      callModel,
+      (toolUse, ctx) => handleTool(toolUse, ctx, resendKey)
+    );
 
     return {
       statusCode: 200,
       headers: Object.assign({}, baseHeaders, { "Content-Type": "application/json" }),
-      body: JSON.stringify(data)
+      body: JSON.stringify(withSingleTextBlock(data))
     };
   } catch (err) {
     console.log("FETCH ERROR:", err.message);
@@ -346,6 +386,136 @@ ${availableDatesList.join("\n")}`;
     };
   }
 };
+
+// --- D-019 human escalation (Slice 4b) --------------------------------------
+
+// Resolve a chat turn, executing any custom tool_use rounds server-side so the
+// browser still receives one final assistant message. callModel(messages) returns
+// the parsed Anthropic response; handleTool(toolUse, ctx) returns the tool_result
+// string. Bounded by maxRounds so a misbehaving model cannot loop forever. (Only
+// custom tool_use is looped here; server-tool pause_turn handling arrives with
+// web_search in Slice 4d.) Exported for unit tests (test/escalation.test.js).
+async function runAssistantTurn(initialMessages, callModel, handleTool, maxRounds = 4) {
+  let messages = Array.isArray(initialMessages) ? initialMessages.slice() : [];
+  let data = await callModel(messages);
+  let rounds = 0;
+  while (data && data.stop_reason === "tool_use" && rounds < maxRounds) {
+    rounds++;
+    const toolUses = (data.content || []).filter(b => b && b.type === "tool_use");
+    if (toolUses.length === 0) break;
+    const toolResults = [];
+    for (const tu of toolUses) {
+      let result;
+      try {
+        result = await handleTool(tu, { messages });
+      } catch (e) {
+        console.log("Tool handler error:", e.message);
+        result = "That could not be completed. Ask the customer to call 01242 279590.";
+      }
+      toolResults.push({ type: "tool_result", tool_use_id: tu.id, content: result });
+    }
+    messages = messages.concat([
+      { role: "assistant", content: data.content },
+      { role: "user", content: toolResults }
+    ]);
+    data = await callModel(messages);
+  }
+  return data;
+}
+
+// Collapse an Anthropic message to a single text block so the browser's
+// data.content[0].text contract holds after a tool round (and, in Slice 4c, after
+// Citations splits the reply across blocks). tool_use blocks are dropped; text
+// blocks are concatenated in order. Anything without an array content (e.g. an API
+// error object) is passed through untouched. Exported for unit tests.
+function withSingleTextBlock(data) {
+  if (!data || !Array.isArray(data.content)) return data;
+  const text = data.content
+    .filter(b => b && b.type === "text" && typeof b.text === "string")
+    .map(b => b.text)
+    .join("");
+  return Object.assign({}, data, { content: [{ type: "text", text: text }] });
+}
+
+// Dispatch a tool_use block to its handler. Only escalate_to_human exists today.
+async function handleTool(toolUse, context, resendKey) {
+  if (toolUse && toolUse.name === "escalate_to_human") {
+    return await handleEscalation(toolUse.input || {}, context, resendKey);
+  }
+  return "Unknown tool. Ask the customer to call 01242 279590.";
+}
+
+// Log the escalation as a lead and notify Mark by email, then tell the model what
+// to say next. The customer reply is never blocked on the email (L-004: a 200 from
+// Resend is not delivery; failures are logged, not surfaced to the customer).
+async function handleEscalation(input, context, resendKey) {
+  try {
+    if (resendKey) await sendEscalationEmail(input, context, resendKey);
+    else console.log("Escalation (no RESEND_API_KEY, not emailed):", input.reason, "-", input.question);
+  } catch (e) {
+    console.log("Escalation email failed:", e.message);
+  }
+  return "Escalation logged and the team has been notified. Tell the customer you will get Mark or the team to confirm the answer, and ask how they would like to be contacted if you do not already have their name and number. Do not attempt to answer the original question yourself.";
+}
+
+// Operator (Mark) email for an escalation, mirroring the booking email path. All
+// model- and customer-supplied text is escHtml-escaped (L-003).
+async function sendEscalationEmail(input, context, resendKey) {
+  const operatorEmail = process.env.OPERATOR_EMAIL || "ben.graham240689@gmail.com";
+  const operatorFrom = process.env.OPERATOR_FROM || "ICC Bookings <onboarding@resend.dev>";
+
+  const reasonLabels = {
+    out_of_scope: "Outside the assistant's knowledge",
+    damage_risk: "Possible damage risk - needs a human",
+    no_citable_source: "No citable source for the answer",
+    customer_request: "Customer asked for a person"
+  };
+  const reason = reasonLabels[input.reason] || escHtml(input.reason || "Not specified");
+
+  // Last few turns as a plain-text transcript snippet for context.
+  const transcript = (Array.isArray(context && context.messages) ? context.messages : [])
+    .slice(-6)
+    .map(m => {
+      const who = m.role === "assistant" ? "Assistant" : "Customer";
+      let text = "";
+      if (typeof m.content === "string") text = m.content;
+      else if (Array.isArray(m.content)) text = m.content.filter(c => c && c.type === "text").map(c => c.text).join(" ");
+      return text ? `${who}: ${text}` : "";
+    })
+    .filter(Boolean)
+    .join("\n");
+
+  const email = {
+    from: operatorFrom,
+    to: operatorEmail,
+    subject: `Website assistant escalation - ${input.customer_name ? input.customer_name : "customer"}`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+        <div style="background:#0d2236;padding:20px;border-radius:8px 8px 0 0;">
+          <h1 style="color:#2ab8a4;margin:0;font-size:20px;">Assistant handed a question to you</h1>
+          <p style="color:rgba(255,255,255,0.7);margin:5px 0 0;">Intelligent Carpet Cleaning</p>
+        </div>
+        <div style="background:#f7f8fa;padding:20px;border-radius:0 0 8px 8px;border:1px solid #e2e8f0;">
+          <p style="font-size:14px;color:#4a5568;margin:0 0 4px;"><strong>Why:</strong> ${reason}</p>
+          <p style="font-size:14px;color:#4a5568;margin:0 0 4px;"><strong>Customer:</strong> ${escHtml(input.customer_name || "not given")}</p>
+          <p style="font-size:14px;color:#4a5568;margin:0 0 12px;"><strong>Contact:</strong> ${escHtml(input.customer_contact || "not given - reply in the chat or call back")}</p>
+          <div style="background:#fff;padding:15px;border-radius:8px;border-left:4px solid #1a8a7a;margin:12px 0;">
+            <p style="margin:0 0 6px;font-size:13px;font-weight:bold;color:#1a3a5c;">Question</p>
+            <p style="margin:0;font-size:14px;color:#4a5568;">${escHtml(input.question || "(none captured)")}</p>
+          </div>
+          ${transcript ? `<div style="margin-top:12px;"><p style="font-size:12px;font-weight:bold;color:#1a3a5c;margin:0 0 6px;">Recent conversation</p><pre style="white-space:pre-wrap;font-family:Arial,sans-serif;font-size:12px;color:#4a5568;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin:0;">${escHtml(transcript)}</pre></div>` : ""}
+          <p style="margin-top:15px;font-size:12px;color:#718096;">The assistant told the customer the team will confirm the answer. Please follow up.</p>
+        </div>
+      </div>`
+  };
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${resendKey}` },
+    body: JSON.stringify(email)
+  });
+  return await res.json();
+}
 
 function getBlobStore() {
   const { getStore } = require("@netlify/blobs");
@@ -853,8 +1023,13 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
   });
 }
 
-// Exported for unit tests (test/hardening.test.js, test/knowledge.test.js).
-// Not used by the handler.
+// Exported for unit tests (test/hardening.test.js, test/knowledge.test.js,
+// test/escalation.test.js). Not used by the handler.
 exports.rateLimit = rateLimit;
 exports.depositLabel = depositLabel;
 exports.STATIC_SYSTEM_PROMPT = STATIC_SYSTEM_PROMPT;
+exports.ESCALATION_TOOL = ESCALATION_TOOL;
+exports.runAssistantTurn = runAssistantTurn;
+exports.withSingleTextBlock = withSingleTextBlock;
+exports.handleTool = handleTool;
+exports.handleEscalation = handleEscalation;
