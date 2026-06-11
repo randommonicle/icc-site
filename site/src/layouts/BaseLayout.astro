@@ -13,7 +13,7 @@ interface Props {
 const { title, description } = Astro.props;
 // Astro.site comes from astro.config.mjs; canonical is the absolute page URL.
 const canonical = new URL(Astro.url.pathname, Astro.site).href;
-const siteUrl = (Astro.site?.href ?? 'https://www.intelligentcarpetcleaning.co.uk/').replace(/\/$/, '');
+const siteUrl = (Astro.site?.href ?? 'https://www.intelligentclean.co.uk/').replace(/\/$/, '');
 
 // Site-wide LocalBusiness structured data. Only confirmed contact/geo facts —
 // no cleaning-method or USP claims (those wait on the verified Texatherm brief).
@@ -26,7 +26,7 @@ const localBusiness = {
   url: siteUrl,
   image: `${siteUrl}/logo.jpg`,
   telephone: '+441242279590',
-  email: 'talktoregency@gmail.com',
+  email: 'hello@intelligentclean.co.uk',
   address: {
     '@type': 'PostalAddress',
     addressLocality: 'Cheltenham',

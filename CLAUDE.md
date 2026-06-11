@@ -256,7 +256,7 @@ This project is deliberately built so that anyone could pick it up and carry on 
 - **Why things are the way they are:** [DECISIONS.md](DECISIONS.md). Do not undo a decision without reading its record first.
 - **What will bite you:** [LESSONS_LEARNED.md](LESSONS_LEARNED.md). Read it before touching the chat proxy, bookings, email, or deploy config.
 - **Where you left off:** [NEXT_SESSION.md](NEXT_SESSION.md), updated at the end of every session.
-- **The client:** Mark McClymont, Intelligent Carpet Cleaning, Cheltenham — phone 01242 279590, email talktoregency@gmail.com.
+- **The client:** Mark McClymont, Intelligent Carpet Cleaning, Cheltenham — phone 01242 279590, email hello@intelligentclean.co.uk.
 - **Where the code runs:** GitHub `randommonicle/icc-site` → Netlify site `super-frangollo-c3a14a` (super-frangollo-c3a14a.netlify.app) auto-deploys `main`. Static site + serverless functions; no build step in Phase 0.
 - **Where the secrets are:** Netlify → Site settings → Environment variables (never in git). The list and what each does is in [.env.example](.env.example) and the Environment Variables section above. These are the only things not reconstructable from the repo — make sure Mark owns the accounts that hold them (D-009).
 - **The data:** Phase 0 bookings live in Netlify Blobs (store `icc-bookings`). From Phase 2 they live in Supabase. There is no other hidden state.

@@ -18,8 +18,8 @@ function buildAllowedOrigins(){
     process.env.URL,
     process.env.DEPLOY_URL,
     process.env.DEPLOY_PRIME_URL,
-    "https://intelligentcarpetcleaning.co.uk",
-    "https://www.intelligentcarpetcleaning.co.uk",
+    "https://intelligentclean.co.uk",
+    "https://www.intelligentclean.co.uk",
     "http://localhost:8888",
     "http://localhost:3000"
   ].filter(Boolean);
@@ -68,7 +68,7 @@ Today's date and the verified list of bookable dates are provided in the PER-CON
 BUSINESS DETAILS:
 Owner: Mark McClymont
 Phone: 01242 279590
-Email: talktoregency@gmail.com
+Email: hello@intelligentclean.co.uk
 Service area: All GL postcodes - full Gloucestershire
 Hours: Monday to Saturday, 8am to 6pm
 Available slots: 9am, 10am, 11am, 12pm, 1pm, 2pm, 3pm, 4pm, 5pm (Mon-Sat)
@@ -689,7 +689,7 @@ async function handleBooking(booking, resendKey, baseHeaders) {
           <div style="margin-top:15px;text-align:center;">
             <a href="${escHtml(calLink)}" style="display:inline-block;background:#1a8a7a;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;">Add to My Calendar</a>
           </div>
-          <p style="margin-top:20px;font-size:13px;color:#718096;">Questions? Call us on 01242 279590 or email talktoregency@gmail.com</p>
+          <p style="margin-top:20px;font-size:13px;color:#718096;">Questions? Call us on 01242 279590 or email hello@intelligentclean.co.uk</p>
           <div style="margin-top:20px;padding:15px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;">
             <p style="margin:0 0 10px;font-size:12px;font-weight:bold;color:#1a3a5c;">Terms and Conditions</p>
             <p style="margin:0 0 8px;font-size:11px;color:#718096;line-height:1.6;"><strong>Pricing:</strong> The price quoted is an estimate based on the information and any photographs provided at the time of booking. In the vast majority of cases this will be the final price. If on arrival the condition differs significantly from what was described, any variation will be explained and agreed with you before any additional work is carried out. No additional charges will be applied without your explicit approval.</p>
@@ -755,7 +755,7 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
     doc.rect(0, 0, doc.page.width, 75).fill(navy);
     doc.fontSize(18).fillColor(tealLight).font("Helvetica-Bold").text("INTELLIGENT CARPET CLEANING", 40, 14, { width: W });
     doc.fontSize(9).fillColor("white").font("Helvetica").text("Established Trust, Superior Cleaning", 40, 37);
-    doc.fontSize(7.5).fillColor("rgba(255,255,255,0.5)").text(`Job Ref: ${bookingId || "N/A"}   |   Created: ${new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })}   |   01242 279590   |   talktoregency@gmail.com`, 40, 54);
+    doc.fontSize(7.5).fillColor("rgba(255,255,255,0.5)").text(`Job Ref: ${bookingId || "N/A"}   |   Created: ${new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })}   |   01242 279590   |   hello@intelligentclean.co.uk`, 40, 54);
     doc.y = 88;
 
     function sectionHeader(title) {
@@ -876,7 +876,7 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
     doc.rect(40, doc.y, W, 1).fill("#e2e8f0");
     doc.moveDown(0.5);
     doc.fontSize(7.5).fillColor(textMid).font("Helvetica")
-       .text("Intelligent Carpet Cleaning  |  01242 279590  |  talktoregency@gmail.com  |  All GL Postcodes  |  Mon-Sat 8am-6pm", 40, doc.y, { align: "center", width: W });
+       .text("Intelligent Carpet Cleaning  |  01242 279590  |  hello@intelligentclean.co.uk  |  All GL Postcodes  |  Mon-Sat 8am-6pm", 40, doc.y, { align: "center", width: W });
     doc.moveDown(0.4);
     doc.fontSize(7).fillColor("#a0aec0")
        .text("This job card was generated automatically by the ICC AI booking system. Please verify all details with the customer before the appointment.", 40, doc.y, { align: "center", width: W });
