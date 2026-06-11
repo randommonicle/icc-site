@@ -17,6 +17,13 @@
   to = "/.netlify/functions/bookings"
   status = 200
 
+# Phase 2, Slice 3 — versioned API (/api/v1/*). Stateless server-side quote;
+# runs alongside the live /api/chat flow (D-003/D-011/D-012).
+[[redirects]]
+  from = "/api/v1/quote"
+  to = "/.netlify/functions/v1-quote"
+  status = 200
+
 [[redirects]]
   from = "/admin"
   to = "/admin.html"

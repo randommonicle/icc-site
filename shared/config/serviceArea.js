@@ -45,11 +45,32 @@ function serviceAreaBlock() {
 ${core} are the core service area with no travel charge. ICC also covers the wider Gloucestershire area, including ${wider}, and the surrounding towns (all GL postcodes). Jobs outside the core area (anywhere other than ${core}) incur a flat out of area surcharge of £${s} + VAT. When the customer's address is outside the core area, mention clearly and early that a flat £${s} + VAT out of area surcharge applies, include it in the itemised quote, and state it plainly as a fixed figure — not something "to be confirmed".`;
 }
 
+// True when an address postcode falls OUTSIDE the core no-surcharge area
+// (D-011) and so attracts the flat £15 + VAT out-of-area surcharge. Accepts a
+// full postcode ("GL51 2AB"), a no-space postcode ("GL512AB") or a bare outward
+// district ("GL3"), and compares the outward code against `core_postcodes`. The
+// UK inward code is always the last three characters, so for a full postcode the
+// outward code is everything before them. Anything we cannot place in the core
+// list is treated as out of area: the wider Gloucestershire towns are served
+// (with the surcharge), and an unrecognised or mistyped postcode errs toward
+// charging the travel rather than silently absorbing it.
+//
+// The precise core boundary is still provisional (TODO above, open with Mark);
+// this reads `core_postcodes`, so settling that list moves the assistant, the
+// server quote and the site together.
+function isOutOfArea(postcode) {
+  const clean = String(postcode || "").toUpperCase().replace(/\s+/g, "");
+  if (clean.length < 2) return true; // nothing usable — treat as out of area
+  const outward = clean.length >= 5 ? clean.slice(0, -3) : clean;
+  return !core_postcodes.includes(outward);
+}
+
 module.exports = {
   core_towns,
   core_postcodes,
   wider_towns,
   out_of_area_surcharge_ex_vat,
   coreTownsPhrase,
+  isOutOfArea,
   serviceAreaBlock,
 };
