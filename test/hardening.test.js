@@ -9,7 +9,7 @@
 
 const { test } = require("node:test");
 const assert = require("node:assert");
-const { rateLimit } = require("../server/netlify/functions/chat.js");
+const { rateLimit, depositLabel } = require("../server/netlify/functions/chat.js");
 const { safeEqual } = require("../server/netlify/functions/bookings.js");
 
 // In-memory stand-in for the Blobs store: the same async get/set contract.
@@ -76,4 +76,15 @@ test("safeEqual: empty / non-string inputs do not match", () => {
   assert.strictEqual(safeEqual("secret", ""), false);
   assert.strictEqual(safeEqual(undefined, "secret"), false);
   assert.strictEqual(safeEqual("secret", undefined), false);
+});
+
+test("depositLabel keeps a provided deposit verbatim", () => {
+  assert.strictEqual(depositLabel("£90 + VAT"), "£90 + VAT");
+});
+
+test("depositLabel falls back to a clear label when missing or blank", () => {
+  assert.strictEqual(depositLabel(undefined), "To be confirmed");
+  assert.strictEqual(depositLabel(null), "To be confirmed");
+  assert.strictEqual(depositLabel(""), "To be confirmed");
+  assert.strictEqual(depositLabel("   "), "To be confirmed");
 });

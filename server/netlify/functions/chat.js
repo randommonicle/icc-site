@@ -510,6 +510,15 @@ function validateBooking(b){
   return null;
 }
 
+// Normalise the optional deposit for display. The 10% deposit normally arrives
+// from the assistant, but it is not a required field (validateBooking only
+// length-caps it when present), so a missing/blank value would otherwise render
+// as the literal "undefined" in the calendar link, the emails and the PDF job
+// card. Returns the value untouched when present, a clear fallback when not.
+function depositLabel(value){
+  return (typeof value === "string" && value.trim()) ? value : "To be confirmed";
+}
+
 async function handleBooking(booking, resendKey, baseHeaders) {
   const headers = Object.assign({}, baseHeaders || {}, { "Content-Type": "application/json" });
 
@@ -523,6 +532,11 @@ async function handleBooking(booking, resendKey, baseHeaders) {
       body: JSON.stringify({ error: validationError })
     };
   }
+
+  // Normalise the optional deposit once, up front, so the stored record, the
+  // calendar link, both emails and the PDF job card all show a clean value
+  // rather than "undefined" when the assistant omits it.
+  booking.deposit = depositLabel(booking.deposit);
 
   // Block out slots in Netlify Blobs
   let currentBookingId = null;
@@ -887,3 +901,4 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
 
 // Exported for unit tests (test/hardening.test.js). Not used by the handler.
 exports.rateLimit = rateLimit;
+exports.depositLabel = depositLabel;
