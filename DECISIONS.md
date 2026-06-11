@@ -32,6 +32,15 @@ The backend exposes a clean, documented set of endpoints. The website is one cli
 
 Stripe handles card security, so no card data is ever stored on the platform, keeping ICC out of scope for the heaviest payment-security obligations. Covers the deposit at booking and the balance on completion. True open-banking links are heavier and parked as optional/later (not needed to take deposits).
 
+**Addendum (June 2026) — processor kept swappable; Revolut Merchant is a live alternative.** Mark is considering **Revolut Pro** (the sole-trader account) for the business banking. That does not change this decision and is compatible with it: the **card processor** and the **receiving bank account** are different layers. Two viable processor strategies, to choose at Phase 3:
+
+- **Stripe** (default): best API/ecosystem for a custom embedded deposit-plus-balance flow, serves the website and the field app identically, and pays out to whatever bank account Mark nominates — **including Revolut Pro** (UK sort code + account number). Slightly higher UK card fees (~1.5% + 20p).
+- **Revolut Merchant API**: custom checkout + Revolut Pay, ~0.8% + 2p (0.5% + 2p for Revolut Pay), next-day settlement straight into the Revolut account Mark already uses. Younger API/ecosystem than Stripe, and it ties payments to Revolut.
+
+There is no "Stripe is built into Revolut" — they are separate (and partly competing) products; the only Stripe↔Revolut tie is **Revolut Pay** as a checkout method Stripe can offer. Open banking / "pay by bank" (e.g. via the Revolut Pay bank route) is the low-fee option worth considering for the **deposit** specifically.
+
+**Design rule locked now:** the payment processor sits **behind our own server-side API (D-003); the website and field app never call the processor directly.** So Stripe ↔ Revolut Merchant (or adding pay-by-bank) is a server-side swap, not a client rebuild — the choice is not a one-way door, and we don't have to make it until Phase 3. Whichever is chosen, the merchant + payout accounts are **Mark/business-owned (D-009)**. *(Fees/eligibility verified against Stripe + Revolut docs June 2026; reconfirm current figures at build time — L-009.)*
+
 ## D-005 — Calendar: ICS + per-booking links first, API sync later
 **Status:** Accepted
 
@@ -144,3 +153,22 @@ ICC's email runs on two services over the one verified domain, set up this sessi
 - **Transactional/automated email** (booking confirmations now; Supabase Auth from Slice 5) via **Resend**, sending from the verified domain. The app's From-addresses are env-driven in Netlify (`CUSTOMER_FROM=hello@…`, `OPERATOR_FROM=bookings@…`, `OPERATOR_EMAIL=mark@…`).
 
 There is no "link the domain to Supabase" step: Supabase does not host mailboxes — it only *sends* auth email over SMTP, which from Slice 5 points at the same Resend domain. The two sending paths stay independent by DNS design: Google's SPF/DKIM on the root, Resend's on the `send` subdomain, one shared DMARC (`_dmarc`, `p=none` during rollout). Verified end-to-end with a live booking and closes the L-004 sending-domain item. DNS lives at 123reg (GoDaddy `*.domaincontrol.com` nameservers); the web records (→ Netlify) are deliberately untouched until the Phase 1 cutover.
+
+## D-019 — AI assistant grounding, source hierarchy, and human escalation
+**Status:** Accepted in principle (11 June 2026); implementation in Phase 1 (knowledge consolidation) + Slice 4 (backend AI / handoff)
+
+The assistant must not give incorrect information — above all, aftercare or stain advice that could physically damage a customer's carpet. The agreed design is a **grounded assistant with a two-lane source hierarchy and a safe "I don't know → escalate to a human" exit**, built as layered (defence-in-depth) guardrails rather than a single prompt instruction. Rationale: the model has no calibrated confidence, and an AI/web summary is exactly what caused the L-009 drift — so escalation is engineered by **category**, not by trusting the model to police itself.
+
+**Source hierarchy (two lanes):**
+- *Low-stakes / general* questions: vetted KB (D-006) → attributed web search → escalate.
+- *Damage-risk / out-of-scope* questions: vetted KB only → **escalate to a human immediately** (never fall back to web for advice that could damage a carpet).
+
+**Claude mechanisms (verified against the API, June 2026):**
+- **Citations** — pass the vetted content as documents (or the cached system prompt, L-002) so Claude grounds and cites each claim to its source; an uncitable claim is itself a signal to soften or escalate.
+- **Server-side `web_search`/`web_fetch`** — used only for low-stakes gaps, always **attributed** ("the manufacturer states…"), never asserted as ICC fact (L-009).
+- **A custom `escalate_to_human` tool** — the model calls it when out of its depth; the *description must state when to call it* (out-of-KB, damage-risk, or no citable source), because recent Claude models under-reach for custom tools without explicit triggers. It returns the "I'll get the team to check" message and captures the question + contact as a lead.
+- Constraint: Citations and forced-JSON structured outputs cannot be combined in one call, so prefer Citations + the escalation tool over a model-reported confidence score (which is unreliable anyway).
+
+**Structural guards:** bound the assistant's remit to *educate + quote + book* (defer prescriptive treatment of valuable/delicate items to a professional assessment — escalate by design); optionally a cheap second-model (Haiku) verification pass that checks a safety-relevant draft against the KB before it is sent.
+
+**Where it lands:** the build-out of D-006 (one vetted source feeds site + assistant) and the enforcement of L-009. The human-handoff half uses the **Slice 4 `messages` table** (draft → Mark approves → send) + admin review, so escalations become logged leads and Mark's corrections feed back into the KB. Today `chat.js` already does the simplest tier-1 (a cached system prompt = in-context grounding); value-ordered upgrade path: **structured KB → Citations → gated web tool → escalation tool + verification.**
