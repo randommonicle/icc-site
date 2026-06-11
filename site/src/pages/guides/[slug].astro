@@ -16,7 +16,7 @@ const { guide } = Astro.props;
 const { Content } = await render(guide);
 const { title, description, faq, updated } = guide.data;
 
-const siteUrl = (Astro.site?.href ?? 'https://www.intelligentcarpetcleaning.co.uk/').replace(/\/$/, '');
+const siteUrl = (Astro.site?.href ?? 'https://www.intelligentclean.co.uk/').replace(/\/$/, '');
 const pageUrl = new URL(Astro.url.pathname, Astro.site).href;
 // Format with timeZone:UTC so the build's UTC runtime can't shift the month
 // (the L-005 lesson, applied to display dates as well as job-card dates).

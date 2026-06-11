@@ -19,7 +19,7 @@ const { area } = Astro.props;
 const { Content } = await render(area);
 const { town, title, description, tier, postcodes, nearby, faq } = area.data;
 
-const siteUrl = (Astro.site?.href ?? 'https://www.intelligentcarpetcleaning.co.uk/').replace(/\/$/, '');
+const siteUrl = (Astro.site?.href ?? 'https://www.intelligentclean.co.uk/').replace(/\/$/, '');
 const pageUrl = new URL(Astro.url.pathname, Astro.site).href;
 
 // Breadcrumb: Home › Service Areas › {town}.

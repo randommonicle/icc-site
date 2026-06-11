@@ -13,7 +13,7 @@ const areas = (await getCollection('areas', ({ data }) => !data.draft)).sort(
 const core = areas.filter((a) => a.data.tier === 'core');
 const wider = areas.filter((a) => a.data.tier === 'wider');
 
-const siteUrl = (Astro.site?.href ?? 'https://www.intelligentcarpetcleaning.co.uk/').replace(/\/$/, '');
+const siteUrl = (Astro.site?.href ?? 'https://www.intelligentclean.co.uk/').replace(/\/$/, '');
 const breadcrumbSchema = {
   '@context': 'https://schema.org',
   '@type': 'BreadcrumbList',

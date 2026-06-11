@@ -62,7 +62,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           </div>
         </div>
       </div>
-      <p class="chat-fallback">Prefer to talk to a person? Call <a href="tel:01242279590">01242 279590</a> or email <a href="mailto:talktoregency@gmail.com">talktoregency@gmail.com</a>. We handle your details in line with our <a href="/privacy">Privacy Notice</a>.</p>
+      <p class="chat-fallback">Prefer to talk to a person? Call <a href="tel:01242279590">01242 279590</a> or email <a href="mailto:hello@intelligentclean.co.uk">hello@intelligentclean.co.uk</a>. We handle your details in line with our <a href="/privacy">Privacy Notice</a>.</p>
     </div>
   </div>
 </BaseLayout>
@@ -162,7 +162,7 @@ function handleInactivity(){
     appendMessage("bot","Just checking in again. If now isn't a good moment, feel free to come back any time and we'll pick up from wherever you like.");
     scheduleInactivityCheck();
   } else {
-    appendMessage("bot","I'll leave you to it for now. Come back any time you'd like a quote or to get booked in. You can also reach us directly on 01242 279590 or at talktoregency@gmail.com. Take care!");
+    appendMessage("bot","I'll leave you to it for now. Come back any time you'd like a quote or to get booked in. You can also reach us directly on 01242 279590 or at hello@intelligentclean.co.uk. Take care!");
     cancelInactivityTimer();
     input.disabled=true;
     btn.disabled=true;
@@ -357,7 +357,7 @@ async function processBooking(booking){
     msgs.appendChild(confirmDiv);
     msgs.scrollTop = msgs.scrollHeight;
   }catch(e){
-    appendMessage("bot","I have all your details noted. Please call 01242 279590 or email talktoregency@gmail.com to confirm your booking.");
+    appendMessage("bot","I have all your details noted. Please call 01242 279590 or email hello@intelligentclean.co.uk to confirm your booking.");
   }
 }
 
@@ -423,7 +423,7 @@ async function sendMessage(){
     } else if(d.error){
       // Surface the real error so we can diagnose 403/429/500 instead of a
       // generic "I encountered an issue" fallback.
-      appendMessage("bot","Sorry, "+d.error+" If this persists, please call 01242 279590 or email talktoregency@gmail.com.");
+      appendMessage("bot","Sorry, "+d.error+" If this persists, please call 01242 279590 or email hello@intelligentclean.co.uk.");
     } else if(r.status >= 400){
       appendMessage("bot","Sorry, the chat service returned an error (status "+r.status+"). Please try again or call 01242 279590.");
     } else {

@@ -6,6 +6,6 @@ import sitemap from '@astrojs/sitemap';
 // sitemap generation. It is a placeholder until the domain is chosen (D-013);
 // update it the moment the real domain is registered.
 export default defineConfig({
-  site: 'https://www.intelligentcarpetcleaning.co.uk',
+  site: 'https://www.intelligentclean.co.uk',
   integrations: [sitemap()],
 });
