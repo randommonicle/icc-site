@@ -116,7 +116,7 @@ Active pest infestations. Biohazard situations without a face-to-face inspection
     id: "diy_vs_professional",
     title: "DIY vs professional",
     text: `DIY vs PROFESSIONAL:
-Hire machines use the same extraction principle but operate at far lower temperature and pressure. They deposit significantly more water into the carpet, which risks shrinkage, delamination, and mould growth if the carpet does not dry quickly. Most DIY cleaning solutions also leave a residue that attracts dirt faster, meaning the carpet appears to get dirty more quickly after a home clean. For wool or natural fibres, DIY machines can cause permanent damage.`,
+This covers both home DIY machines and the rental or hire machines people can hire from supermarkets and DIY stores. They use the same extraction principle as professional equipment but run at far lower temperature and suction, and they put much more water into the carpet, which risks shrinkage, delamination, and mould growth if it does not dry quickly. The cleaning solutions sold for them also tend to leave a residue that attracts dirt, so a carpet often looks clean at first but re-soils quickly after a home clean. Much of ICC's corrective work is putting right the over-wetting and residue these hired machines leave behind. For wool or natural fibres, these machines can cause permanent damage.`,
   },
 ];
 
