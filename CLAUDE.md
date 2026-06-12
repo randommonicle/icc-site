@@ -206,7 +206,7 @@ These are the same standards we hold on the ASH app and PropOS. They are not opt
 
 ### Branching and deploys
 - Stage all work on branches off `main`. Never push directly to `main`.
-- Ben deploys by deliberate merge. Do not merge to `main` (and therefore trigger a Netlify production deploy) while the site is live and taking real bookings, without Ben's explicit go-ahead.
+- Ben deploys by deliberate merge; always stage on a branch and merge only on his go-ahead. **Current status (June 2026): the site is deployed on Netlify but pre-launch** — not on the `intelligentclean.co.uk` domain and not marketed, so real booking traffic is effectively nil and a merge to `main` is low-risk. The hard rule **"never merge mid-traffic without explicit sign-off" tightens back up at launch** (domain cutover + marketing); until then, merge verified, branch-based work on Ben's go-ahead without heavy ceremony.
 - One logical change per branch; descriptive branch names (e.g. `feat/area-pages`, `docs/scaffold-and-roadmap`, `hardening/booking-rate-limit`).
 
 ### Tests and verification
