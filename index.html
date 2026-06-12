@@ -534,26 +534,20 @@ function appendMessage(role,text,citations){
 }
 
 // Render the KB sections an answer was grounded in (Slice 4c / D-019) as a small,
-// inert "Based on ICC's expert guidance" footer. Built entirely from DOM text
-// nodes, never innerHTML, so it stays L-003-safe (the labels come from the server's
-// vetted config, but we render as text regardless). The titles are plain labels
-// for now; once the Phase 1 care-guide pages exist, link each to its guide page
-// (safe DOM <a> with a sanitised https href, never innerHTML).
-// TODO(citation-links): wire titles to /guides/<slug> at the Phase 1 cutover.
+// inert provenance caption. Built from a single text node (never innerHTML), so it
+// stays L-003-safe. Deliberately styled as a muted, NON-bold caption, not as links:
+// the care-guide pages it would link to do not exist until the Phase 1 site is cut
+// over, so a clickable-looking label would be a dead affordance. It reads as "this
+// answer is grounded in ICC's documented expertise", which is the trust signal we
+// want now. TODO(citation-links): once the Phase 1 care-guides are live, turn each
+// title into a real link to /guides/<slug> (safe DOM <a>, sanitised https href,
+// never innerHTML) with a "Read more" affordance.
 function renderCitations(bub,citations){
   if(!Array.isArray(citations)||!citations.length) return;
+  const titles=citations.map(function(cit){return String(cit&&cit.title?cit.title:"reference");});
   const box=document.createElement("div");
-  box.style.cssText="margin-top:0.6em;padding-top:0.45em;border-top:1px solid rgba(0,0,0,0.08);font-size:0.76em;line-height:1.4;opacity:0.72;";
-  const label=document.createElement("span");
-  label.textContent="Based on ICC's expert guidance: ";
-  box.appendChild(label);
-  citations.forEach(function(cit,i){
-    const tag=document.createElement("span");
-    tag.style.fontWeight="600";
-    tag.textContent=String(cit&&cit.title?cit.title:"reference");
-    box.appendChild(tag);
-    if(i<citations.length-1) box.appendChild(document.createTextNode(", "));
-  });
+  box.style.cssText="margin-top:0.6em;padding-top:0.45em;border-top:1px solid rgba(0,0,0,0.08);font-size:0.75em;line-height:1.4;opacity:0.62;";
+  box.textContent="Based on ICC's expert guidance: "+titles.join(", ")+".";
   bub.appendChild(box);
 }
 
