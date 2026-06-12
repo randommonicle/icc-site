@@ -21,7 +21,7 @@ const {
 
 // --- Tool definition ---------------------------------------------------------
 
-test("WEB_SEARCH_TOOL pins the 20250305 version (vision path runs Opus 4.5, which 20260209 does not support)", () => {
+test("WEB_SEARCH_TOOL pins the 20250305 version (no dynamic-filtering code-exec latency in a live chat)", () => {
   assert.strictEqual(WEB_SEARCH_TOOL.type, "web_search_20250305");
   assert.strictEqual(WEB_SEARCH_TOOL.name, "web_search");
 });

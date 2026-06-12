@@ -171,9 +171,10 @@ const ESCALATION_TOOL = {
 // practical gaps (damage-risk always escalates first, never searches), and the
 // existing per-IP chat rate limit bounds the worst case. user_location localises
 // results to ICC's patch. Version 20250305 on purpose, NOT the newer 20260209:
-// the vision path runs claude-opus-4-5, which 20260209 does not support, and its
-// dynamic-filtering code-execution rounds add latency a live customer chat does
-// not want (see the D-019 addendum). Module constant so the tools array stays
+// 20260209's dynamic filtering runs extra code-execution rounds to post-process
+// results, adding latency a live customer chat does not want, and our capped
+// low-stakes lookups gain nothing from it (20260209 also has narrower model
+// support). See the D-019 addendum. Module constant so the tools array stays
 // byte-stable and the L-002 prompt cache holds.
 const WEB_SEARCH_TOOL = {
   type: "web_search_20250305",
