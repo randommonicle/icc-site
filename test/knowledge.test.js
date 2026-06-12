@@ -58,9 +58,17 @@ test("knowledgeSections carry the six sections in teaching order", () => {
   const block = knowledge.knowledgeBlock();
   assert.ok(block.startsWith("TEXATHERM SYSTEM:"));
   assert.ok(
-    block.endsWith("For wool or natural fibres, DIY machines can cause permanent damage.")
+    block.endsWith("For wool or natural fibres, these machines can cause permanent damage.")
   );
   assert.ok(!block.includes("\n\n\n"), "unexpected doubled blank line between sections");
+});
+
+test("DIY vs professional covers rented machines without naming a brand (Mark, June 2026)", () => {
+  // Mark: a large share of corrective jobs are DIY/rental-machine damage, including
+  // machines hired from supermarkets/DIY stores — but we must NOT name the brand.
+  const block = knowledge.knowledgeBlock();
+  assert.ok(/rent|hire/i.test(block), "must cover rented/hire machines, not only home DIY");
+  assert.ok(!/rug\s*doctor/i.test(block), "must never name a specific rental brand");
 });
 
 test("guardrailsBlock carries every L-009 claim rule as an instruction", () => {
