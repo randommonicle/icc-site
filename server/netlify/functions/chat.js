@@ -87,7 +87,7 @@ Balance payable on the day.
 RE-CLEAN POLICY:
 One free return visit if the customer is unhappy, provided they raise it within 48 hours with photographic evidence. Pre-existing permanent staining is excluded.
 
-${knowledge.knowledgeBlock()}
+${knowledge.guardrailsBlock()}
 
 CONSULTATION APPROACH:
 Treat every enquiry as a proper professional consultation. When a customer mentions their carpet type, staining, concerns, or cleaning history, take the time to explain:
@@ -337,6 +337,11 @@ ${availableDatesList.join("\n")}`;
   // round. Tools render before system, so the existing cache_control on the last
   // system block caches tools + system together (L-002); ESCALATION_TOOL is a
   // module constant, so the cached prefix stays byte-stable across requests.
+  //
+  // Slice 4c (D-019): the vetted knowledge is attached as a CITEABLE document on
+  // the first user turn (withKnowledgeDocument), so the model grounds and cites its
+  // claims. The document is cache_control'd and byte-stable, so the prompt cache
+  // still applies (one-time re-warm when this first shipped, like the 4b tool).
   const callModel = async (messages) => {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -356,7 +361,7 @@ ${availableDatesList.join("\n")}`;
           { type: "text", text: dynamicContext }
         ],
         tools: [ESCALATION_TOOL],
-        messages: messages
+        messages: withKnowledgeDocument(messages)
       })
     });
     return await response.json();
@@ -372,10 +377,20 @@ ${availableDatesList.join("\n")}`;
       (toolUse, ctx) => handleTool(toolUse, ctx, resendKey)
     );
 
+    // Slice 4c: collapse to the single text block (L-014) AND surface the cited KB
+    // sections as a small structured payload the client renders as safe source
+    // labels (L-003). collectCitations reads the raw multi-block reply before it is
+    // collapsed, so it must run on `data`, not on the normalised message.
+    const normalized = withSingleTextBlock(data);
+    const citations = collectCitations(data);
+    const payload = citations.length
+      ? Object.assign({}, normalized, { citations: citations })
+      : normalized;
+
     return {
       statusCode: 200,
       headers: Object.assign({}, baseHeaders, { "Content-Type": "application/json" }),
-      body: JSON.stringify(withSingleTextBlock(data))
+      body: JSON.stringify(payload)
     };
   } catch (err) {
     console.log("FETCH ERROR:", err.message);
@@ -435,6 +450,56 @@ function withSingleTextBlock(data) {
     .map(b => b.text)
     .join("");
   return Object.assign({}, data, { content: [{ type: "text", text: text }] });
+}
+
+// --- D-019 Citations grounding (Slice 4c) -----------------------------------
+
+// Attach the vetted knowledge as a citeable custom-content document on the FIRST
+// user turn, so the model grounds and cites its claims (D-019). Injected here, on
+// every call, rather than stored client-side: index.html keeps sending only the
+// plain conversation, and runAssistantTurn only ever appends to the end of the
+// message list, so messages[0] stays the original first user turn across a tool
+// round and the injected document (which is byte-stable + cache_control'd) keeps
+// the L-002 prompt cache warm. The document is prepended before the user's text,
+// matching the Citations API's document-then-question shape. Exported for tests.
+function withKnowledgeDocument(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return messages;
+  const first = messages[0];
+  const original = typeof first.content === "string"
+    ? [{ type: "text", text: first.content }]
+    : (Array.isArray(first.content) ? first.content.slice() : []);
+  const newFirst = Object.assign({}, first, {
+    content: [knowledge.knowledgeDocument()].concat(original)
+  });
+  return [newFirst].concat(messages.slice(1));
+}
+
+// Resolve the citations on a (raw, multi-block) assistant reply into a small,
+// deduplicated list of cited KB sections for the client to render as source labels
+// (L-003-safe in index.html). Custom-content documents cite by content-block index
+// (start_block_index), which is the index into knowledge.knowledgeSections, so we
+// map straight back to the section's id + friendly title. The model only controls
+// WHICH section index it cites, never the label text (that comes from our config),
+// so the output is trusted. Exported for tests.
+function collectCitations(data) {
+  if (!data || !Array.isArray(data.content)) return [];
+  const sections = knowledge.knowledgeSections;
+  const seen = new Set();
+  const out = [];
+  for (const block of data.content) {
+    if (!block || block.type !== "text" || !Array.isArray(block.citations)) continue;
+    for (const c of block.citations) {
+      const idx = c && typeof c.start_block_index === "number" ? c.start_block_index : null;
+      const section = idx != null ? sections[idx] : null;
+      const id = section ? section.id : null;
+      const title = section ? section.title : ((c && c.document_title) || "Reference");
+      const key = id || title;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ id: id, title: title });
+    }
+  }
+  return out;
 }
 
 // Dispatch a tool_use block to its handler. Only escalate_to_human exists today.
@@ -1033,3 +1098,5 @@ exports.runAssistantTurn = runAssistantTurn;
 exports.withSingleTextBlock = withSingleTextBlock;
 exports.handleTool = handleTool;
 exports.handleEscalation = handleEscalation;
+exports.withKnowledgeDocument = withKnowledgeDocument;
+exports.collectCitations = collectCitations;
