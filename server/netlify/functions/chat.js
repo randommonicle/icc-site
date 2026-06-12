@@ -113,6 +113,9 @@ Make this feel like advice from a knowledgeable friend in the trade, not a scrip
 WHEN TO HAND OVER TO A HUMAN:
 You have a tool called escalate_to_human. Use it instead of guessing whenever a question falls outside your carpet-cleaning knowledge, whenever following your advice could risk damaging the customer's carpet, upholstery or property (aftercare, self-treating a stain, unusual fibres or materials, or anything you are not certain about), whenever you cannot point to something in your knowledge to back up the answer, or whenever the customer asks to speak to a person. Safety comes first: for anything that could damage a carpet, hand over rather than guess. After you hand over, reassure the customer that the team will confirm the answer, and ask how they would like to be contacted if you do not already have their details. Never invent an answer just to avoid handing over.
 
+WEB SEARCH (RARE, LOW-STAKES ONLY):
+You also have a web_search tool. It is a narrow fallback, not a knowledge source: your vetted reference document always comes first, and most conversations should never need a search. Use it only for low-stakes practical questions that sit outside your reference and carry no risk to the customer's carpet, upholstery or property, for example where to dispose of or recycle an old carpet locally, or whether a local service or supplier exists. Never use it for anything about cleaning, treating or applying products to a carpet or fabric, stain treatment, aftercare, drying, fibre identification, or anything where a wrong answer could cause damage: those answers come from your reference, or are handed to a human with escalate_to_human (damage risk is always handed over first). Never search as a way to avoid handing over. When you do use a search result, mention naturally that you looked it up, stick to what the sources actually say, and the sources will be shown to the customer automatically.
+
 ENDING THE CONVERSATION:
 When the customer clearly signals they are finished (for example they say goodbye, "thanks, that's everything", "no thank you", or otherwise wrap up and are not asking anything further), give a brief, warm sign-off: thank them, invite them back any time, and let them know they can reach the team on 01242 279590 for anything urgent. End that closing message with the marker CONVERSATION_END on its own line. Only do this on a clear closing signal from the customer, never just because they have paused or because you have finished answering, and never put the marker in a message that still asks the customer a question. Never mention the marker to the customer.
 
@@ -161,6 +164,34 @@ const ESCALATION_TOOL = {
     required: ["question", "reason"]
   }
 };
+
+// Anthropic-hosted web search (Slice 4d / D-019): the attributed, low-stakes-only
+// fallback lane. Gated three ways: max_uses hard-caps the spend per request
+// ($10/1000 searches), the WEB SEARCH prompt block confines it to no-damage-risk
+// practical gaps (damage-risk always escalates first, never searches), and the
+// existing per-IP chat rate limit bounds the worst case. user_location localises
+// results to ICC's patch. Version 20250305 on purpose, NOT the newer 20260209:
+// the vision path runs claude-opus-4-5, which 20260209 does not support, and its
+// dynamic-filtering code-execution rounds add latency a live customer chat does
+// not want (see the D-019 addendum). Module constant so the tools array stays
+// byte-stable and the L-002 prompt cache holds.
+const WEB_SEARCH_TOOL = {
+  type: "web_search_20250305",
+  name: "web_search",
+  max_uses: 3,
+  user_location: {
+    type: "approximate",
+    city: "Cheltenham",
+    region: "Gloucestershire",
+    country: "GB",
+    timezone: "Europe/London"
+  }
+};
+
+// The full tool set, in a fixed order (tools render before system in the prompt,
+// so any reorder would bust the cache prefix). Adding WEB_SEARCH_TOOL was a
+// one-time cache re-warm, exactly like adding ESCALATION_TOOL in 4b.
+const TOOLS = [ESCALATION_TOOL, WEB_SEARCH_TOOL];
 
 function getOrigin(event){
   const raw = event.headers.origin || event.headers.referer || "";
@@ -366,11 +397,17 @@ ${availableDatesList.join("\n")}`;
           { type: "text", text: STATIC_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
           { type: "text", text: dynamicContext }
         ],
-        tools: [ESCALATION_TOOL],
+        tools: TOOLS,
         messages: withKnowledgeDocument(messages)
       })
     });
-    return await response.json();
+    const json = await response.json();
+    // Cost visibility (Slice 4d): searches are billed per use, so surface them in
+    // the function log whenever a turn actually searched.
+    const searches = json && json.usage && json.usage.server_tool_use
+      && json.usage.server_tool_use.web_search_requests;
+    if (searches) console.log("web_search used:", searches, "search(es) this call");
+    return json;
   };
 
   try {
@@ -413,15 +450,26 @@ ${availableDatesList.join("\n")}`;
 // Resolve a chat turn, executing any custom tool_use rounds server-side so the
 // browser still receives one final assistant message. callModel(messages) returns
 // the parsed Anthropic response; handleTool(toolUse, ctx) returns the tool_result
-// string. Bounded by maxRounds so a misbehaving model cannot loop forever. (Only
-// custom tool_use is looped here; server-tool pause_turn handling arrives with
-// web_search in Slice 4d.) Exported for unit tests (test/escalation.test.js).
+// string. Two continuation cases share the maxRounds bound so a misbehaving model
+// cannot loop forever:
+//   - stop_reason "tool_use": a custom tool (escalate_to_human) — resolve it and
+//     send the tool_result back (Slice 4b).
+//   - stop_reason "pause_turn": the API paused its own server-tool loop (web_search,
+//     Slice 4d) — append the assistant content verbatim and re-call; the server
+//     resumes where it left off. No tool_result and no extra user message (the API
+//     detects the trailing server_tool_use block).
+// Exported for unit tests (test/escalation.test.js, test/websearch.test.js).
 async function runAssistantTurn(initialMessages, callModel, handleTool, maxRounds = 4) {
   let messages = Array.isArray(initialMessages) ? initialMessages.slice() : [];
   let data = await callModel(messages);
   let rounds = 0;
-  while (data && data.stop_reason === "tool_use" && rounds < maxRounds) {
+  while (data && (data.stop_reason === "tool_use" || data.stop_reason === "pause_turn") && rounds < maxRounds) {
     rounds++;
+    if (data.stop_reason === "pause_turn") {
+      messages = messages.concat([{ role: "assistant", content: data.content }]);
+      data = await callModel(messages);
+      continue;
+    }
     const toolUses = (data.content || []).filter(b => b && b.type === "tool_use");
     if (toolUses.length === 0) break;
     const toolResults = [];
@@ -446,15 +494,26 @@ async function runAssistantTurn(initialMessages, callModel, handleTool, maxRound
 
 // Collapse an Anthropic message to a single text block so the browser's
 // data.content[0].text contract holds after a tool round (and, in Slice 4c, after
-// Citations splits the reply across blocks). tool_use blocks are dropped; text
-// blocks are concatenated in order. Anything without an array content (e.g. an API
-// error object) is passed through untouched. Exported for unit tests.
+// Citations splits the reply across blocks). Non-text blocks (tool_use,
+// server_tool_use, web_search_tool_result) are dropped. Adjacent text blocks join
+// seamlessly — Citations splits prose mid-sentence, so no separator can be added
+// there — but where a dropped non-text block sat between two text blocks (the model
+// narrating "I'll look that up" before a search, Slice 4d) a paragraph break is
+// inserted so the sentences do not glue together. Anything without an array content
+// (e.g. an API error object) is passed through untouched. Exported for unit tests.
 function withSingleTextBlock(data) {
   if (!data || !Array.isArray(data.content)) return data;
-  const text = data.content
-    .filter(b => b && b.type === "text" && typeof b.text === "string")
-    .map(b => b.text)
-    .join("");
+  let text = "";
+  let pendingBreak = false;
+  for (const b of data.content) {
+    if (b && b.type === "text" && typeof b.text === "string") {
+      if (pendingBreak && text) text += "\n\n";
+      text += b.text;
+      pendingBreak = false;
+    } else {
+      pendingBreak = true;
+    }
+  }
   return Object.assign({}, data, { content: [{ type: "text", text: text }] });
 }
 
@@ -481,12 +540,18 @@ function withKnowledgeDocument(messages) {
 }
 
 // Resolve the citations on a (raw, multi-block) assistant reply into a small,
-// deduplicated list of cited KB sections for the client to render as source labels
-// (L-003-safe in index.html). Custom-content documents cite by content-block index
-// (start_block_index), which is the index into knowledge.knowledgeSections, so we
-// map straight back to the section's id + friendly title. The model only controls
-// WHICH section index it cites, never the label text (that comes from our config),
-// so the output is trusted. Exported for tests.
+// deduplicated list of cited sources for the client to render safely (L-003 in
+// index.html). Two kinds (D-019's two lanes):
+//   - KB citations: custom-content documents cite by content-block index
+//     (start_block_index), which is the index into knowledge.knowledgeSections, so
+//     we map straight back to the section's id + friendly title. The model only
+//     controls WHICH section index it cites, never the label text (that comes from
+//     our config), so the output is trusted. Shape: { id, title }.
+//   - Web citations (Slice 4d): web_search_result_location carries the source url
+//     + page title. Only http(s) urls are passed through (anything else is dropped
+//     here, and the client guards again before rendering a link). Deduped by url.
+//     Shape: { id: null, title, url }.
+// Exported for tests.
 function collectCitations(data) {
   if (!data || !Array.isArray(data.content)) return [];
   const sections = knowledge.knowledgeSections;
@@ -495,10 +560,23 @@ function collectCitations(data) {
   for (const block of data.content) {
     if (!block || block.type !== "text" || !Array.isArray(block.citations)) continue;
     for (const c of block.citations) {
-      const idx = c && typeof c.start_block_index === "number" ? c.start_block_index : null;
+      if (!c) continue;
+      if (c.type === "web_search_result_location" || typeof c.url === "string") {
+        const url = typeof c.url === "string" ? c.url : "";
+        if (!/^https?:\/\//i.test(url)) continue;
+        if (seen.has(url)) continue;
+        seen.add(url);
+        let title = (typeof c.title === "string" && c.title.trim()) ? c.title.trim() : "";
+        if (!title) {
+          try { title = new URL(url).hostname; } catch (e) { title = "Web source"; }
+        }
+        out.push({ id: null, title: title, url: url });
+        continue;
+      }
+      const idx = typeof c.start_block_index === "number" ? c.start_block_index : null;
       const section = idx != null ? sections[idx] : null;
       const id = section ? section.id : null;
-      const title = section ? section.title : ((c && c.document_title) || "Reference");
+      const title = section ? section.title : (c.document_title || "Reference");
       const key = id || title;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -1095,11 +1173,14 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
 }
 
 // Exported for unit tests (test/hardening.test.js, test/knowledge.test.js,
-// test/escalation.test.js). Not used by the handler.
+// test/escalation.test.js, test/citations.test.js, test/websearch.test.js).
+// Not used by the handler.
 exports.rateLimit = rateLimit;
 exports.depositLabel = depositLabel;
 exports.STATIC_SYSTEM_PROMPT = STATIC_SYSTEM_PROMPT;
 exports.ESCALATION_TOOL = ESCALATION_TOOL;
+exports.WEB_SEARCH_TOOL = WEB_SEARCH_TOOL;
+exports.TOOLS = TOOLS;
 exports.runAssistantTurn = runAssistantTurn;
 exports.withSingleTextBlock = withSingleTextBlock;
 exports.handleTool = handleTool;

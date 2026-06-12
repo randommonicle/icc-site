@@ -113,7 +113,7 @@ test("runAssistantTurn does not crash the turn if a tool handler throws", async 
   assert.match(toolResult.content, /01242 279590/);
 });
 
-test("withSingleTextBlock joins text blocks and drops tool_use", () => {
+test("withSingleTextBlock drops tool_use and breaks the paragraph where it sat (Slice 4d contract)", () => {
   const out = withSingleTextBlock({
     stop_reason: "tool_use",
     content: [
@@ -124,7 +124,9 @@ test("withSingleTextBlock joins text blocks and drops tool_use", () => {
   });
   assert.strictEqual(out.content.length, 1);
   assert.strictEqual(out.content[0].type, "text");
-  assert.strictEqual(out.content[0].text, "Part one. Part two.");
+  // Since Slice 4d a dropped non-text block leaves a paragraph break so the
+  // surrounding sentences never glue together (matters for web_search narration).
+  assert.strictEqual(out.content[0].text, "Part one. \n\nPart two.");
 });
 
 test("withSingleTextBlock leaves a single text reply intact", () => {
