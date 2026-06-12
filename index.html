@@ -551,21 +551,52 @@ function appendMessage(role,text,citations){
   c.scrollTop=c.scrollHeight;
 }
 
-// Render the KB sections an answer was grounded in (Slice 4c / D-019) as a small,
-// inert provenance caption. Built from a single text node (never innerHTML), so it
-// stays L-003-safe. Deliberately styled as a muted, NON-bold caption, not as links:
-// the care-guide pages it would link to do not exist until the Phase 1 site is cut
-// over, so a clickable-looking label would be a dead affordance. It reads as "this
-// answer is grounded in ICC's documented expertise", which is the trust signal we
-// want now. TODO(citation-links): once the Phase 1 care-guides are live, turn each
-// title into a real link to /guides/<slug> (safe DOM <a>, sanitised https href,
-// never innerHTML) with a "Read more" affordance.
+// Render the sources an answer was grounded in (Slice 4c/4d, D-019) as a small,
+// muted provenance caption. Everything is built from DOM nodes (never innerHTML),
+// so it stays L-003-safe. Two lanes:
+//   - KB sections (no url): an inert text caption. Deliberately NON-bold and not a
+//     link: the care-guide pages it would link to do not exist until the Phase 1
+//     site is cut over, so a clickable-looking label would be a dead affordance.
+//     TODO(citation-links): once the Phase 1 care-guides are live, turn each title
+//     into a real link to /guides/<slug> (safe DOM <a>, sanitised https href,
+//     never innerHTML) with a "Read more" affordance.
+//   - Web sources (Slice 4d, entries with a url): attributed external links, per
+//     D-019. The href is only set after an http(s) check (the server filters too,
+//     belt and braces), built with createElement + setAttribute, opened in a new
+//     tab with rel="noopener noreferrer".
 function renderCitations(bub,citations){
   if(!Array.isArray(citations)||!citations.length) return;
-  const titles=citations.map(function(cit){return String(cit&&cit.title?cit.title:"reference");});
+  const isWeb=function(cit){return cit&&typeof cit.url==="string"&&/^https?:\/\//i.test(cit.url);};
+  // Three-way split: KB entries carry no url at all; web entries carry a SAFE
+  // http(s) url; anything with an unsafe url is dropped outright, never demoted
+  // to a trusted-looking KB label (defence in depth with the server filter).
+  const kb=citations.filter(function(cit){return cit&&cit.url==null;});
+  const web=citations.filter(isWeb);
   const box=document.createElement("div");
   box.style.cssText="margin-top:0.6em;padding-top:0.45em;border-top:1px solid rgba(0,0,0,0.08);font-size:0.75em;line-height:1.4;opacity:0.62;";
-  box.textContent="Based on ICC's expert guidance: "+titles.join(", ")+".";
+  if(kb.length){
+    const titles=kb.map(function(cit){return String(cit&&cit.title?cit.title:"reference");});
+    const kbLine=document.createElement("div");
+    kbLine.textContent="Based on ICC's expert guidance: "+titles.join(", ")+".";
+    box.appendChild(kbLine);
+  }
+  if(web.length){
+    const webLine=document.createElement("div");
+    webLine.appendChild(document.createTextNode("Looked up on the web: "));
+    web.forEach(function(cit,i){
+      if(i>0) webLine.appendChild(document.createTextNode(", "));
+      const a=document.createElement("a");
+      a.textContent=String(cit.title||"source");
+      a.setAttribute("href",cit.url);
+      a.setAttribute("target","_blank");
+      a.setAttribute("rel","noopener noreferrer");
+      a.style.cssText="color:inherit;text-decoration:underline;";
+      webLine.appendChild(a);
+    });
+    webLine.appendChild(document.createTextNode("."));
+    box.appendChild(webLine);
+  }
+  if(!box.childNodes.length) return;
   bub.appendChild(box);
 }
 
