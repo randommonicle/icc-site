@@ -505,7 +505,7 @@ function handleKeyDown(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();se
 function sendSuggestion(t){document.getElementById("chatInput").value=t;document.getElementById("quickSuggestions").style.display="none";sendMessage();}
 function getTime(){return new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});}
 
-function appendMessage(role,text){
+function appendMessage(role,text,citations){
   const c=document.getElementById("chatMessages");
   const row=document.createElement("div");row.className="msg-row "+role;
   const av=document.createElement("div");av.className="msg-avatar"+(role==="user"?" user":"");
@@ -527,9 +527,34 @@ function appendMessage(role,text){
     });
     bub.appendChild(pEl);
   });
+  if(role==="bot") renderCitations(bub,citations);
   const t=document.createElement("div");t.className="msg-time";t.textContent=getTime();
   wrap.appendChild(bub);wrap.appendChild(t);row.appendChild(av);row.appendChild(wrap);c.appendChild(row);
   c.scrollTop=c.scrollHeight;
+}
+
+// Render the KB sections an answer was grounded in (Slice 4c / D-019) as a small,
+// inert "Based on ICC's expert guidance" footer. Built entirely from DOM text
+// nodes, never innerHTML, so it stays L-003-safe (the labels come from the server's
+// vetted config, but we render as text regardless). The titles are plain labels
+// for now; once the Phase 1 care-guide pages exist, link each to its guide page
+// (safe DOM <a> with a sanitised https href, never innerHTML).
+// TODO(citation-links): wire titles to /guides/<slug> at the Phase 1 cutover.
+function renderCitations(bub,citations){
+  if(!Array.isArray(citations)||!citations.length) return;
+  const box=document.createElement("div");
+  box.style.cssText="margin-top:0.6em;padding-top:0.45em;border-top:1px solid rgba(0,0,0,0.08);font-size:0.76em;line-height:1.4;opacity:0.72;";
+  const label=document.createElement("span");
+  label.textContent="Based on ICC's expert guidance: ";
+  box.appendChild(label);
+  citations.forEach(function(cit,i){
+    const tag=document.createElement("span");
+    tag.style.fontWeight="600";
+    tag.textContent=String(cit&&cit.title?cit.title:"reference");
+    box.appendChild(tag);
+    if(i<citations.length-1) box.appendChild(document.createTextNode(", "));
+  });
+  bub.appendChild(box);
 }
 
 function showTyping(){
@@ -732,19 +757,21 @@ async function sendMessage(){
     const d=await r.json();removeTyping();
     if(d.content&&d.content[0]){
       const reply=d.content[0].text;
+      // Slice 4c: the server may attach the KB sections the answer was grounded in.
+      const citations=Array.isArray(d.citations)?d.citations:null;
       const bookingMatch=reply.match(/BOOKING_READY:(\{[\s\S]*?\})/);
       if(bookingMatch){
         try{
           const booking=JSON.parse(bookingMatch[1]);
           const cleanReply=reply.replace(/BOOKING_READY:\{[\s\S]*?\}/,"").trim();
-          if(cleanReply) appendMessage("bot",cleanReply);
+          if(cleanReply) appendMessage("bot",cleanReply,citations);
           appendMessage("bot","One moment, confirming your slot...");
           await processBooking(booking);
         }catch(e){
-          appendMessage("bot",reply.replace(/BOOKING_READY:[\s\S]*$/,"").trim());
+          appendMessage("bot",reply.replace(/BOOKING_READY:[\s\S]*$/,"").trim(),citations);
         }
       } else {
-        appendMessage("bot",reply);
+        appendMessage("bot",reply,citations);
       }
       conversationHistory.push({role:"assistant",content:reply});
       resetInactivityTimer();
