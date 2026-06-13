@@ -598,6 +598,12 @@ async function handleTool(toolUse, context, resendKey) {
 // Log the escalation as a lead and notify Mark by email, then tell the model what
 // to say next. The customer reply is never blocked on the email (L-004: a 200 from
 // Resend is not delivery; failures are logged, not surfaced to the customer).
+//
+// TODO(slice5/D-020): also persist the handoff as a `human_handoff` row in the
+// Supabase `messages` table (draft -> Mark approves -> send) via the service role.
+// The pure row builder already exists — shared/messages.js escalationToMessageDraft(
+// input, context). This is the live-wiring step deferred from Slice 4e (needs
+// SUPABASE_URL + service-role key in Netlify; sign-off-gated, changes live behaviour).
 async function handleEscalation(input, context, resendKey) {
   try {
     if (resendKey) await sendEscalationEmail(input, context, resendKey);
