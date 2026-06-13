@@ -13,7 +13,7 @@ const serviceArea = require("../shared/config/serviceArea.js");
 // --- serviceArea.isOutOfArea (D-011) -------------------------------------
 
 test("isOutOfArea: core postcodes are in area (no surcharge)", () => {
-  for (const pc of ["GL50 1AA", "GL51 2AB", "GL52 7XY", "GL53 0BB", "GL1 1AA", "GL2 4AB", "GL3 3BT", "GL4 0AA", "GL54 5LB"]) {
+  for (const pc of ["GL50 1AA", "GL51 2AB", "GL52 7XY", "GL53 0BB", "GL1 1AA", "GL2 4AB", "GL3 3BT", "GL4 0AA"]) {
     assert.strictEqual(serviceArea.isOutOfArea(pc), false, `${pc} should be core`);
   }
 });
@@ -22,6 +22,15 @@ test("isOutOfArea: wider-area and outside postcodes incur the surcharge", () => 
   for (const pc of ["GL5 2AB", "GL55 6AA", "GL20 5AA", "OX1 1AA", "SW1A 1AA"]) {
     assert.strictEqual(serviceArea.isOutOfArea(pc), true, `${pc} should be out of area`);
   }
+});
+
+test("isOutOfArea: GL54 splits by sector — Winchcombe core, far Cotswolds surcharged (D-011)", () => {
+  assert.strictEqual(serviceArea.isOutOfArea("GL54 5LB"), false); // Winchcombe (GL54 5) -> core
+  assert.strictEqual(serviceArea.isOutOfArea("gl545lb"), false);  // same, no space + lower-case
+  assert.strictEqual(serviceArea.isOutOfArea("GL54 2HY"), true);  // Bourton-on-the-Water (GL54 2)
+  assert.strictEqual(serviceArea.isOutOfArea("GL54 1AA"), true);  // Stow-on-the-Wold (GL54 1)
+  assert.strictEqual(serviceArea.isOutOfArea("GL54 3PP"), true);  // Northleach (GL54 3)
+  assert.strictEqual(serviceArea.isOutOfArea("GL54"), true);      // bare GL54 ambiguous -> err toward charge
 });
 
 test("isOutOfArea: tolerant of spacing, case and bare districts", () => {
