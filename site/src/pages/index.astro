@@ -3,6 +3,10 @@
 // become real links to /book (where the AI assistant + booking flow will live).
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCollection } from 'astro:content';
+// "From £…" figures render from the single pricing source (D-006) so they never
+// drift from the assistant/server quote. Labels stay hand-written for the site.
+import pricing from '../../../shared/config/pricing.js';
+const { priceOf } = pricing;
 
 // Service areas for the home-page "Areas we cover" strip — pulled from the
 // `areas` collection so new towns appear here automatically (D-001, stays in
@@ -61,10 +65,10 @@ const areas = (await getCollection('areas', ({ data }) => !data.draft)).sort(
     <h2 class="section-title">Specialist Cleaning Services</h2>
     <p class="section-sub">Every carpet is different. We match the cleaning method to the fibre, construction, and soiling type every time.</p>
     <div class="services-grid">
-      <a class="service-card" href="/book"><div class="service-card-icon">🏠</div><div><div class="service-card-title">Residential Carpet Cleaning</div><div class="service-card-desc">Hot water extraction, low-moisture, and dry cleaning options for all domestic carpet types including wool, synthetic, and natural fibres.</div><div class="service-price">From £75 per room + VAT</div></div></a>
+      <a class="service-card" href="/book"><div class="service-card-icon">🏠</div><div><div class="service-card-title">Residential Carpet Cleaning</div><div class="service-card-desc">Hot water extraction, low-moisture, and dry cleaning options for all domestic carpet types including wool, synthetic, and natural fibres.</div><div class="service-price">From £{priceOf('base_room')} per room + VAT</div></div></a>
       <a class="service-card" href="/book"><div class="service-card-icon">🏢</div><div><div class="service-card-title">Commercial Contracts</div><div class="service-card-desc">Regular maintenance programmes for offices, hospitality venues, and rental properties across Gloucestershire.</div><div class="service-price">Contact for tailored pricing</div></div></a>
-      <a class="service-card" href="/book"><div class="service-card-icon">🍷</div><div><div class="service-card-title">Stain Treatment</div><div class="service-card-desc">Specialist treatment for red wine, pet staining, bleach damage, and ingrained soiling. Pre-assessment included.</div><div class="service-price">From £45 + VAT</div></div></a>
-      <a class="service-card" href="/book"><div class="service-card-icon">🛋️</div><div><div class="service-card-title">Upholstery Cleaning</div><div class="service-card-desc">Safe, effective cleaning for sofas, chairs, and curtains using fabric-appropriate methods.</div><div class="service-price">From £50 per item + VAT</div></div></a>
+      <a class="service-card" href="/book"><div class="service-card-icon">🍷</div><div><div class="service-card-title">Stain Treatment</div><div class="service-card-desc">Specialist treatment for red wine, pet staining, bleach damage, and ingrained soiling. Pre-assessment included.</div><div class="service-price">From £{priceOf('stain')} + VAT</div></div></a>
+      <a class="service-card" href="/book"><div class="service-card-icon">🛋️</div><div><div class="service-card-title">Upholstery Cleaning</div><div class="service-card-desc">Safe, effective cleaning for sofas, chairs, and curtains using fabric-appropriate methods.</div><div class="service-price">From £{priceOf('upholstery_chair')} per item + VAT</div></div></a>
     </div>
   </div>
 
@@ -72,7 +76,7 @@ const areas = (await getCollection('areas', ({ data }) => !data.draft)).sort(
     <div class="home-areas-inner">
       <div class="section-label">Service Areas</div>
       <h2 class="section-title">Carpet Cleaning Across Gloucestershire</h2>
-      <p class="section-sub">Cheltenham, Gloucester and Winchcombe are our core area, with no travel surcharge. Everywhere else in the county carries a flat £15 + VAT out-of-area surcharge, shown up front before you book.</p>
+      <p class="section-sub">Cheltenham, Gloucester and Winchcombe are our core area, with no travel surcharge. Everywhere else in the county carries a flat £{priceOf('out_of_area')} + VAT out-of-area surcharge, shown up front before you book.</p>
       <div class="home-areas-grid">
         {areas.map((a) => (
           <a class="home-area-chip" href={`/areas/${a.id}`}>
