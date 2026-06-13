@@ -79,9 +79,9 @@ function round2(n) {
 // Server-side itemised quote (Slice 3 — D-003/D-007/D-011). Given the chosen
 // priced lines and whether the address is out of area, returns each priced
 // line, the ex-VAT subtotal, the flat out-of-area surcharge, VAT, the inc-VAT
-// total and the 10% deposit. The deposit is taken on the INC-VAT total — what
-// the customer actually pays (assumption to confirm with Mark, like the
-// surcharge was). Throws on an unknown item code or an invalid quantity so a
+// total and the 10% deposit. The deposit is taken on the INC-VAT total, what the
+// customer actually pays (confirmed by Mark, June 2026). Throws on an unknown
+// item code or an invalid quantity so a
 // bad payload fails loudly rather than mispricing. This is the figure of
 // record: the website and the field app both quote from here so they never
 // diverge — the server-side successor to the assistant's client-side quote.
