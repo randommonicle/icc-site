@@ -1,13 +1,30 @@
-// Slice 5e (D-020) — admin-gated read of the human_handoff queue for Mark's
-// review. Reuses the 5a service-role client (supabaseClient.js) and the same
-// constant-time Bearer gate as bookings.js (safeEqual, imported, not duplicated).
+// Slice 5e / 5e-2 (D-020) — the admin handoff queue and its draft -> send
+// lifecycle. GET lists the human_handoff rows (5e, read-only). POST drives the
+// lifecycle (5e-2): draft an AI-suggested reply, send Mark's edited reply to the
+// customer, or mark a handoff handled. Same constant-time Bearer gate as
+// bookings.js (safeEqual, imported, not duplicated).
 //
-// Read-only in v1. The draft -> approved -> sent lifecycle and any AI-drafted
-// answer are 5e-2 (TODO(slice5e-2/approve-send) in admin.html), and an answer must
-// NEVER be auto-drafted for a damage_risk handoff (D-020).
+// AI-surface discipline (the draft action):
+//   - Input minimisation: the model receives ONLY the captured question, never
+//     the customer name / contact / transcript that live in body (UK GDPR
+//     Art.5(1)(c)).
+//   - Output discipline: grounded in the vetted KB + the L-009 claim rules
+//     (guardrailsBlock); the model may decline; the draft is labelled AI-drafted
+//     and Mark edits it.
+//   - Human gate: drafting and sending are separate. The model never sends; Mark
+//     reviews, edits and triggers the send. damage_risk / customer_request are
+//     NEVER auto-drafted (D-020 / isDraftableReason).
+//   - Fail-closed send: a row is only marked 'sent' after Resend accepts it (an
+//     unsent "sent" is the L-008/L-004 failure), and never without a real email.
 
 const { safeEqual } = require("./bookings.js");
 const { getSupabaseAdmin } = require("./supabaseClient.js");
+const { isDraftableReason, extractEmail } = require("../../../shared/messages.js");
+const models = require("../../../shared/config/models.js");
+const knowledge = require("../../../shared/config/knowledge.js");
+
+const HANDOFF_COLS =
+  "id,created_at,subject,body,status,channel,handoff_reason,customer_contact,handoff_question,draft_reply,approved_at,sent_at";
 
 // Pull the handoff queue from Supabase, newest first, as a plain shape the admin
 // renders as inert text. supabase === null (env not set) -> not configured, so the
@@ -16,7 +33,7 @@ async function fetchHandoffs(supabase, limit = 100) {
   if (!supabase) return { handoffs: [], total: 0, configured: false };
   const { data, error } = await supabase
     .from("messages")
-    .select("id,created_at,subject,body,status,channel")
+    .select(HANDOFF_COLS)
     .eq("kind", "human_handoff")
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -25,11 +42,186 @@ async function fetchHandoffs(supabase, limit = 100) {
   return { handoffs, total: handoffs.length, configured: true };
 }
 
+// Load a single handoff by id. The kind filter is a hard guard: this endpoint can
+// only ever read/mutate human_handoff rows, never a booking_confirmation or other
+// customer comm, even if handed that row's id.
+async function loadHandoffRow(supabase, id) {
+  const { data, error } = await supabase
+    .from("messages")
+    .select(HANDOFF_COLS + ",kind")
+    .eq("id", id)
+    .eq("kind", "human_handoff")
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return (data && data[0]) || null;
+}
+
+async function updateHandoff(supabase, id, fields) {
+  const { error } = await supabase
+    .from("messages")
+    .update(fields)
+    .eq("id", id)
+    .eq("kind", "human_handoff");
+  if (error) throw new Error(error.message);
+}
+
+// Draft a customer reply from ONLY the question, grounded in the vetted KB and
+// bound by the L-009 claim rules. Throws on any API failure so the caller fails
+// closed (no draft rather than a bad one).
+async function draftReplyForHandoff(question, anthropicKey) {
+  const system = `You are drafting a reply on behalf of Intelligent Carpet Cleaning, a premium carpet and upholstery cleaning company in Cheltenham, for the owner Mark to review and edit before he sends it.
+
+${knowledge.guardrailsBlock()}
+
+REFERENCE FACTS (this is the reference referred to above):
+${knowledge.knowledgeBlock()}
+
+DRAFTING RULES:
+- Write a concise, warm, professional reply answering the customer's question, grounded only in the reference facts and the claim rules above. A few short paragraphs at most.
+- This is a DRAFT for Mark to check and edit, not a sent message. There is no tool to call and no other document; the reference is the facts above.
+- Do not address the customer by name, and do not invent any price, date, availability, or commitment.
+- If the reference does not let you answer confidently and safely, do NOT guess. Briefly say Mark will follow up personally and suggest he calls. An honest "we'll come back to you" beats a wrong answer.
+- Never give advice that could risk damaging a carpet or fabric.
+- Output only the reply text itself: no preamble, no subject line, no sign-off name, no quotation marks around it.`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": anthropicKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: models.text,
+      max_tokens: 800,
+      system,
+      // The question is untrusted data, delimited and never in an instruction
+      // position; the claim rules above explicitly override a customer's message.
+      messages: [
+        { role: "user", content: `The customer asked:\n\n"""\n${String(question || "")}\n"""\n\nDraft Mark's reply.` },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Anthropic ${res.status}: ${detail.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const text = (data.content || [])
+    .filter((b) => b && b.type === "text")
+    .map((b) => b.text)
+    .join("")
+    .trim();
+  if (!text) throw new Error("empty draft");
+  return text;
+}
+
+function escHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+// Email Mark's approved reply to the customer from the ICC customer address.
+// Throws unless Resend accepts the message (fail-closed; "accepted" is still not
+// "delivered" — L-004 — but a non-2xx is a hard failure we must not mark sent on).
+async function sendHandoffReply(toEmail, replyText, resendKey) {
+  const customerFrom = process.env.CUSTOMER_FROM || "Intelligent Carpet Cleaning <onboarding@resend.dev>";
+  const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;font-size:14px;color:#1a1a2e;line-height:1.6;">${escHtml(replyText).replace(/\n/g, "<br>")}</div>`;
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${resendKey}` },
+    body: JSON.stringify({
+      from: customerFrom,
+      to: toEmail,
+      subject: "Re: your enquiry to Intelligent Carpet Cleaning",
+      html,
+      text: replyText,
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Resend ${res.status}: ${detail.slice(0, 200)}`);
+  }
+  return res.json().catch(() => ({}));
+}
+
+function json(statusCode, headers, obj) {
+  return { statusCode, headers, body: JSON.stringify(obj) };
+}
+
+// POST dispatcher: draft / send / handle. draftFn and sendFn are injectable so
+// the unit tests exercise the routing and the safety gates without any network.
+async function handlePost(event, headers, deps) {
+  const { supabase, anthropicKey, resendKey } = deps;
+  const draftFn = deps.draftFn || draftReplyForHandoff;
+  const sendFn = deps.sendFn || sendHandoffReply;
+
+  if (!supabase) return json(503, headers, { error: "Supabase not configured" });
+
+  let body;
+  try { body = JSON.parse(event.body || "{}"); } catch (e) { return json(400, headers, { error: "Invalid JSON" }); }
+  const action = body.action;
+  const id = body.id;
+  if (!id || typeof id !== "string") return json(400, headers, { error: "Missing handoff id" });
+
+  const row = await loadHandoffRow(supabase, id);
+  if (!row) return json(404, headers, { error: "Handoff not found" });
+  if (row.status === "sent") return json(409, headers, { error: "This handoff has already been sent" });
+
+  if (action === "draft") {
+    // Hard safety gate: damage_risk / customer_request / unknown reason are never
+    // auto-drafted. Checked BEFORE any model call (no spend, no leak).
+    if (!isDraftableReason(row.handoff_reason)) {
+      return json(400, headers, { error: "This handoff is not eligible for an AI draft. Reply manually." });
+    }
+    if (!row.handoff_question) return json(400, headers, { error: "No question was captured to draft from." });
+    if (!anthropicKey) return json(502, headers, { error: "AI drafting is unavailable." });
+    let draft;
+    try {
+      draft = await draftFn(row.handoff_question, anthropicKey);
+    } catch (e) {
+      console.log("Handoff draft failed for", id, "-", e.message); // id + timestamp, no PII
+      return json(502, headers, { error: "Could not generate a draft." });
+    }
+    await updateHandoff(supabase, id, { draft_reply: draft });
+    console.log("Handoff draft generated for", id);
+    return json(200, headers, { draft });
+  }
+
+  if (action === "send") {
+    const reply = typeof body.reply === "string" ? body.reply.trim() : "";
+    if (!reply) return json(400, headers, { error: "Reply text is required." });
+    const toEmail = extractEmail(row.customer_contact);
+    if (!toEmail) return json(400, headers, { error: "No sendable email address for this customer. Reply manually." });
+    if (!resendKey) return json(502, headers, { error: "Email sending is unavailable." });
+    try {
+      await sendFn(toEmail, reply, resendKey);
+    } catch (e) {
+      console.log("Handoff send failed for", id, "-", e.message);
+      return json(502, headers, { error: "Could not send the email." });
+    }
+    // Only now, after Resend accepted it, record it as sent (fail-closed).
+    await updateHandoff(supabase, id, { status: "sent", sent_at: new Date().toISOString(), draft_reply: reply });
+    console.log("Handoff reply sent for", id);
+    return json(200, headers, { ok: true, status: "sent" });
+  }
+
+  if (action === "handle") {
+    // Mark dealt with it himself (the only path for damage_risk / no-email rows).
+    await updateHandoff(supabase, id, { status: "approved", approved_at: new Date().toISOString() });
+    return json(200, headers, { ok: true, status: "approved" });
+  }
+
+  return json(400, headers, { error: "Unknown action" });
+}
+
 exports.handler = async function (event) {
   const headers = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" };
   if (event.httpMethod === "OPTIONS") return { statusCode: 200, headers, body: "" };
-  if (event.httpMethod !== "GET") return { statusCode: 405, headers, body: "Method Not Allowed" };
 
+  // TODO(slice5d/supabase-auth): shared Bearer secret for now; 5d swaps this for
+  // Supabase Auth (per-user) across bookings.js + handoffs.js together.
   const adminSecret = process.env.ADMIN_SECRET;
   const authHeader = event.headers["authorization"] || "";
   const providedToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
@@ -37,13 +229,34 @@ exports.handler = async function (event) {
     return { statusCode: 401, headers, body: JSON.stringify({ error: "Unauthorized" }) };
   }
 
-  try {
-    const result = await fetchHandoffs(getSupabaseAdmin());
-    return { statusCode: 200, headers, body: JSON.stringify(result) };
-  } catch (e) {
-    return { statusCode: 500, headers, body: JSON.stringify({ handoffs: [], total: 0, error: e.message }) };
+  const supabase = getSupabaseAdmin();
+
+  if (event.httpMethod === "GET") {
+    try {
+      return json(200, headers, await fetchHandoffs(supabase));
+    } catch (e) {
+      return json(500, headers, { handoffs: [], total: 0, error: e.message });
+    }
   }
+
+  if (event.httpMethod === "POST") {
+    try {
+      return await handlePost(event, headers, {
+        supabase,
+        anthropicKey: process.env.ANTHROPIC_API_KEY,
+        resendKey: process.env.RESEND_API_KEY,
+      });
+    } catch (e) {
+      console.log("Handoff POST error:", e.message);
+      return json(500, headers, { error: e.message });
+    }
+  }
+
+  return { statusCode: 405, headers, body: "Method Not Allowed" };
 };
 
 // Exported for unit tests (test/handoffs.test.js).
 exports.fetchHandoffs = fetchHandoffs;
+exports.handlePost = handlePost;
+exports.loadHandoffRow = loadHandoffRow;
+exports.updateHandoff = updateHandoff;

@@ -17,6 +17,26 @@ const HANDOFF_REASON_LABELS = {
   customer_request: "Customer asked for a person",
 };
 
+// D-020: a customer reply may be AI-drafted ONLY for the soft, no-property-risk
+// reasons. damage_risk is NEVER draftable (the assistant escalated precisely
+// because it must not answer), and customer_request means the customer asked for
+// a person, so Mark replies himself. A null/unknown reason is not draftable —
+// the safe default, so an old row with no structured reason never auto-drafts.
+const DRAFTABLE_REASONS = new Set(["out_of_scope", "no_citable_source"]);
+function isDraftableReason(reason) {
+  return DRAFTABLE_REASONS.has(String(reason || ""));
+}
+
+// Pull a single sendable email out of the free-text contact the assistant
+// captured (it may be an email, a phone number, or prose like "reply in the
+// chat"). Returns the lower-cased address, or null when there is no clear one.
+// The send path only emails when this is non-null; otherwise Mark handles the
+// reply manually, so a false negative is safe (no wrong-address send).
+function extractEmail(contact) {
+  const m = String(contact || "").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return m ? m[0].toLowerCase() : null;
+}
+
 // Last few turns as a plain-text transcript, defensively handling string or
 // block-array content (an image turn carries blocks, not a string).
 function transcriptSnippet(messages, turns = 6) {
@@ -68,7 +88,13 @@ function escalationToMessageDraft(input, context) {
     customer_id: null,
     subject: `Website handoff: ${reasonLabel}`,
     body: bodyParts.join("\n"),
+    // Slice 5e-2 (D-020): structured so the admin can gate drafting on the real
+    // reason and address a reply, without parsing the body prose. draft_reply
+    // stays null until Mark has one drafted.
+    handoff_reason: inp.reason ? String(inp.reason) : null,
+    customer_contact: inp.customer_contact ? String(inp.customer_contact) : null,
+    handoff_question: inp.question ? String(inp.question) : null,
   };
 }
 
-module.exports = { escalationToMessageDraft, transcriptSnippet, HANDOFF_REASON_LABELS };
+module.exports = { escalationToMessageDraft, transcriptSnippet, HANDOFF_REASON_LABELS, isDraftableReason, extractEmail };

@@ -85,6 +85,12 @@
 
   .loading-spinner{text-align:center;padding:3rem;color:var(--text-light);font-size:0.9rem;}
 
+  .handoff-label{font-size:0.72rem;color:var(--teal);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;display:block;margin:0.75rem 0 6px;}
+  .handoff-reply{width:100%;min-height:120px;border:1px solid var(--border);border-radius:8px;padding:0.75rem;font-family:"Lato",sans-serif;font-size:0.88rem;line-height:1.5;resize:vertical;margin-bottom:0.75rem;color:var(--text-dark);}
+  .handoff-reply:focus{outline:none;border-color:var(--teal);}
+  .handoff-note{font-size:0.8rem;color:var(--text-light);align-self:center;}
+  .handoff-msg{font-size:0.8rem;margin-top:0.5rem;min-height:1rem;}
+
   @media(max-width:768px){
     .stats-row{grid-template-columns:repeat(2,1fr);}
     .detail-grid{grid-template-columns:1fr;}
@@ -254,13 +260,53 @@ function renderHandoffs(list, configured){
   grid.innerHTML = list.map((h,i) => buildHandoffCard(h,i)).join("");
 }
 
+// Reason labels + the draftable set mirror shared/messages.js. The server is the
+// real gate (it re-checks isDraftableReason and re-extracts the email); these only
+// drive the UI so Mark sees the right controls.
+const HANDOFF_REASON_LABELS = {
+  out_of_scope: "Outside the assistant's knowledge",
+  damage_risk: "Possible damage risk - needs a human",
+  no_citable_source: "No citable source for the answer",
+  customer_request: "Customer asked for a person",
+};
+const HANDOFF_DRAFTABLE = { out_of_scope: true, no_citable_source: true };
+function clientExtractEmail(s){
+  const m = String(s||"").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return m ? m[0].toLowerCase() : null;
+}
+
 function buildHandoffCard(h, i){
   const when = esc(String(h.created_at||"").replace("T"," ").slice(0,16));
   const subject = esc(h.subject || "Handoff");
-  const status = esc(h.status || "draft");
+  const status = String(h.status || "draft");
   const bodyText = esc(h.body || "");
-  // TODO(slice5e-2/approve-send): add draft -> approved -> sent actions here (status
-  // update via an authed call). Never auto-draft an answer for a damage_risk handoff (D-020).
+  const reasonLabel = esc(HANDOFF_REASON_LABELS[h.handoff_reason] || h.handoff_reason || "Not specified");
+  const contact = esc(h.customer_contact || "not given");
+  const email = clientExtractEmail(h.customer_contact);
+  const draftable = !!HANDOFF_DRAFTABLE[h.handoff_reason];
+  const isSent = status === "sent";
+  const statusClass = isSent ? "status-confirmed" : status === "approved" ? "status-completed" : "status-pending";
+
+  let actionsHtml;
+  if(isSent){
+    actionsHtml =
+      '<div class="assessment-box"><label>Reply sent to customer</label><p style="white-space:pre-wrap;">'+esc(h.draft_reply||"")+'</p></div>';
+  } else {
+    const draftBtn = draftable
+      ? '<button class="action-btn primary" onclick="draftHandoff('+i+')">Draft reply with AI</button>'
+      : '<span class="handoff-note">Not eligible for an AI draft &mdash; reply personally.</span>';
+    const sendBtn = email
+      ? '<button class="action-btn primary" onclick="sendHandoff('+i+')">Send reply to '+esc(email)+'</button>'
+      : '<span class="handoff-note">No email on file &mdash; reply by phone, then mark handled.</span>';
+    actionsHtml =
+      '<label class="handoff-label">Reply to customer (you review and edit before sending)</label>'+
+      '<textarea id="handoff-reply-'+i+'" class="handoff-reply" placeholder="Write a reply, or generate a draft to edit...">'+esc(h.draft_reply||"")+'</textarea>'+
+      '<div class="card-actions">'+draftBtn+sendBtn+
+        '<button class="action-btn" onclick="handleHandoff('+i+')">Mark as handled</button>'+
+      '</div>'+
+      '<div class="handoff-msg" id="handoff-msg-'+i+'"></div>';
+  }
+
   return '<div class="booking-card">'+
     '<div class="booking-card-header" onclick="toggleHandoff('+i+')">'+
       '<div class="booking-card-header-left">'+
@@ -270,10 +316,15 @@ function buildHandoffCard(h, i){
           '<div class="booking-meta">'+when+'</div>'+
         '</div>'+
       '</div>'+
-      '<span class="booking-status status-pending">'+status+'</span>'+
+      '<span class="booking-status '+statusClass+'">'+esc(status)+'</span>'+
     '</div>'+
     '<div class="booking-card-body" id="handoff-'+i+'">'+
+      '<div class="detail-grid">'+
+        '<div class="detail-item"><label>Reason</label><p>'+reasonLabel+'</p></div>'+
+        '<div class="detail-item"><label>Customer contact</label><p>'+contact+'</p></div>'+
+      '</div>'+
       '<div class="assessment-box"><label>Handoff detail</label><p style="white-space:pre-wrap;">'+bodyText+'</p></div>'+
+      actionsHtml+
     '</div>'+
   '</div>';
 }
@@ -281,6 +332,58 @@ function buildHandoffCard(h, i){
 function toggleHandoff(i){
   const body = document.getElementById("handoff-"+i);
   if(body) body.classList.toggle("open");
+}
+
+// Slice 5e-2: the draft -> send lifecycle. Each action POSTs to /api/handoffs
+// with the admin Bearer; the server enforces the D-020 gates regardless of the UI.
+async function postHandoffAction(payload){
+  const res = await fetch("/api/handoffs", {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + adminToken, "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  let data = {};
+  try { data = await res.json(); } catch(e){}
+  return { ok: res.ok, status: res.status, data };
+}
+
+function handoffMsg(i, text, isError){
+  const el = document.getElementById("handoff-msg-"+i);
+  if(el){ el.textContent = text; el.style.color = isError ? "#e53e3e" : "var(--teal)"; }
+}
+
+async function draftHandoff(i){
+  const h = allHandoffs[i]; if(!h) return;
+  handoffMsg(i, "Generating a draft...", false);
+  const { ok, data } = await postHandoffAction({ action: "draft", id: h.id });
+  if(ok && data.draft){
+    const ta = document.getElementById("handoff-reply-"+i);
+    if(ta) ta.value = data.draft;          // .value, never innerHTML (L-003)
+    allHandoffs[i].draft_reply = data.draft;
+    handoffMsg(i, "Draft ready. Review and edit before sending.", false);
+  } else {
+    handoffMsg(i, (data && data.error) || "Could not generate a draft.", true);
+  }
+}
+
+async function sendHandoff(i){
+  const h = allHandoffs[i]; if(!h) return;
+  const ta = document.getElementById("handoff-reply-"+i);
+  const reply = ta ? ta.value.trim() : "";
+  if(!reply){ handoffMsg(i, "Write a reply first.", true); return; }
+  if(!confirm("Send this reply to the customer by email?")) return;
+  handoffMsg(i, "Sending...", false);
+  const { ok, data } = await postHandoffAction({ action: "send", id: h.id, reply });
+  if(ok){ handoffMsg(i, "Sent.", false); loadHandoffs(); }
+  else { handoffMsg(i, (data && data.error) || "Could not send the reply.", true); }
+}
+
+async function handleHandoff(i){
+  const h = allHandoffs[i]; if(!h) return;
+  handoffMsg(i, "Updating...", false);
+  const { ok, data } = await postHandoffAction({ action: "handle", id: h.id });
+  if(ok){ loadHandoffs(); }
+  else { handoffMsg(i, (data && data.error) || "Could not update.", true); }
 }
 
 function updateStats(bookings){
