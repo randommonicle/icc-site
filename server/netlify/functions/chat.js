@@ -712,17 +712,23 @@ function getBlobStore() {
 
 async function checkAvailability(date, slotsNeeded, baseHeaders, supabase) {
   const headers = Object.assign({}, baseHeaders || {}, { "Content-Type": "application/json" });
-  // Light input check — bookings.js does the full validate; this path is read-only
-  const slots = Number(slotsNeeded);
-  if(typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isInteger(slots) || slots < 1 || slots > 9){
-    return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid availability query" }) };
-  }
   // Slice 5b (D-021): under the Postgres store, availability derives from the
   // committed `jobs` rows and the grid is the hardened 09:00-16:30 day (start
-  // slots 9..15); the Blobs path keeps the Phase 0 09:00-17:00 grid. Gated by the
-  // same flag as the booking write so store + hours move together.
+  // slots 9..15, up to 7 hours); the Blobs path keeps the Phase 0 09:00-17:00 grid
+  // (up to 9 hours). Gated by the same flag as the booking write so store + hours
+  // move together.
   const usePostgres = bookingsStoreIsPostgres() && !!supabase;
+  if (bookingsStoreIsPostgres() && !supabase) {
+    console.log("WARNING: BOOKINGS_STORE=postgres but no Supabase client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY unset) — availability is using Blobs.");
+  }
   const allSlots = usePostgres ? [9,10,11,12,13,14,15] : [9,10,11,12,13,14,15,16,17];
+  const maxSlots = usePostgres ? 7 : 9;
+  // Light input check — bookings.js does the full validate; this path is read-only.
+  // Cap matches the active store so the endpoint agrees with the booking engine.
+  const slots = Number(slotsNeeded);
+  if(typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isInteger(slots) || slots < 1 || slots > maxSlots){
+    return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid availability query" }) };
+  }
   try {
     let bookedSlots;
     if (usePostgres) {
@@ -859,6 +865,11 @@ function depositLabel(value){
 async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   const headers = Object.assign({}, baseHeaders || {}, { "Content-Type": "application/json" });
   const usePostgres = bookingsStoreIsPostgres() && !!supabase;
+  // Surface a misconfiguration loudly: the flag is on but the Supabase creds are
+  // missing, so this booking is silently going to Blobs, not Postgres.
+  if (bookingsStoreIsPostgres() && !supabase) {
+    console.log("WARNING: BOOKINGS_STORE=postgres but no Supabase client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY unset) — this booking is being written to Blobs, not Postgres.");
+  }
 
   // Reject malformed/tampered payloads before touching the store, email, or PDF.
   // Under the Postgres store the bounds match the 09:00-16:30 day, so a too-late or

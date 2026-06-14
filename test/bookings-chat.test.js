@@ -177,3 +177,13 @@ test("checkAvailability (Postgres) uses the 9..15 grid and excludes committed ho
     assert.deepStrictEqual(body.booked.slice().sort((a, b) => a - b), [10, 11]);
   });
 });
+
+test("checkAvailability (Postgres) caps the slots query at 7 to match the booking engine", async () => {
+  await underPostgres(async () => {
+    const sb = fakeSupabase();
+    const tooMany = await checkAvailability(futureWeekday(21), 8, {}, sb);
+    assert.strictEqual(tooMany.statusCode, 400);
+    const ok = await checkAvailability(futureWeekday(21), 7, {}, sb);
+    assert.strictEqual(ok.statusCode, 200);
+  });
+});
