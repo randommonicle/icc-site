@@ -17,6 +17,11 @@
   to = "/.netlify/functions/bookings"
   status = 200
 
+[[redirects]]
+  from = "/api/handoffs"
+  to = "/.netlify/functions/handoffs"
+  status = 200
+
 # Phase 2, Slice 3 — versioned API (/api/v1/*). Stateless server-side quote;
 # runs alongside the live /api/chat flow (D-003/D-011/D-012).
 [[redirects]]
