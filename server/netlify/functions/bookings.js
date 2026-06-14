@@ -1,4 +1,8 @@
 const crypto = require("crypto");
+// Slice 5b (D-021): read the Postgres bookings alongside Blobs so legacy bookings
+// stay visible during the transition. supabase === null -> Blobs-only (unchanged).
+const { getSupabaseAdmin } = require("./supabaseClient.js");
+const { fetchBookingsFromJobs } = require("./bookingsStore.js");
 
 // Constant-time bearer-token comparison. Both sides are hashed to a fixed 32-byte
 // digest first, so timingSafeEqual never sees a length mismatch — that would both
@@ -32,6 +36,11 @@ exports.handler = async function(event) {
     return { statusCode: 401, headers, body: JSON.stringify({ error: "Unauthorized" }) };
   }
 
+  // Read the two stores independently so one failing degrades to the other rather
+  // than blanking the dashboard (Slice 5b / D-021).
+  const supabase = getSupabaseAdmin();
+  let blobsBookings = [];
+  let blobsError = null;
   try {
     const { getStore } = require("@netlify/blobs");
     const store = getStore({
@@ -49,24 +58,58 @@ exports.handler = async function(event) {
         return data ? JSON.parse(data) : null;
       } catch(e){ return null; }
     }));
-    const bookings = results.filter(Boolean);
+    blobsBookings = results.filter(Boolean);
+  } catch(e){
+    blobsError = e;
+    console.log("Blobs bookings read failed:", e.message);
+  }
 
-    // Newest first by created_at so admin sees most recent at the top
-    bookings.sort((a,b) => String(b.created_at||"").localeCompare(String(a.created_at||"")));
+  let pgBookings = [];
+  let pgError = null;
+  if (supabase) {
+    try {
+      pgBookings = await fetchBookingsFromJobs(supabase);
+    } catch(e){
+      pgError = e;
+      console.log("Postgres bookings read failed:", e.message);
+    }
+  }
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ bookings, total: bookings.length })
-    };
-  } catch(e) {
+  // Only surface a 500 if there is genuinely nothing to show (both sources failed).
+  if (blobsError && (pgError || !supabase)) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ bookings: [], total: 0, error: e.message })
+      body: JSON.stringify({ bookings: [], total: 0, error: (blobsError && blobsError.message) || (pgError && pgError.message) })
     };
   }
+
+  const bookings = mergeBookings(pgBookings, blobsBookings);
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({ bookings, total: bookings.length })
+  };
 };
 
-// Exported for unit tests (test/hardening.test.js).
+// Merge the Postgres + Blobs booking lists so legacy bookings stay visible during
+// the Slice 5b cutover. Dedupe by id (Postgres uuids and Blobs numeric-string ids
+// are disjoint namespaces, so an id never collides across stores) and sort
+// newest-first by created_at. Pure, so it is unit-tested directly.
+function mergeBookings(pgBookings, blobsBookings){
+  const seen = new Set();
+  const bookings = [];
+  for (const b of (pgBookings || []).concat(blobsBookings || [])) {
+    const id = b && b.id != null ? String(b.id) : null;
+    if (id && seen.has(id)) continue;
+    if (id) seen.add(id);
+    bookings.push(b);
+  }
+  bookings.sort((a,b) => String(b.created_at||"").localeCompare(String(a.created_at||"")));
+  return bookings;
+}
+
+// Exported for unit tests (test/hardening.test.js, test/bookings-admin.test.js)
+// and for handoffs.js (safeEqual).
 exports.safeEqual = safeEqual;
+exports.mergeBookings = mergeBookings;
