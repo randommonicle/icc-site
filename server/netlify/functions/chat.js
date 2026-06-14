@@ -40,6 +40,18 @@ const knowledge = require("../../../shared/config/knowledge.js");
 // Slice 5a (D-020): the operational-backend client + the pure handoff-row builder.
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const { escalationToMessageDraft } = require("../../../shared/messages.js");
+// Slice 5b (D-021): the Postgres booking store (used only under BOOKINGS_STORE).
+const { insertBooking, setJobCalLink, availabilityFromJobs } = require("./bookingsStore.js");
+
+// Slice 5b (D-021): the single switch for the bookings backend. When "postgres",
+// confirm_booking writes to the Supabase `jobs` table, availability derives from
+// it, AND the hardened 09:00-16:30 trading hours apply — store and hours flip (and
+// roll back) together. Unset/any other value keeps the Phase 0 Netlify Blobs path
+// byte-identical, so merging Slice 5b is a production no-op until this is set in
+// Netlify (the deliberate sign-off moment), and unsetting it is the rollback.
+function bookingsStoreIsPostgres() {
+  return process.env.BOOKINGS_STORE === "postgres";
+}
 
 // Static portion of the system prompt — invariant between requests.
 // Anthropic caches this block (cache_control: ephemeral) so subsequent
@@ -318,7 +330,7 @@ exports.handler = async function (event) {
   if (body.action === "confirm_booking") {
     const rl = await enforceRateLimit(ip, "rl:book", 5);
     if(!rl.ok) return tooManyResponse(baseHeaders, rl.retryAfter);
-    return await handleBooking(body.booking, resendKey, baseHeaders);
+    return await handleBooking(body.booking, resendKey, baseHeaders, supabase);
   }
 
   // Handle availability check. Read-only and cheap, but loopable for slot
@@ -326,7 +338,7 @@ exports.handler = async function (event) {
   if (body.action === "check_availability") {
     const rl = await enforceRateLimit(ip, "rl:avail", 60);
     if(!rl.ok) return tooManyResponse(baseHeaders, rl.retryAfter);
-    return await checkAvailability(body.date, body.slots_needed, baseHeaders);
+    return await checkAvailability(body.date, body.slots_needed, baseHeaders, supabase);
   }
 
   // AI chat path — per-IP rate limit before hitting Anthropic (the AI cost path).
@@ -698,21 +710,28 @@ function getBlobStore() {
   });
 }
 
-async function checkAvailability(date, slotsNeeded, baseHeaders) {
+async function checkAvailability(date, slotsNeeded, baseHeaders, supabase) {
   const headers = Object.assign({}, baseHeaders || {}, { "Content-Type": "application/json" });
   // Light input check — bookings.js does the full validate; this path is read-only
   const slots = Number(slotsNeeded);
   if(typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isInteger(slots) || slots < 1 || slots > 9){
     return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid availability query" }) };
   }
+  // Slice 5b (D-021): under the Postgres store, availability derives from the
+  // committed `jobs` rows and the grid is the hardened 09:00-16:30 day (start
+  // slots 9..15); the Blobs path keeps the Phase 0 09:00-17:00 grid. Gated by the
+  // same flag as the booking write so store + hours move together.
+  const usePostgres = bookingsStoreIsPostgres() && !!supabase;
+  const allSlots = usePostgres ? [9,10,11,12,13,14,15] : [9,10,11,12,13,14,15,16,17];
   try {
-    const store = getBlobStore();
-    const existing = await store.get(date);
-    const bookedSlots = existing ? JSON.parse(existing) : [];
-    // TODO(slice5c/hours): Phase 0 availability grid (09:00-17:00 from Blobs). Slice 5c
-    // derives availability from the Supabase `jobs` table and applies the hardened
-    // 09:00-16:30 trading hours (whole-hour slots ending by 16:00, Slice 2 schema).
-    const allSlots = [9,10,11,12,13,14,15,16,17];
+    let bookedSlots;
+    if (usePostgres) {
+      bookedSlots = await availabilityFromJobs(supabase, date);
+    } else {
+      const store = getBlobStore();
+      const existing = await store.get(date);
+      bookedSlots = existing ? JSON.parse(existing) : [];
+    }
     const available = [];
 
     for (let i = 0; i <= allSlots.length - slots; i++) {
@@ -729,10 +748,13 @@ async function checkAvailability(date, slotsNeeded, baseHeaders) {
       body: JSON.stringify({ available, booked: bookedSlots })
     };
   } catch (err) {
+    // Fail open: offer the full grid rather than blocking a customer on a store
+    // hiccup; confirm_booking is the real guard (the Blobs conflict check, or the
+    // DB exclusion constraint under Postgres).
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ available: ["9:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00"], booked: [] })
+      body: JSON.stringify({ available: allSlots.map(h => `${h}:00`), booked: [] })
     };
   }
 }
@@ -744,8 +766,19 @@ function escHtml(s){
 // Server-side validation. The chat client cannot be trusted: a malicious caller
 // can POST directly to /api/chat with action=confirm_booking and any payload.
 // Reject anything malformed, oversized, or with obviously fake pricing.
-function validateBooking(b){
+function validateBooking(b, opts){
   if(!b || typeof b !== "object") return "Invalid booking payload";
+
+  // Trading-hours bounds depend on the active store (Slice 5b / D-021): the
+  // Postgres `jobs` table enforces the 09:00-16:30 day (start 9..15, end <= 16,
+  // up to 7 slots); the Phase 0 Blobs grid is 09:00-17:00 (start 9..17, end <= 18,
+  // up to 9 slots). The defaults reproduce the exact Blobs behaviour, so the
+  // flag-off path is byte-identical and the DB constraint is a backstop, not the
+  // gate (a too-late/too-long slot is a clean 400 here, never a 23514 at insert).
+  const o = opts || {};
+  const latestStartHour = o.latestStartHour || 17;
+  const latestEndHour = o.latestEndHour || 18;
+  const maxSlots = o.maxSlots || 9;
 
   const required = ["name","phone","email","address","date","start_time","slots_needed"];
   for(const f of required){
@@ -757,10 +790,15 @@ function validateBooking(b){
   if(typeof b.email !== "string" || b.email.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.email)) return "Invalid email";
   if(typeof b.address !== "string" || b.address.length < 5 || b.address.length > 500) return "Invalid address";
   if(typeof b.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.date)) return "Invalid date format";
-  if(typeof b.start_time !== "string" || !/^(9|1[0-7]):00$/.test(b.start_time)) return "Invalid start_time";
+  // On-the-hour 9..latestStartHour, no leading zero (the assistant emits
+  // "9:00".."17:00"); the allowed set narrows to 9..15 under the Postgres store.
+  const allowedStartHours = [];
+  for(let h = 9; h <= latestStartHour; h++) allowedStartHours.push(h);
+  const startTimeRe = new RegExp("^(" + allowedStartHours.join("|") + "):00$");
+  if(typeof b.start_time !== "string" || !startTimeRe.test(b.start_time)) return "Invalid start_time";
 
   const slots = Number(b.slots_needed);
-  if(!Number.isInteger(slots) || slots < 1 || slots > 9) return "Invalid slots_needed";
+  if(!Number.isInteger(slots) || slots < 1 || slots > maxSlots) return "Invalid slots_needed";
 
   // Date must be in the bookable window and not a Sunday
   const today = new Date(); today.setHours(0,0,0,0);
@@ -772,9 +810,9 @@ function validateBooking(b){
   if(daysOut > 90) return "Date too far ahead";
   if(bookingDate.getDay() === 0) return "Sundays are not bookable";
 
-  // Slots fit within trading hours (last slot ends at 18:00)
+  // Slots fit within trading hours (last slot ends by latestEndHour)
   const startHour = parseInt(b.start_time.split(":")[0], 10);
-  if(startHour + slots > 18) return "Slots overflow trading hours";
+  if(startHour + slots > latestEndHour) return "Slots overflow trading hours";
 
   // Price floor — minimum call-out is £75 + VAT (£90 inc). Anything under £30
   // is almost certainly a prompt-injection or tampered payload.
@@ -818,11 +856,17 @@ function depositLabel(value){
   return (typeof value === "string" && value.trim()) ? value : "To be confirmed";
 }
 
-async function handleBooking(booking, resendKey, baseHeaders) {
+async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   const headers = Object.assign({}, baseHeaders || {}, { "Content-Type": "application/json" });
+  const usePostgres = bookingsStoreIsPostgres() && !!supabase;
 
-  // Reject malformed/tampered payloads before touching Blobs, email, or PDF
-  const validationError = validateBooking(booking);
+  // Reject malformed/tampered payloads before touching the store, email, or PDF.
+  // Under the Postgres store the bounds match the 09:00-16:30 day, so a too-late or
+  // too-long slot is a clean 400 here, never a DB constraint error at insert
+  // (Slice 5b / D-021).
+  const validationError = usePostgres
+    ? validateBooking(booking, { latestStartHour: 15, latestEndHour: 16, maxSlots: 7 })
+    : validateBooking(booking);
   if(validationError){
     console.log("Booking rejected:", validationError);
     return {
@@ -837,49 +881,75 @@ async function handleBooking(booking, resendKey, baseHeaders) {
   // rather than "undefined" when the assistant omits it.
   booking.deposit = depositLabel(booking.deposit);
 
-  // Block out slots in Netlify Blobs
+  // Persist the booking. The calLink is built after this block and stamped on the
+  // stored record below (both stores), so null is passed here first.
   let currentBookingId = null;
-  try {
-    const store = getBlobStore();
-    const existing = await store.get(booking.date);
-    const bookedSlots = existing ? JSON.parse(existing) : [];
-    const startHour = parseInt(booking.start_time.split(":")[0]);
-    const newSlots = Array.from({ length: booking.slots_needed }, (_, i) => startHour + i);
-    const conflict = newSlots.some(s => bookedSlots.includes(s));
-
-    if (conflict) {
+  if (usePostgres) {
+    // FAIL-CLOSED — the deliberate inverse of the 5a escalation path. For a
+    // booking, persistence IS the deliverable: a "confirmed" email with no stored
+    // row is the L-008 silent-vanish failure. So persist BEFORE any PDF/email, and
+    // on any write failure return an error and send nothing (the client shows its
+    // phone-number fallback). Double-booking is the DB exclusion constraint
+    // (23P01 -> 409), not a read-then-write. No fallback to Blobs: that would
+    // reintroduce the split-brain this slice removes.
+    const res = await insertBooking(supabase, booking, { calLink: null });
+    if (!res.ok) {
+      if (res.conflict) {
+        return {
+          statusCode: 409,
+          headers,
+          body: JSON.stringify({ error: "Time slot no longer available. Please choose another time." })
+        };
+      }
+      console.log("Booking INSERT failed (no email sent):", res.error && res.error.message);
       return {
-        statusCode: 409,
+        statusCode: 502,
         headers,
-        body: JSON.stringify({ error: "Time slot no longer available. Please choose another time." })
+        body: JSON.stringify({ error: "We couldn't confirm your booking just now. Please call 01242 279590 to book." })
       };
     }
+    currentBookingId = res.id;
+  } else {
+    // Phase 0 Netlify Blobs write path — kept byte-identical for instant rollback
+    // when BOOKINGS_STORE is unset.
+    try {
+      const store = getBlobStore();
+      const existing = await store.get(booking.date);
+      const bookedSlots = existing ? JSON.parse(existing) : [];
+      const startHour = parseInt(booking.start_time.split(":")[0]);
+      const newSlots = Array.from({ length: booking.slots_needed }, (_, i) => startHour + i);
+      const conflict = newSlots.some(s => bookedSlots.includes(s));
 
-    // TODO(slice5b/bookings-postgres): Phase 0 Netlify Blobs write path (slots by date,
-    // booking record, booking-index). Slice 5b moves bookings into the Supabase `jobs`
-    // table (double-booking enforced by the DB exclusion constraint, not this
-    // read-then-write), with a one-time Blobs->Postgres backfill.
-    const updatedSlots = [...bookedSlots, ...newSlots];
-    await store.set(booking.date, JSON.stringify(updatedSlots));
+      if (conflict) {
+        return {
+          statusCode: 409,
+          headers,
+          body: JSON.stringify({ error: "Time slot no longer available. Please choose another time." })
+        };
+      }
 
-    // Store full booking record
-    const bookingId = Date.now().toString();
-    const bookingRecord = Object.assign({}, booking, {
-      id: bookingId,
-      created_at: new Date().toISOString(),
-      calLink: null // will be set below
-    });
-    await store.set("booking-"+bookingId, JSON.stringify(bookingRecord));
+      const updatedSlots = [...bookedSlots, ...newSlots];
+      await store.set(booking.date, JSON.stringify(updatedSlots));
 
-    // Update booking index
-    const indexData = await store.get("booking-index");
-    const index = indexData ? JSON.parse(indexData) : [];
-    index.push(bookingId);
-    await store.set("booking-index", JSON.stringify(index));
+      // Store full booking record
+      const bookingId = Date.now().toString();
+      const bookingRecord = Object.assign({}, booking, {
+        id: bookingId,
+        created_at: new Date().toISOString(),
+        calLink: null // will be set below
+      });
+      await store.set("booking-"+bookingId, JSON.stringify(bookingRecord));
 
-    currentBookingId = bookingId;
-  } catch (err) {
-    console.log("Blob storage error:", err.message);
+      // Update booking index
+      const indexData = await store.get("booking-index");
+      const index = indexData ? JSON.parse(indexData) : [];
+      index.push(bookingId);
+      await store.set("booking-index", JSON.stringify(index));
+
+      currentBookingId = bookingId;
+    } catch (err) {
+      console.log("Blob storage error:", err.message);
+    }
   }
 
   // Generate Google Calendar link for Mark
@@ -893,17 +963,25 @@ async function handleBooking(booking, resendKey, baseHeaders) {
   const calLocation = encodeURIComponent(booking.address);
   const calLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${calTitle}&dates=${startStr}/${endStr}&details=${calDetails}&location=${calLocation}`;
 
-  // Update stored record with calLink
+  // Stamp the calendar link on the stored record (best-effort; the booking is
+  // already persisted, so a failure here is logged, not surfaced to the customer).
   if(currentBookingId){
-    try{
-      const store = getBlobStore();
-      const existing = await store.get("booking-"+currentBookingId);
-      if(existing){
-        const record = JSON.parse(existing);
-        record.calLink = calLink;
-        await store.set("booking-"+currentBookingId, JSON.stringify(record));
-      }
-    } catch(e){ console.log("Could not update calLink:", e.message); }
+    if (usePostgres) {
+      try{
+        const { error } = await setJobCalLink(supabase, currentBookingId, calLink);
+        if(error) console.log("Could not update cal_link:", error.message);
+      } catch(e){ console.log("Could not update cal_link:", e.message); }
+    } else {
+      try{
+        const store = getBlobStore();
+        const existing = await store.get("booking-"+currentBookingId);
+        if(existing){
+          const record = JSON.parse(existing);
+          record.calLink = calLink;
+          await store.set("booking-"+currentBookingId, JSON.stringify(record));
+        }
+      } catch(e){ console.log("Could not update calLink:", e.message); }
+    }
   }
 
   if (!resendKey) {
@@ -1207,6 +1285,10 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
 // Not used by the handler.
 exports.rateLimit = rateLimit;
 exports.depositLabel = depositLabel;
+exports.validateBooking = validateBooking;
+exports.handleBooking = handleBooking;
+exports.checkAvailability = checkAvailability;
+exports.bookingsStoreIsPostgres = bookingsStoreIsPostgres;
 exports.STATIC_SYSTEM_PROMPT = STATIC_SYSTEM_PROMPT;
 exports.ESCALATION_TOOL = ESCALATION_TOOL;
 exports.WEB_SEARCH_TOOL = WEB_SEARCH_TOOL;
