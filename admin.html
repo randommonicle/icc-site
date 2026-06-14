@@ -198,6 +198,9 @@ function logout(){
   document.getElementById("passwordInput").value = "";
 }
 
+// TODO(slice5e/handoff-ui): add a "Handoffs" view that lists human_handoff messages
+// from the Supabase messages table (Slice 4e/5a) with a draft -> approve -> send
+// action, alongside this bookings grid. Render AI/customer text as inert DOM (L-003).
 async function loadBookings(){
   document.getElementById("bookingsGrid").innerHTML = '<div class="loading-spinner">Loading bookings...</div>';
   try{
