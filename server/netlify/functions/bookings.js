@@ -21,6 +21,9 @@ exports.handler = async function(event) {
     return { statusCode: 200, headers, body: "" };
   }
 
+  // TODO(slice5d/supabase-auth): Phase 0 admin auth is a shared Bearer secret
+  // (ADMIN_SECRET, constant-time compared). Slice 5d replaces it with Supabase Auth
+  // (per-user login + RLS), so the field app and the admin share one identity model.
   const adminSecret = process.env.ADMIN_SECRET;
   const authHeader = event.headers["authorization"] || "";
   const providedToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";

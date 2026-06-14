@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@netlify/blobs": "^8.1.0",
+    "@supabase/supabase-js": "^2.108.1",
     "pdfkit": "^0.15.0"
   },
   "devDependencies": {

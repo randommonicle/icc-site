@@ -37,6 +37,9 @@ const models = require("../../../shared/config/models.js");
 const pricing = require("../../../shared/config/pricing.js");
 const serviceArea = require("../../../shared/config/serviceArea.js");
 const knowledge = require("../../../shared/config/knowledge.js");
+// Slice 5a (D-020): the operational-backend client + the pure handoff-row builder.
+const { getSupabaseAdmin } = require("./supabaseClient.js");
+const { escalationToMessageDraft } = require("../../../shared/messages.js");
 
 // Static portion of the system prompt — invariant between requests.
 // Anthropic caches this block (cache_control: ephemeral) so subsequent
@@ -278,6 +281,9 @@ exports.handler = async function (event) {
 
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const resendKey = process.env.RESEND_API_KEY;
+  // Slice 5a (D-020): null unless SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are set,
+  // so the handoff INSERT is a no-op (email-only) until the backend is wired.
+  const supabase = getSupabaseAdmin();
 
   if (!anthropicKey) {
     console.log("ERROR: No API key found in environment");
@@ -418,7 +424,7 @@ ${availableDatesList.join("\n")}`;
     const data = await runAssistantTurn(
       body.messages,
       callModel,
-      (toolUse, ctx) => handleTool(toolUse, ctx, resendKey)
+      (toolUse, ctx) => handleTool(toolUse, ctx, resendKey, supabase)
     );
 
     // Slice 4c: collapse to the single text block (L-014) AND surface the cited KB
@@ -588,9 +594,9 @@ function collectCitations(data) {
 }
 
 // Dispatch a tool_use block to its handler. Only escalate_to_human exists today.
-async function handleTool(toolUse, context, resendKey) {
+async function handleTool(toolUse, context, resendKey, supabase) {
   if (toolUse && toolUse.name === "escalate_to_human") {
-    return await handleEscalation(toolUse.input || {}, context, resendKey);
+    return await handleEscalation(toolUse.input || {}, context, resendKey, supabase);
   }
   return "Unknown tool. Ask the customer to call 01242 279590.";
 }
@@ -599,17 +605,27 @@ async function handleTool(toolUse, context, resendKey) {
 // to say next. The customer reply is never blocked on the email (L-004: a 200 from
 // Resend is not delivery; failures are logged, not surfaced to the customer).
 //
-// TODO(slice5/D-020): also persist the handoff as a `human_handoff` row in the
-// Supabase `messages` table (draft -> Mark approves -> send) via the service role.
-// The pure row builder already exists — shared/messages.js escalationToMessageDraft(
-// input, context). This is the live-wiring step deferred from Slice 4e (needs
-// SUPABASE_URL + service-role key in Netlify; sign-off-gated, changes live behaviour).
-async function handleEscalation(input, context, resendKey) {
+// Slice 5a (D-020): the handoff is ALSO persisted as a draft `human_handoff` row in
+// the Supabase `messages` table for Mark's review queue (draft -> approve -> send).
+// Additive and fail-open: the email above is the guaranteed path, so a Supabase
+// outage, an RLS/constraint reject, or missing creds never blocks the customer reply
+// or throws. `supabase` is null until SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are
+// set, so this is a no-op in production until the backend is deliberately wired.
+async function handleEscalation(input, context, resendKey, supabase) {
   try {
     if (resendKey) await sendEscalationEmail(input, context, resendKey);
     else console.log("Escalation (no RESEND_API_KEY, not emailed):", input.reason, "-", input.question);
   } catch (e) {
     console.log("Escalation email failed:", e.message);
+  }
+  if (supabase) {
+    try {
+      const draft = escalationToMessageDraft(input, context);
+      const { error } = await supabase.from("messages").insert(draft);
+      if (error) console.log("Handoff INSERT failed:", error.message);
+    } catch (e) {
+      console.log("Handoff INSERT threw:", e.message);
+    }
   }
   return "Escalation logged and the team has been notified. Tell the customer you will get Mark or the team to confirm the answer, and ask how they would like to be contacted if you do not already have their name and number. Do not attempt to answer the original question yourself.";
 }
@@ -693,6 +709,9 @@ async function checkAvailability(date, slotsNeeded, baseHeaders) {
     const store = getBlobStore();
     const existing = await store.get(date);
     const bookedSlots = existing ? JSON.parse(existing) : [];
+    // TODO(slice5c/hours): Phase 0 availability grid (09:00-17:00 from Blobs). Slice 5c
+    // derives availability from the Supabase `jobs` table and applies the hardened
+    // 09:00-16:30 trading hours (whole-hour slots ending by 16:00, Slice 2 schema).
     const allSlots = [9,10,11,12,13,14,15,16,17];
     const available = [];
 
@@ -836,6 +855,10 @@ async function handleBooking(booking, resendKey, baseHeaders) {
       };
     }
 
+    // TODO(slice5b/bookings-postgres): Phase 0 Netlify Blobs write path (slots by date,
+    // booking record, booking-index). Slice 5b moves bookings into the Supabase `jobs`
+    // table (double-booking enforced by the DB exclusion constraint, not this
+    // read-then-write), with a one-time Blobs->Postgres backfill.
     const updatedSlots = [...bookedSlots, ...newSlots];
     await store.set(booking.date, JSON.stringify(updatedSlots));
 
