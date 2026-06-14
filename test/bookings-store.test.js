@@ -18,6 +18,7 @@ const {
   availabilityFromJobs,
   fetchBookingsFromJobs,
 } = store;
+const { getSupabaseAdmin, _resetForTest } = require("../server/netlify/functions/supabaseClient.js");
 
 const SAMPLE = {
   name: "Jane Smith",
@@ -238,4 +239,96 @@ test("fetchBookingsFromJobs maps rows to admin records and returns [] when not c
   assert.strictEqual(rows[0].name, "A");
   assert.strictEqual(rows[0].estimated_price, "£90 + VAT");
   assert.strictEqual(rows[0].deposit, "£9 + VAT");
+});
+
+// --- Guarded integration: real Supabase (D-010 real services, no mocks) -----
+// Runs only when ICC_SUPABASE_IT=1 AND SUPABASE_URL/SERVICE_ROLE_KEY point at a
+// reachable instance (the local Docker stack). Self-skips otherwise. Inserts a
+// real booking, proves it blocks the slot + reads back in the admin shape, and
+// that an overlap is rejected by the DB exclusion constraint. safe-smokes: deletes
+// only its own rows (by the test emails), before and after, leaving shared state
+// as found. Jobs are deleted before customers (FK on delete restrict).
+
+const IT_DATE = "2026-12-15";
+const IT_EMAILS = ["it5b@example.com", "it5b-2@example.com"];
+const IT_BOOKING = {
+  name: "IT Five-B",
+  phone: "01242 000000",
+  email: IT_EMAILS[0],
+  address: "1 Integration Way, Cheltenham GL52 1AB",
+  postcode: "GL52 1AB",
+  date: IT_DATE,
+  start_time: "10:00",
+  slots_needed: 2,
+  rooms: "Lounge",
+  carpet_types: "Wool",
+  concerns: "none",
+  furniture_moving: false,
+  pets: false,
+  estimated_price: "£200 + VAT",
+  deposit: "£24 + VAT",
+  recommended_method: "Texatherm low-moisture",
+  ai_assessment: "ok",
+  rams: "Activity: cleaning",
+};
+
+async function cleanupIT(sb) {
+  const { data: custs } = await sb.from("customers").select("id").in("email", IT_EMAILS);
+  const ids = (custs || []).map((c) => c.id);
+  if (ids.length) {
+    await sb.from("jobs").delete().in("customer_id", ids);
+    await sb.from("customers").delete().in("id", ids);
+  }
+}
+
+test("[integration] insertBooking persists, blocks the slot, reads back, and rejects an overlap", {
+  skip: process.env.ICC_SUPABASE_IT === "1" ? false : "set ICC_SUPABASE_IT=1 with local Supabase env to run",
+}, async () => {
+  _resetForTest();
+  const sb = getSupabaseAdmin();
+  assert.ok(sb, "expected a Supabase client from SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY");
+
+  await cleanupIT(sb); // clear any leftovers from a crashed prior run
+  try {
+    const res = await insertBooking(sb, IT_BOOKING, { calLink: "https://calendar.google.com/it" });
+    assert.strictEqual(res.ok, true, res.error && res.error.message);
+    assert.ok(res.id);
+
+    // the job persisted as 'booked', core postcode -> not out of area
+    const { data: job, error: jobErr } = await sb
+      .from("jobs")
+      .select("status,start_hour,slots_needed,out_of_area,postcode")
+      .eq("id", res.id)
+      .single();
+    assert.strictEqual(jobErr, null, jobErr && jobErr.message);
+    assert.strictEqual(job.status, "booked");
+    assert.strictEqual(job.start_hour, 10);
+    assert.strictEqual(job.out_of_area, false);
+
+    // availability now reports the booked block [10,11]
+    const booked = await availabilityFromJobs(sb, IT_DATE);
+    assert.deepStrictEqual(booked.slice().sort((a, b) => a - b), [10, 11]);
+
+    // the admin list includes it in the flat record shape
+    const admin = await fetchBookingsFromJobs(sb);
+    const mine = admin.find((b) => b.id === res.id);
+    assert.ok(mine, "the new booking appears in the admin list");
+    assert.strictEqual(mine.name, "IT Five-B");
+    assert.strictEqual(mine.start_time, "10:00");
+    assert.strictEqual(mine.estimated_price, "£200 + VAT");
+    assert.strictEqual(mine.deposit, "£24 + VAT");
+
+    // an overlapping booking (11..13 vs the booked 10..12) is rejected by the
+    // exclusion constraint -> conflict:true (the concurrency-safe double-book guard)
+    const overlap = await insertBooking(
+      sb,
+      Object.assign({}, IT_BOOKING, { email: IT_EMAILS[1], start_time: "11:00", slots_needed: 2 }),
+      {}
+    );
+    assert.strictEqual(overlap.ok, false);
+    assert.strictEqual(overlap.conflict, true);
+  } finally {
+    await cleanupIT(sb);
+    _resetForTest();
+  }
 });
