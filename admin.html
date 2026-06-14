@@ -141,12 +141,20 @@
     <div class="bookings-grid" id="bookingsGrid">
       <div class="loading-spinner">Loading bookings...</div>
     </div>
+
+    <div class="section-header">
+      <h2>Handoffs</h2>
+    </div>
+    <div class="bookings-grid" id="handoffsGrid">
+      <div class="loading-spinner">Loading handoffs...</div>
+    </div>
   </div>
 </div>
 
 <script>
 let adminToken = "";
 let allBookings = [];
+let allHandoffs = [];
 
 function showLoginError(msg){
   const el = document.getElementById("loginError");
@@ -186,6 +194,7 @@ async function login(){
     allBookings = data.bookings || [];
     renderBookings(allBookings);
     updateStats(allBookings);
+    loadHandoffs();
   } catch(e){
     showLoginError("Server returned an unreadable response. Try again shortly.");
   }
@@ -198,9 +207,9 @@ function logout(){
   document.getElementById("passwordInput").value = "";
 }
 
-// TODO(slice5e/handoff-ui): add a "Handoffs" view that lists human_handoff messages
-// from the Supabase messages table (Slice 4e/5a) with a draft -> approve -> send
-// action, alongside this bookings grid. Render AI/customer text as inert DOM (L-003).
+// Slice 5e: the Handoffs view (read-only) lists human_handoff messages (Slice 4e/5a)
+// alongside the bookings grid. Every value is rendered through esc() (L-003). The
+// draft -> approve -> send actions are 5e-2 (TODO(slice5e-2/approve-send) below).
 async function loadBookings(){
   document.getElementById("bookingsGrid").innerHTML = '<div class="loading-spinner">Loading bookings...</div>';
   try{
@@ -214,6 +223,64 @@ async function loadBookings(){
   } catch(e){
     document.getElementById("bookingsGrid").innerHTML = '<div class="empty-state"><p>Could not load bookings. Make sure the site is fully deployed.</p></div>';
   }
+  loadHandoffs();
+}
+
+async function loadHandoffs(){
+  const grid = document.getElementById("handoffsGrid");
+  grid.innerHTML = '<div class="loading-spinner">Loading handoffs...</div>';
+  try{
+    const res = await fetch("/api/handoffs", {
+      headers: { "Authorization": "Bearer " + adminToken }
+    });
+    const data = await res.json();
+    allHandoffs = data.handoffs || [];
+    renderHandoffs(allHandoffs, data.configured);
+  } catch(e){
+    grid.innerHTML = '<div class="empty-state"><p>Could not load handoffs.</p></div>';
+  }
+}
+
+function renderHandoffs(list, configured){
+  const grid = document.getElementById("handoffsGrid");
+  if(configured === false){
+    grid.innerHTML = '<div class="empty-state"><p>Handoff log not configured yet.</p></div>';
+    return;
+  }
+  if(!list || list.length === 0){
+    grid.innerHTML = '<div class="empty-state"><p>No handoffs yet. Assistant escalations will appear here.</p></div>';
+    return;
+  }
+  grid.innerHTML = list.map((h,i) => buildHandoffCard(h,i)).join("");
+}
+
+function buildHandoffCard(h, i){
+  const when = esc(String(h.created_at||"").replace("T"," ").slice(0,16));
+  const subject = esc(h.subject || "Handoff");
+  const status = esc(h.status || "draft");
+  const bodyText = esc(h.body || "");
+  // TODO(slice5e-2/approve-send): add draft -> approved -> sent actions here (status
+  // update via an authed call). Never auto-draft an answer for a damage_risk handoff (D-020).
+  return '<div class="booking-card">'+
+    '<div class="booking-card-header" onclick="toggleHandoff('+i+')">'+
+      '<div class="booking-card-header-left">'+
+        '<div class="booking-avatar">!</div>'+
+        '<div>'+
+          '<div class="booking-name">'+subject+'</div>'+
+          '<div class="booking-meta">'+when+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<span class="booking-status status-pending">'+status+'</span>'+
+    '</div>'+
+    '<div class="booking-card-body" id="handoff-'+i+'">'+
+      '<div class="assessment-box"><label>Handoff detail</label><p style="white-space:pre-wrap;">'+bodyText+'</p></div>'+
+    '</div>'+
+  '</div>';
+}
+
+function toggleHandoff(i){
+  const body = document.getElementById("handoff-"+i);
+  if(body) body.classList.toggle("open");
 }
 
 function updateStats(bookings){
