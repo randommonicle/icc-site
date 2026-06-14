@@ -66,12 +66,12 @@ The public marketing site and the operational platform are separated cleanly, sh
 | Service | Purpose | Notes |
 |---------|---------|-------|
 | **Netlify** | Static hosting + serverless functions | Site `super-frangollo-c3a14a` (super-frangollo-c3a14a.netlify.app); auto-deploys `main` (confirm branch in Netlify settings) |
-| **Netlify Blobs** | Booking + slot storage (Phase 0) | Bookings move to Supabase under the `BOOKINGS_STORE=postgres` flag (Slice 5b, D-021); Blobs stays the default + rollback until enabled |
+| **Netlify Blobs** | Rate-limit windows + legacy bookings | Bookings moved to Supabase (Slice 5b, D-021, **ENABLED 14 June 2026** via `BOOKINGS_STORE=postgres`); Blobs now holds only past test bookings (still shown via the admin dual-store read) and is the rollback target (unset the flag) |
 | **Anthropic (Claude)** | AI assistant — chat + vision | Called server-side only |
 | **Resend** | Transactional email (confirmations) | Sandbox domain until a sending domain is verified |
 | **GitHub** | Source control | https://github.com/randommonicle/icc-site (private) |
 | **Stripe** | Payments — deposits + balances | Phase 3 (D-004), not yet integrated |
-| **Supabase** | Relational backend + auth + storage | Stood up + live (D-009 addendum): hosted `icc-platform`, London. Carries escalation handoffs (5a) and, under the `BOOKINGS_STORE` flag, bookings (5b). Auth + photo Storage still to come (5d / photos) |
+| **Supabase** | Relational backend + auth + storage | Stood up + live (D-009 addendum): hosted `icc-platform`, London. Carries escalation handoffs (5a) and **live bookings (5b, ENABLED 14 June)** in `jobs`/`customers`. Auth + photo Storage still to come (5d / photos) |
 
 When a service is added, add a row here and a decision record in DECISIONS.md.
 
