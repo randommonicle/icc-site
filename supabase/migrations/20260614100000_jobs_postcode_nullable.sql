@@ -1,0 +1,30 @@
+-- Slice 5b (D-021) — make jobs.postcode nullable.
+--
+-- The Phase 0 booking flow treats postcode as OPTIONAL: validateBooking() only
+-- length-caps it (it is not in the required-fields list), and a tampered or edge
+-- payload may omit it entirely. The Slice 2 schema made jobs.postcode NOT NULL on
+-- the assumption it would always be captured. To move bookings into Postgres
+-- (Slice 5b) without an edge payload failing the insert with a NOT-NULL violation
+-- (23502), relax it to nullable. The booking write resolves a postcode best-effort
+-- (bookingsStore.resolvePostcode: booking.postcode -> regex from address -> null),
+-- and serviceArea.isOutOfArea("") returns true, so a missing postcode errs toward
+-- charging the out-of-area surcharge rather than silently absorbing it (D-011).
+--
+-- Nothing else changes: address stays NOT NULL, and the double-booking +
+-- trading-hours invariants are untouched.
+alter table jobs alter column postcode drop not null;
+
+-- Post-apply verification (read catalog state directly; db-migration-verification):
+--
+--   select column_name, is_nullable
+--   from information_schema.columns
+--   where table_schema = 'public' and table_name = 'jobs' and column_name = 'postcode';
+--   -- expected: postcode | YES
+--
+--   select conname
+--   from pg_constraint
+--   where conrelid = 'public.jobs'::regclass
+--     and conname in ('jobs_trading_hours', 'jobs_no_double_booking');
+--   -- expected: both rows present (this migration must not drop either invariant)
+--
+-- The same checks are asserted as pgTAP in supabase/tests/jobs_postcode_nullable_test.sql.
