@@ -171,7 +171,7 @@ const ESCALATION_TOOL = {
   input_schema: {
     type: "object",
     properties: {
-      question: { type: "string", description: "The customer's question or situation, in your own words." },
+      question: { type: "string", description: "The customer's question or situation, in your own words. Describe only the question — do NOT include the customer's name, email, phone, address or other personal details here (those belong in customer_name / customer_contact)." },
       reason: { type: "string", enum: ["out_of_scope", "damage_risk", "no_citable_source", "customer_request"], description: "Why you are handing it over." },
       customer_name: { type: "string", description: "The customer's name if you have it, otherwise omit." },
       customer_contact: { type: "string", description: "The customer's email or phone if you have it, otherwise omit." }

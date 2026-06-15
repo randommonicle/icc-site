@@ -26,6 +26,10 @@ const knowledge = require("../../../shared/config/knowledge.js");
 const HANDOFF_COLS =
   "id,created_at,subject,body,status,channel,handoff_reason,customer_contact,handoff_question,draft_reply,approved_at,sent_at";
 
+// Cap on a manually-typed/edited reply (defence-in-depth; Resend would reject an
+// oversized body, but bound it before we store or send it).
+const MAX_REPLY_CHARS = 50000;
+
 // Pull the handoff queue from Supabase, newest first, as a plain shape the admin
 // renders as inert text. supabase === null (env not set) -> not configured, so the
 // dashboard degrades cleanly instead of erroring.
@@ -56,20 +60,30 @@ async function loadHandoffRow(supabase, id) {
   return (data && data[0]) || null;
 }
 
-async function updateHandoff(supabase, id, fields) {
-  const { error } = await supabase
+// Update a handoff row, hard-guarded to kind='human_handoff'. Returns the number
+// of rows changed so the caller can detect a lost race. opts.onlyIfNotSent adds a
+// status<>'sent' guard so a row already sent by a concurrent request is not
+// re-recorded. (The residual window where two simultaneous operators both pass the
+// pre-send check and both email is accepted for the single-operator admin; the
+// full fix is a 'sending' claim state, which needs a new message_status value.)
+async function updateHandoff(supabase, id, fields, opts = {}) {
+  let q = supabase
     .from("messages")
     .update(fields)
     .eq("id", id)
     .eq("kind", "human_handoff");
+  if (opts.onlyIfNotSent) q = q.neq("status", "sent");
+  const { data, error } = await q.select("id");
   if (error) throw new Error(error.message);
+  return Array.isArray(data) ? data.length : 0;
 }
 
-// Draft a customer reply from ONLY the question, grounded in the vetted KB and
-// bound by the L-009 claim rules. Throws on any API failure so the caller fails
-// closed (no draft rather than a bad one).
-async function draftReplyForHandoff(question, anthropicKey) {
-  const system = `You are drafting a reply on behalf of Intelligent Carpet Cleaning, a premium carpet and upholstery cleaning company in Cheltenham, for the owner Mark to review and edit before he sends it.
+// The draft generator's system prompt. Static (no per-request data), so it is
+// hoisted and exported for the test. The voice rules mirror the live chat
+// assistant (chat.js): standard British English and no dashes as sentence
+// breaks, so a drafted reply reads in ICC's voice, not an automated one.
+function draftSystemPrompt() {
+  return `You are drafting a reply on behalf of Intelligent Carpet Cleaning, a premium carpet and upholstery cleaning company in Cheltenham, for the owner Mark to review and edit before he sends it.
 
 ${knowledge.guardrailsBlock()}
 
@@ -78,11 +92,19 @@ ${knowledge.knowledgeBlock()}
 
 DRAFTING RULES:
 - Write a concise, warm, professional reply answering the customer's question, grounded only in the reference facts and the claim rules above. A few short paragraphs at most.
+- Use clear, standard British English. Never use a dash of any kind as a mid-sentence break or to introduce a clause (no em dash, no en dash, no " - " with spaces); use a comma, full stop, or brackets instead. Dashes make the message feel automated.
 - This is a DRAFT for Mark to check and edit, not a sent message. There is no tool to call and no other document; the reference is the facts above.
 - Do not address the customer by name, and do not invent any price, date, availability, or commitment.
 - If the reference does not let you answer confidently and safely, do NOT guess. Briefly say Mark will follow up personally and suggest he calls. An honest "we'll come back to you" beats a wrong answer.
 - Never give advice that could risk damaging a carpet or fabric.
 - Output only the reply text itself: no preamble, no subject line, no sign-off name, no quotation marks around it.`;
+}
+
+// Draft a customer reply from ONLY the question, grounded in the vetted KB and
+// bound by the L-009 claim rules. Throws on any API failure so the caller fails
+// closed (no draft rather than a bad one).
+async function draftReplyForHandoff(question, anthropicKey) {
+  const system = draftSystemPrompt();
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -122,12 +144,35 @@ function escHtml(s) {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+// ICC sign-off appended to every customer reply so the recipient can see who sent
+// it and how to reach us (review finding A4). Service-area only, no street address
+// (D-016). The phone/email mirror chat.js + the PDF job card; a shared
+// contact-config could dedupe them later.
+const ICC_SIGN_OFF_LINES = ["Intelligent Carpet Cleaning", "Cheltenham, Gloucestershire", "01242 279590", "hello@intelligentclean.co.uk"];
+
+// Build the customer reply email body. Pure and exported for the test. The reply
+// is escaped for the HTML part (L-003); the sign-off identifies ICC.
+// TODO(prelaunch/email-identity): add a privacy-notice link here once the public
+// site is live at the domain (the remaining half of A4; UK GDPR Arts.13/14).
+function buildHandoffEmail(replyText) {
+  const body = escHtml(replyText).replace(/\n/g, "<br>");
+  const sigHtml = ICC_SIGN_OFF_LINES
+    .map((l, i) => (i === 0 ? `<strong>${escHtml(l)}</strong>` : escHtml(l)))
+    .join("<br>");
+  const html =
+    `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;font-size:14px;color:#1a1a2e;line-height:1.6;">${body}` +
+    `<div style="margin-top:16px;padding-top:12px;border-top:1px solid #e0e0e0;font-size:13px;color:#555;">${sigHtml}</div>` +
+    `</div>`;
+  const text = `${replyText}\n\n${ICC_SIGN_OFF_LINES.join("\n")}`;
+  return { html, text };
+}
+
 // Email Mark's approved reply to the customer from the ICC customer address.
 // Throws unless Resend accepts the message (fail-closed; "accepted" is still not
-// "delivered" — L-004 — but a non-2xx is a hard failure we must not mark sent on).
+// "delivered", L-004, but a non-2xx is a hard failure we must not mark sent on).
 async function sendHandoffReply(toEmail, replyText, resendKey) {
   const customerFrom = process.env.CUSTOMER_FROM || "Intelligent Carpet Cleaning <onboarding@resend.dev>";
-  const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;font-size:14px;color:#1a1a2e;line-height:1.6;">${escHtml(replyText).replace(/\n/g, "<br>")}</div>`;
+  const { html, text } = buildHandoffEmail(replyText);
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${resendKey}` },
@@ -136,7 +181,7 @@ async function sendHandoffReply(toEmail, replyText, resendKey) {
       to: toEmail,
       subject: "Re: your enquiry to Intelligent Carpet Cleaning",
       html,
-      text: replyText,
+      text,
     }),
   });
   if (!res.ok) {
@@ -192,6 +237,7 @@ async function handlePost(event, headers, deps) {
   if (action === "send") {
     const reply = typeof body.reply === "string" ? body.reply.trim() : "";
     if (!reply) return json(400, headers, { error: "Reply text is required." });
+    if (reply.length > MAX_REPLY_CHARS) return json(400, headers, { error: "Reply is too long." });
     const toEmail = extractEmail(row.customer_contact);
     if (!toEmail) return json(400, headers, { error: "No sendable email address for this customer. Reply manually." });
     if (!resendKey) return json(502, headers, { error: "Email sending is unavailable." });
@@ -201,8 +247,18 @@ async function handlePost(event, headers, deps) {
       console.log("Handoff send failed for", id, "-", e.message);
       return json(502, headers, { error: "Could not send the email." });
     }
-    // Only now, after Resend accepted it, record it as sent (fail-closed).
-    await updateHandoff(supabase, id, { status: "sent", sent_at: new Date().toISOString(), draft_reply: reply });
+    // Only now, after Resend accepted it, record it as sent (fail-closed). The
+    // onlyIfNotSent guard makes the mark conditional, so a concurrent send is
+    // detected (0 rows changed) rather than silently double-recorded.
+    const marked = await updateHandoff(
+      supabase, id,
+      { status: "sent", sent_at: new Date().toISOString(), draft_reply: reply },
+      { onlyIfNotSent: true }
+    );
+    if (!marked) {
+      console.log("Handoff send: already marked sent by a concurrent request -", id);
+      return json(409, headers, { error: "This handoff has already been sent." });
+    }
     console.log("Handoff reply sent for", id);
     return json(200, headers, { ok: true, status: "sent" });
   }
@@ -232,7 +288,8 @@ exports.handler = async function (event) {
     try {
       return json(200, headers, await fetchHandoffs(supabase));
     } catch (e) {
-      return json(500, headers, { handoffs: [], total: 0, error: e.message });
+      console.log("Handoff GET error:", e.message);
+      return json(500, headers, { handoffs: [], total: 0, error: "Could not load handoffs." });
     }
   }
 
@@ -245,7 +302,7 @@ exports.handler = async function (event) {
       });
     } catch (e) {
       console.log("Handoff POST error:", e.message);
-      return json(500, headers, { error: e.message });
+      return json(500, headers, { error: "Something went wrong handling this handoff." });
     }
   }
 
@@ -257,3 +314,5 @@ exports.fetchHandoffs = fetchHandoffs;
 exports.handlePost = handlePost;
 exports.loadHandoffRow = loadHandoffRow;
 exports.updateHandoff = updateHandoff;
+exports.draftSystemPrompt = draftSystemPrompt;
+exports.buildHandoffEmail = buildHandoffEmail;

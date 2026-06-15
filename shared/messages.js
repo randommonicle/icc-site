@@ -61,6 +61,9 @@ function transcriptSnippet(messages, turns = 6) {
 // customer_contact }); `context` is { messages } (the conversation so far).
 // customer_id stays null — a handoff is a lead with no customer row yet (D-020);
 // the messages_customer_or_handoff constraint permits null only for this kind.
+// TODO(D-008/retention): these handoff-lead rows (customer_id null) hold contact,
+// question and transcript PII with no retention or erasure path yet. Fold them into
+// the D-008 storage-limitation schedule (UK GDPR Art.5(1)(e)). (Review finding A5.)
 function escalationToMessageDraft(input, context) {
   const inp = input || {};
   const reasonLabel = HANDOFF_REASON_LABELS[inp.reason]
