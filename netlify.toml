@@ -1,4 +1,9 @@
 [build]
+  # Phase 1 cutover (D-001/D-013): build the Astro public site and publish it.
+  # admin.html stays canonical at the repo root and is copied into the publish
+  # dir at build time, so there is no second copy to drift. Functions unchanged.
+  command = "npm install --prefix site && npm run build --prefix site && cp admin.html site/dist/admin.html"
+  publish = "site/dist"
   functions = "server/netlify/functions"
 
 # Pin Node 24 for the build AND the Functions runtime (AWS Lambda nodejs24.x).
