@@ -78,11 +78,12 @@ async function updateHandoff(supabase, id, fields, opts = {}) {
   return Array.isArray(data) ? data.length : 0;
 }
 
-// Draft a customer reply from ONLY the question, grounded in the vetted KB and
-// bound by the L-009 claim rules. Throws on any API failure so the caller fails
-// closed (no draft rather than a bad one).
-async function draftReplyForHandoff(question, anthropicKey) {
-  const system = `You are drafting a reply on behalf of Intelligent Carpet Cleaning, a premium carpet and upholstery cleaning company in Cheltenham, for the owner Mark to review and edit before he sends it.
+// The draft generator's system prompt. Static (no per-request data), so it is
+// hoisted and exported for the test. The voice rules mirror the live chat
+// assistant (chat.js): standard British English and no dashes as sentence
+// breaks, so a drafted reply reads in ICC's voice, not an automated one.
+function draftSystemPrompt() {
+  return `You are drafting a reply on behalf of Intelligent Carpet Cleaning, a premium carpet and upholstery cleaning company in Cheltenham, for the owner Mark to review and edit before he sends it.
 
 ${knowledge.guardrailsBlock()}
 
@@ -91,11 +92,19 @@ ${knowledge.knowledgeBlock()}
 
 DRAFTING RULES:
 - Write a concise, warm, professional reply answering the customer's question, grounded only in the reference facts and the claim rules above. A few short paragraphs at most.
+- Use clear, standard British English. Never use a dash of any kind as a mid-sentence break or to introduce a clause (no em dash, no en dash, no " - " with spaces); use a comma, full stop, or brackets instead. Dashes make the message feel automated.
 - This is a DRAFT for Mark to check and edit, not a sent message. There is no tool to call and no other document; the reference is the facts above.
 - Do not address the customer by name, and do not invent any price, date, availability, or commitment.
 - If the reference does not let you answer confidently and safely, do NOT guess. Briefly say Mark will follow up personally and suggest he calls. An honest "we'll come back to you" beats a wrong answer.
 - Never give advice that could risk damaging a carpet or fabric.
 - Output only the reply text itself: no preamble, no subject line, no sign-off name, no quotation marks around it.`;
+}
+
+// Draft a customer reply from ONLY the question, grounded in the vetted KB and
+// bound by the L-009 claim rules. Throws on any API failure so the caller fails
+// closed (no draft rather than a bad one).
+async function draftReplyForHandoff(question, anthropicKey) {
+  const system = draftSystemPrompt();
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -287,3 +296,4 @@ exports.fetchHandoffs = fetchHandoffs;
 exports.handlePost = handlePost;
 exports.loadHandoffRow = loadHandoffRow;
 exports.updateHandoff = updateHandoff;
+exports.draftSystemPrompt = draftSystemPrompt;

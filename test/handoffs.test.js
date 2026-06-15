@@ -6,7 +6,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert");
 
-const { fetchHandoffs, handler, handlePost, updateHandoff, loadHandoffRow } = require("../server/netlify/functions/handoffs.js");
+const { fetchHandoffs, handler, handlePost, updateHandoff, loadHandoffRow, draftSystemPrompt } = require("../server/netlify/functions/handoffs.js");
 const { getSupabaseAdmin, _resetForTest } = require("../server/netlify/functions/supabaseClient.js");
 const { escalationToMessageDraft } = require("../shared/messages.js");
 
@@ -62,6 +62,17 @@ function fakeDb(row, opts = {}) {
   }
   return { client: { from() { return makeChain(); } }, calls };
 }
+
+// --- draft prompt voice (Slice 5e-2) ----------------------------------------
+
+test("the handoff draft prompt enforces ICC voice: British English and no dashes as breaks", () => {
+  const p = draftSystemPrompt();
+  assert.match(p, /standard British English/i);
+  assert.match(p, /Never use a dash/i);
+  assert.match(p, /em dash/i);
+  // it must still be grounded + bounded by the KB and the L-009 claim rules
+  assert.ok(p.includes("REFERENCE FACTS"), "the draft prompt grounds in the reference facts");
+});
 
 // --- GET / fetchHandoffs (Slice 5e) -----------------------------------------
 
