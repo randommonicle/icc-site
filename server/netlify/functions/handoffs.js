@@ -144,17 +144,35 @@ function escHtml(s) {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+// ICC sign-off appended to every customer reply so the recipient can see who sent
+// it and how to reach us (review finding A4). Service-area only, no street address
+// (D-016). The phone/email mirror chat.js + the PDF job card; a shared
+// contact-config could dedupe them later.
+const ICC_SIGN_OFF_LINES = ["Intelligent Carpet Cleaning", "Cheltenham, Gloucestershire", "01242 279590", "hello@intelligentclean.co.uk"];
+
+// Build the customer reply email body. Pure and exported for the test. The reply
+// is escaped for the HTML part (L-003); the sign-off identifies ICC.
+// TODO(prelaunch/email-identity): add a privacy-notice link here once the public
+// site is live at the domain (the remaining half of A4; UK GDPR Arts.13/14).
+function buildHandoffEmail(replyText) {
+  const body = escHtml(replyText).replace(/\n/g, "<br>");
+  const sigHtml = ICC_SIGN_OFF_LINES
+    .map((l, i) => (i === 0 ? `<strong>${escHtml(l)}</strong>` : escHtml(l)))
+    .join("<br>");
+  const html =
+    `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;font-size:14px;color:#1a1a2e;line-height:1.6;">${body}` +
+    `<div style="margin-top:16px;padding-top:12px;border-top:1px solid #e0e0e0;font-size:13px;color:#555;">${sigHtml}</div>` +
+    `</div>`;
+  const text = `${replyText}\n\n${ICC_SIGN_OFF_LINES.join("\n")}`;
+  return { html, text };
+}
+
 // Email Mark's approved reply to the customer from the ICC customer address.
 // Throws unless Resend accepts the message (fail-closed; "accepted" is still not
-// "delivered" — L-004 — but a non-2xx is a hard failure we must not mark sent on).
+// "delivered", L-004, but a non-2xx is a hard failure we must not mark sent on).
 async function sendHandoffReply(toEmail, replyText, resendKey) {
-  // TODO(prelaunch/email-identity): before live customer traffic, add controller
-  // identification (trading name, business contact, privacy-notice link) and a
-  // real Reply-To / verified CUSTOMER_FROM so a recipient knows who is processing
-  // their data and can reply. UK GDPR Arts.13/14; couples with the L-004 Resend
-  // sending-domain item. (Review finding A4.)
   const customerFrom = process.env.CUSTOMER_FROM || "Intelligent Carpet Cleaning <onboarding@resend.dev>";
-  const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;font-size:14px;color:#1a1a2e;line-height:1.6;">${escHtml(replyText).replace(/\n/g, "<br>")}</div>`;
+  const { html, text } = buildHandoffEmail(replyText);
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${resendKey}` },
@@ -163,7 +181,7 @@ async function sendHandoffReply(toEmail, replyText, resendKey) {
       to: toEmail,
       subject: "Re: your enquiry to Intelligent Carpet Cleaning",
       html,
-      text: replyText,
+      text,
     }),
   });
   if (!res.ok) {
@@ -297,3 +315,4 @@ exports.handlePost = handlePost;
 exports.loadHandoffRow = loadHandoffRow;
 exports.updateHandoff = updateHandoff;
 exports.draftSystemPrompt = draftSystemPrompt;
+exports.buildHandoffEmail = buildHandoffEmail;

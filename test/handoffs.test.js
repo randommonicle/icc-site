@@ -6,7 +6,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert");
 
-const { fetchHandoffs, handler, handlePost, updateHandoff, loadHandoffRow, draftSystemPrompt } = require("../server/netlify/functions/handoffs.js");
+const { fetchHandoffs, handler, handlePost, updateHandoff, loadHandoffRow, draftSystemPrompt, buildHandoffEmail } = require("../server/netlify/functions/handoffs.js");
 const { getSupabaseAdmin, _resetForTest } = require("../server/netlify/functions/supabaseClient.js");
 const { escalationToMessageDraft } = require("../shared/messages.js");
 
@@ -72,6 +72,21 @@ test("the handoff draft prompt enforces ICC voice: British English and no dashes
   assert.match(p, /em dash/i);
   // it must still be grounded + bounded by the KB and the L-009 claim rules
   assert.ok(p.includes("REFERENCE FACTS"), "the draft prompt grounds in the reference facts");
+});
+
+test("buildHandoffEmail adds the ICC sign-off and escapes the reply (A4, L-003)", () => {
+  const { html, text } = buildHandoffEmail("Hi there <script>alert(1)</script>\nThanks");
+  // sign-off identifies the sender in both parts
+  assert.match(text, /Intelligent Carpet Cleaning/);
+  assert.match(text, /01242 279590/);
+  assert.match(text, /hello@intelligentclean\.co\.uk/);
+  assert.match(html, /Intelligent Carpet Cleaning/);
+  assert.match(html, /01242 279590/);
+  // the reply is escaped in the HTML part, never injected as live markup
+  assert.ok(!html.includes("<script>alert(1)</script>"), "reply must be escaped in HTML");
+  assert.match(html, /&lt;script&gt;/);
+  // the text part keeps the reply verbatim
+  assert.match(text, /Hi there <script>alert\(1\)<\/script>/);
 });
 
 // --- GET / fetchHandoffs (Slice 5e) -----------------------------------------
