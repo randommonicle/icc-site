@@ -74,7 +74,7 @@
   .price-box{background:linear-gradient(135deg,var(--navy),var(--teal));border-radius:8px;padding:1rem;color:#fff;flex:1;text-align:center;}
   .price-box label{font-size:0.7rem;opacity:0.7;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;}
   .price-box p{font-size:1.1rem;font-weight:700;font-family:"Raleway",sans-serif;}
-  .card-actions{display:flex;gap:0.75rem;padding-top:1rem;border-top:1px solid var(--border);}
+  .card-actions{display:flex;flex-wrap:wrap;gap:0.75rem;padding-top:1rem;border-top:1px solid var(--border);}
   .action-btn{padding:0.5rem 1rem;border-radius:6px;font-size:0.82rem;font-weight:700;cursor:pointer;font-family:"Lato",sans-serif;transition:all 0.2s;border:1px solid var(--border);background:#fff;color:var(--text-mid);}
   .action-btn.primary{background:var(--teal);color:#fff;border-color:var(--teal);}
   .action-btn.primary:hover{background:var(--teal-light);}
@@ -296,7 +296,7 @@ function buildHandoffCard(h, i){
       ? '<button class="action-btn primary" onclick="draftHandoff('+i+')">Draft reply with AI</button>'
       : '<span class="handoff-note">Not eligible for an AI draft &mdash; reply personally.</span>';
     const sendBtn = email
-      ? '<button class="action-btn primary" onclick="sendHandoff('+i+')">Send reply to '+esc(email)+'</button>'
+      ? '<button class="action-btn primary" onclick="sendHandoff('+i+')">Send reply</button>'
       : '<span class="handoff-note">No email on file &mdash; reply by phone, then mark handled.</span>';
     actionsHtml =
       '<label class="handoff-label">Reply to customer (you review and edit before sending)</label>'+
@@ -371,7 +371,7 @@ async function sendHandoff(i){
   const ta = document.getElementById("handoff-reply-"+i);
   const reply = ta ? ta.value.trim() : "";
   if(!reply){ handoffMsg(i, "Write a reply first.", true); return; }
-  if(!confirm("Send this reply to the customer by email?")) return;
+  if(!confirm("Send this reply to "+clientExtractEmail(h.customer_contact)+"?")) return;
   handoffMsg(i, "Sending...", false);
   const { ok, data } = await postHandoffAction({ action: "send", id: h.id, reply });
   if(ok){ handoffMsg(i, "Sent.", false); loadHandoffs(); }
