@@ -193,8 +193,8 @@ These are real business rules encoded in `chat.js` (the system prompt) — keep 
 - Availability and booking write through Blobs date keys; concurrent double-booking is guarded by a conflict check before write.
 
 ### Admin dashboard (`admin.html` + `server/netlify/functions/bookings.js`)
-- Password entered at login is sent as `Authorization: Bearer <pw>` and held in memory only (cleared on refresh/logout — nothing in localStorage).
-- `bookings.js` compares the token to `ADMIN_SECRET` and returns all bookings (newest first). Cards render customer/job detail, photo, AI assessment, price, and a calendar link.
+- **Admin auth is per-user Supabase Auth (Slice 5d, live).** The operator signs in with email + password via the Supabase Auth password grant; the session access token is held in memory only (cleared on logout) and sent as `Authorization: Bearer <jwt>`. `adminAuth.requireAdmin` verifies the JWT (`auth.getUser`) and checks the `ADMIN_EMAILS` allowlist on top of the project's disabled sign-ups. The legacy `ADMIN_SECRET` is no longer read by the app.
+- `bookings.js` returns all bookings (newest first), reading the Postgres `jobs` store plus legacy Blobs (Slice 5b). `handoffs.js` serves the handoff queue and the draft→send lifecycle (Slice 5e-2). Cards render customer/job detail, photo, AI assessment, price, and a calendar link.
 
 ### PDF job card (`generateJobCardPDF` in `chat.js`)
 - pdfkit, A4, branded header, sections for customer/job/carpet/assessment/RAMS/pricing/photo. Dates are parsed as local Y-M-D components because Netlify functions run in UTC (see LESSONS_LEARNED.md L-005).
