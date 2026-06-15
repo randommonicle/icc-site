@@ -32,11 +32,26 @@ Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file
 | 5a | `feat/slice5a-escalation-insert` | #32 | First live Supabase wiring: escalations ALSO `INSERT` a draft `human_handoff` row, fail-open + env-gated (D-020) | **merged + ENABLED in production (#32, `b421138`)**: 4e migrations pushed to hosted, Netlify `SUPABASE_*` set, a live escalation wrote a verified real row (node 75/1-skip; test row deleted). Active 14 June |
 | 5e | `feat/slice5e-handoff-review` | #35 | Read-only admin handoff review: `/api/handoffs` + a Handoffs view in `admin.html` (D-020) | **merged + live (#35, `512e997`)**: prod `/api/handoffs` 401-verified, node 80/2-skip, integration reads a real row from local Supabase. Approve/send lifecycle = 5e-2 |
 | 5e-2 | `feat/slice5e2-handoff-reply` | local `ba85fc6` | Handoff draft→send: AI draft (soft reasons only), Mark edits + sends by email, fail-closed; structured `handoff_*`/`draft_reply` columns (D-020) | **built + committed, NOT merged**: `node --test` 127/3-skip; damage_risk-never-drafted + fail-closed-send pinned by tests. Needs the code-review pass + deploy-preview verify + hosted migration first |
+| 5d | `feat/slice5d-supabase-auth` | local `59f4050` | Admin auth: shared `ADMIN_SECRET` → per-user Supabase Auth (email+password) + `ADMIN_EMAILS` allowlist; publishable-key JWT verify (D-022) | **built + committed, NOT merged** (stacked on 5e-2): `node --test` 134/3-skip. Signups disabled + 2 operators created. Needs deploy-preview login verify |
 | 5b | `feat/slice5b-bookings-postgres` | #38 | Bookings Blobs→Postgres cutover: fail-closed write, 09:00–16:30 hours folded in (former 5c), admin reads both stores, `BOOKINGS_STORE` flag (D-021) | **merged + ENABLED in production (#38, `ef5398b`)**: `BOOKINGS_STORE=postgres` set + redeployed 14 June, live grid confirmed 9..15, postcode-nullable migration applied to hosted. `node --test` 111 (108/3-skip), real-Supabase IT 16/16, pgTAP 18/18 |
 
 Plus a model-config change this session (not a Phase 2 slice): **vision model bumped Opus 4.5 → 4.8** (`chore/vision-best-opus`, #25) — **merged + live**, preview-verified (photo assessment reads well). Policy recorded as a D-007 addendum: vision tracks the current best Opus, bumped by a deliberate one-line pin + a preview photo check, never auto-detected (a silent swap of the model giving damage-risk advice is the D-019 failure mode). Cost-neutral within the flat-priced Opus tier ($5/$25 across 4.5–4.8). Text stays on Sonnet 4.6.
 
 `node --test` is the only logic gate locally; **no CI**, Netlify auto-deploys `main` from GitHub. Branches `chore/d014-monorepo` and `feat/shared-config` were deleted after merge; `feat/supabase-schema` is kept (checked out in another worktree).
+
+## This session — Slice 5d: admin auth via Supabase Auth (15 June 2026, branch `feat/slice5d-supabase-auth` stacked on 5e-2, committed `59f4050`, NOT merged)
+
+**Outcome: 5d is built, tested and committed (`59f4050`, stacked on the 5e-2 branch); NOT merged, NOT preview-verified.** The admin dashboard moves off the shared `ADMIN_SECRET` Bearer onto **per-user Supabase Auth** (email + password) — the shared identity model the field app reuses (D-012). Full design in **D-022**.
+
+**Ben did the Supabase setup this session:** public sign-ups **disabled**; the two operator users created (`mark_director@`, `ben@`); the publishable key + URL provided (now embedded in `admin.html` + `adminAuth.js`, public by design).
+
+**What changed:**
+- New `server/netlify/functions/adminAuth.js` — `requireAdmin(event)` verifies the session JWT (`auth.getUser` via a publishable-key client) and checks the `ADMIN_EMAILS` allowlist (default: the two operators). Fails closed (401 no-token/invalid, 403 not-allowlisted, 503 unconfigured). Injectable client → unit-tested with fakes, no network.
+- `bookings.js` + `handoffs.js` — swap `safeEqual(ADMIN_SECRET)` for `requireAdmin(event)`. `safeEqual` kept as a tested utility. `ADMIN_SECRET` is now **unused by the app** (legacy; `.env.example` updated, removable from Netlify once 5d is live).
+- `admin.html` — email + password sign-in via the Supabase Auth REST password grant; the `access_token` becomes the Bearer the functions verify. Logout clears both fields.
+- `.env.example` — `ADMIN_EMAILS` + `SUPABASE_PUBLISHABLE_KEY` documented (both optional, code defaults); `ADMIN_SECRET` marked legacy.
+
+**Verified:** `node --test` **134 pass / 3 skip** (new `test/admin-auth.test.js`; the handoffs handler auth tests updated to the new gate). **NOT done — before merge:** deploy-preview verification — sign in as **each** operator (bookings + handoffs load), a wrong password is rejected, and a non-allowlisted token gets 403. Hard swap (no dual-auth); rollback is a revert. **Needs in Netlify:** `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (already set from 5a/5b); `ADMIN_EMAILS` optional (defaults cover Mark + Ben). **Stacking:** 5d sits on top of 5e-2 — merge 5e-2 first, or rebase 5d onto `main`.
 
 ## This session — Slice 5e-2: handoff draft → send reply lifecycle (15 June 2026, branch `feat/slice5e2-handoff-reply`, committed `ba85fc6`, NOT merged)
 
