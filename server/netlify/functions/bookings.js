@@ -3,6 +3,7 @@ const crypto = require("crypto");
 // stay visible during the transition. supabase === null -> Blobs-only (unchanged).
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const { fetchBookingsFromJobs } = require("./bookingsStore.js");
+const { requireAdmin } = require("./adminAuth.js");
 
 // Constant-time bearer-token comparison. Both sides are hashed to a fixed 32-byte
 // digest first, so timingSafeEqual never sees a length mismatch — that would both
@@ -25,15 +26,11 @@ exports.handler = async function(event) {
     return { statusCode: 200, headers, body: "" };
   }
 
-  // TODO(slice5d/supabase-auth): Phase 0 admin auth is a shared Bearer secret
-  // (ADMIN_SECRET, constant-time compared). Slice 5d replaces it with Supabase Auth
-  // (per-user login + RLS), so the field app and the admin share one identity model.
-  const adminSecret = process.env.ADMIN_SECRET;
-  const authHeader = event.headers["authorization"] || "";
-  const providedToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-
-  if(!adminSecret || !safeEqual(providedToken, adminSecret)){
-    return { statusCode: 401, headers, body: JSON.stringify({ error: "Unauthorized" }) };
+  // Slice 5d: per-user Supabase Auth (replaces the shared ADMIN_SECRET Bearer).
+  // requireAdmin verifies the session JWT and checks the ADMIN_EMAILS allowlist.
+  const auth = await requireAdmin(event);
+  if (!auth.ok) {
+    return { statusCode: auth.status, headers, body: JSON.stringify({ error: auth.error }) };
   }
 
   // Read the two stores independently so one failing degrades to the other rather
@@ -109,7 +106,8 @@ function mergeBookings(pgBookings, blobsBookings){
   return bookings;
 }
 
-// Exported for unit tests (test/hardening.test.js, test/bookings-admin.test.js)
-// and for handoffs.js (safeEqual).
+// safeEqual is retained as a tested constant-time-compare utility
+// (test/hardening.test.js); since Slice 5d it is no longer the admin gate — that
+// moved to adminAuth.requireAdmin (Supabase Auth).
 exports.safeEqual = safeEqual;
 exports.mergeBookings = mergeBookings;
