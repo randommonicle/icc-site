@@ -139,6 +139,11 @@ function escHtml(s) {
 // Throws unless Resend accepts the message (fail-closed; "accepted" is still not
 // "delivered" — L-004 — but a non-2xx is a hard failure we must not mark sent on).
 async function sendHandoffReply(toEmail, replyText, resendKey) {
+  // TODO(prelaunch/email-identity): before live customer traffic, add controller
+  // identification (trading name, business contact, privacy-notice link) and a
+  // real Reply-To / verified CUSTOMER_FROM so a recipient knows who is processing
+  // their data and can reply. UK GDPR Arts.13/14; couples with the L-004 Resend
+  // sending-domain item. (Review finding A4.)
   const customerFrom = process.env.CUSTOMER_FROM || "Intelligent Carpet Cleaning <onboarding@resend.dev>";
   const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;font-size:14px;color:#1a1a2e;line-height:1.6;">${escHtml(replyText).replace(/\n/g, "<br>")}</div>`;
   const res = await fetch("https://api.resend.com/emails", {
