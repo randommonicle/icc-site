@@ -107,10 +107,11 @@
       <p>Admin Dashboard</p>
     </div>
     <h2>Sign in</h2>
-    <p>Enter your password to access the bookings dashboard.</p>
-    <input type="password" id="passwordInput" placeholder="Password" onkeydown="if(event.key==='Enter')login()">
-    <button class="login-btn" onclick="login()">Access Dashboard</button>
-    <p class="login-error" id="loginError">Incorrect password. Please try again.</p>
+    <p>Sign in with your Intelligent Carpet Cleaning admin account.</p>
+    <input type="email" id="emailInput" placeholder="Email" autocomplete="username" onkeydown="if(event.key==='Enter')login()">
+    <input type="password" id="passwordInput" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()">
+    <button class="login-btn" onclick="login()">Sign In</button>
+    <p class="login-error" id="loginError">Incorrect email or password.</p>
   </div>
 </div>
 
@@ -162,6 +163,12 @@ let adminToken = "";
 let allBookings = [];
 let allHandoffs = [];
 
+// Supabase Auth (Slice 5d). Both values are PUBLIC by design — the publishable key
+// is meant to live in client code; access is controlled by the disabled signups +
+// the server-side ADMIN_EMAILS allowlist, not by hiding the key.
+const SUPABASE_URL = "https://qzcfgpfvzpynnjgriqqn.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_QZ0JDjbGNtj_JEUf-qfJ4Q_mIawmFsK";
+
 function showLoginError(msg){
   const el = document.getElementById("loginError");
   el.textContent = msg;
@@ -169,47 +176,39 @@ function showLoginError(msg){
 }
 
 async function login(){
-  const pw = document.getElementById("passwordInput").value.trim();
-  if(!pw){ showLoginError("Please enter a password."); return; }
-  let res;
+  const email = document.getElementById("emailInput").value.trim();
+  const pw = document.getElementById("passwordInput").value;
+  if(!email || !pw){ showLoginError("Enter your email and password."); return; }
+  let res, data;
   try {
-    res = await fetch("/api/bookings", {
-      headers: { "Authorization": "Bearer " + pw }
+    // Supabase Auth password grant -> a session access token (Slice 5d).
+    res = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=password", {
+      method: "POST",
+      headers: { "apikey": SUPABASE_PUBLISHABLE_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email, password: pw })
     });
+    data = await res.json();
   } catch(e){
-    showLoginError("Could not reach the server. Check your connection and try again.");
+    showLoginError("Could not reach the sign-in service. Check your connection and try again.");
     return;
   }
-  if(res.status === 401){
-    showLoginError("Incorrect password. Please try again.");
+  if(!res.ok || !data.access_token){
+    showLoginError("Incorrect email or password.");
     return;
   }
-  if(res.status === 500){
-    showLoginError("Server error. The backend may not be deployed yet, or ADMIN_SECRET may be missing in Netlify. Try again in a minute.");
-    return;
-  }
-  if(!res.ok){
-    showLoginError("Unexpected response from server (status " + res.status + "). Try again shortly.");
-    return;
-  }
-  try {
-    const data = await res.json();
-    adminToken = pw;
-    document.getElementById("loginScreen").style.display = "none";
-    document.getElementById("adminScreen").style.display = "block";
-    allBookings = data.bookings || [];
-    renderBookings(allBookings);
-    updateStats(allBookings);
-    loadHandoffs();
-  } catch(e){
-    showLoginError("Server returned an unreadable response. Try again shortly.");
-  }
+  // The access token is the Bearer the API functions verify (requireAdmin).
+  adminToken = data.access_token;
+  document.getElementById("passwordInput").value = "";
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("adminScreen").style.display = "block";
+  loadBookings();   // fetches /api/bookings with the token; also calls loadHandoffs()
 }
 
 function logout(){
   adminToken = "";
   document.getElementById("loginScreen").style.display = "flex";
   document.getElementById("adminScreen").style.display = "none";
+  document.getElementById("emailInput").value = "";
   document.getElementById("passwordInput").value = "";
 }
 

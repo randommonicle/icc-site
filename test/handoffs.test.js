@@ -60,27 +60,16 @@ test("fetchHandoffs throws on a query error (handler maps it to 500)", async () 
   await assert.rejects(() => fetchHandoffs(fakeSupabase({ data: null, error: { message: "boom" } })), /boom/);
 });
 
-test("handler returns 401 without a valid admin Bearer (rejects before touching Supabase)", async () => {
-  const prev = process.env.ADMIN_SECRET;
-  process.env.ADMIN_SECRET = "test-secret";
-  try {
-    const res = await handler({ httpMethod: "GET", headers: { authorization: "Bearer wrong" } });
-    assert.strictEqual(res.statusCode, 401);
-  } finally {
-    if (prev !== undefined) process.env.ADMIN_SECRET = prev; else delete process.env.ADMIN_SECRET;
-  }
+test("handler returns 401 without a Bearer token (requireAdmin rejects before any Supabase call)", async () => {
+  const res = await handler({ httpMethod: "GET", headers: {} });
+  assert.strictEqual(res.statusCode, 401);
 });
 
-test("handler: OPTIONS is 200 (pre-auth); POST without auth is 401; unsupported method is 405", async () => {
-  const prev = process.env.ADMIN_SECRET;
-  process.env.ADMIN_SECRET = "test-secret";
-  try {
-    assert.strictEqual((await handler({ httpMethod: "OPTIONS", headers: {} })).statusCode, 200);
-    assert.strictEqual((await handler({ httpMethod: "POST", headers: {}, body: "{}" })).statusCode, 401);
-    assert.strictEqual((await handler({ httpMethod: "DELETE", headers: { authorization: "Bearer test-secret" } })).statusCode, 405);
-  } finally {
-    if (prev !== undefined) process.env.ADMIN_SECRET = prev; else delete process.env.ADMIN_SECRET;
-  }
+test("handler: OPTIONS is 200 (pre-auth); an unauthenticated request is rejected before method routing", async () => {
+  assert.strictEqual((await handler({ httpMethod: "OPTIONS", headers: {} })).statusCode, 200);
+  // Slice 5d: no token -> 401 regardless of method (auth runs before GET/POST/405 routing).
+  assert.strictEqual((await handler({ httpMethod: "POST", headers: {}, body: "{}" })).statusCode, 401);
+  assert.strictEqual((await handler({ httpMethod: "DELETE", headers: {} })).statusCode, 401);
 });
 
 // --- POST dispatcher (Slice 5e-2) -------------------------------------------

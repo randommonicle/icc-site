@@ -17,7 +17,7 @@
 //   - Fail-closed send: a row is only marked 'sent' after Resend accepts it (an
 //     unsent "sent" is the L-008/L-004 failure), and never without a real email.
 
-const { safeEqual } = require("./bookings.js");
+const { requireAdmin } = require("./adminAuth.js");
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const { isDraftableReason, extractEmail } = require("../../../shared/messages.js");
 const models = require("../../../shared/config/models.js");
@@ -220,13 +220,10 @@ exports.handler = async function (event) {
   const headers = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" };
   if (event.httpMethod === "OPTIONS") return { statusCode: 200, headers, body: "" };
 
-  // TODO(slice5d/supabase-auth): shared Bearer secret for now; 5d swaps this for
-  // Supabase Auth (per-user) across bookings.js + handoffs.js together.
-  const adminSecret = process.env.ADMIN_SECRET;
-  const authHeader = event.headers["authorization"] || "";
-  const providedToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  if (!adminSecret || !safeEqual(providedToken, adminSecret)) {
-    return { statusCode: 401, headers, body: JSON.stringify({ error: "Unauthorized" }) };
+  // Slice 5d: per-user Supabase Auth (replaces the shared ADMIN_SECRET Bearer).
+  const auth = await requireAdmin(event);
+  if (!auth.ok) {
+    return { statusCode: auth.status, headers, body: JSON.stringify({ error: auth.error }) };
   }
 
   const supabase = getSupabaseAdmin();
