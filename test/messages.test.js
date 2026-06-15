@@ -5,7 +5,7 @@
 
 const { test } = require("node:test");
 const assert = require("node:assert");
-const { escalationToMessageDraft, HANDOFF_REASON_LABELS } = require("../shared/messages.js");
+const { escalationToMessageDraft, HANDOFF_REASON_LABELS, isDraftableReason, extractEmail } = require("../shared/messages.js");
 
 test("escalationToMessageDraft: builds a draft human_handoff with no customer", () => {
   const row = escalationToMessageDraft(
@@ -59,4 +59,45 @@ test("HANDOFF_REASON_LABELS covers every escalate_to_human reason", () => {
   for (const r of ["out_of_scope", "damage_risk", "no_citable_source", "customer_request"]) {
     assert.ok(HANDOFF_REASON_LABELS[r], `label for ${r}`);
   }
+});
+
+// --- Slice 5e-2 (D-020): structured fields + the draft/send gates ------------
+
+test("escalationToMessageDraft: stores reason and contact as structured fields", () => {
+  const row = escalationToMessageDraft(
+    { question: "Q", reason: "out_of_scope", customer_contact: "jane@example.com" },
+    {}
+  );
+  assert.strictEqual(row.handoff_reason, "out_of_scope");
+  assert.strictEqual(row.customer_contact, "jane@example.com");
+  assert.strictEqual(row.handoff_question, "Q");
+  assert.strictEqual(row.draft_reply, undefined); // unset on the draft; defaults null in the DB
+});
+
+test("escalationToMessageDraft: structured fields are null when reason/contact absent", () => {
+  const row = escalationToMessageDraft({ question: "Q" }, {});
+  assert.strictEqual(row.handoff_reason, null);
+  assert.strictEqual(row.customer_contact, null);
+});
+
+test("isDraftableReason: only the soft reasons are draftable (the D-020 damage_risk gate)", () => {
+  assert.strictEqual(isDraftableReason("out_of_scope"), true);
+  assert.strictEqual(isDraftableReason("no_citable_source"), true);
+  // The safety-critical cases: never auto-draft a reply.
+  assert.strictEqual(isDraftableReason("damage_risk"), false);
+  assert.strictEqual(isDraftableReason("customer_request"), false);
+  assert.strictEqual(isDraftableReason(null), false);
+  assert.strictEqual(isDraftableReason(undefined), false);
+  assert.strictEqual(isDraftableReason(""), false);
+  assert.strictEqual(isDraftableReason("DAMAGE_RISK"), false); // exact match only, no case-fold
+});
+
+test("extractEmail: finds a sendable address or returns null", () => {
+  assert.strictEqual(extractEmail("jane@example.com"), "jane@example.com");
+  assert.strictEqual(extractEmail("email me at Jane.Doe@Example.CO.UK please"), "jane.doe@example.co.uk");
+  assert.strictEqual(extractEmail("07700 900000"), null);
+  assert.strictEqual(extractEmail("not given"), null);
+  assert.strictEqual(extractEmail(""), null);
+  assert.strictEqual(extractEmail(null), null);
+  assert.strictEqual(extractEmail(undefined), null);
 });
