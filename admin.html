@@ -212,9 +212,9 @@ function logout(){
   document.getElementById("passwordInput").value = "";
 }
 
-// Slice 5e: the Handoffs view (read-only) lists human_handoff messages (Slice 4e/5a)
-// alongside the bookings grid. Every value is rendered through esc() (L-003). The
-// draft -> approve -> send actions are 5e-2 (TODO(slice5e-2/approve-send) below).
+// Slice 5e/5e-2: the Handoffs view lists human_handoff messages (Slice 4e/5a)
+// alongside the bookings grid and drives the draft -> send lifecycle below. Every
+// value is rendered through esc() (L-003).
 async function loadBookings(){
   document.getElementById("bookingsGrid").innerHTML = '<div class="loading-spinner">Loading bookings...</div>';
   try{

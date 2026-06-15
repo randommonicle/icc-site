@@ -31,6 +31,15 @@ test("ESCALATION_TOOL names the damage-risk trigger and requires question+reason
   assert.ok(ESCALATION_TOOL.input_schema.properties.reason.enum.includes("damage_risk"));
 });
 
+test("ESCALATION_TOOL question description forbids customer PII (input minimisation, GDPR Art.5(1)(c))", () => {
+  // The captured question is the ONLY field later sent to the model when drafting a
+  // reply (handoffs.js draftReplyForHandoff), so it must not invite name/contact.
+  const desc = ESCALATION_TOOL.input_schema.properties.question.description;
+  assert.match(desc, /do NOT include/i);
+  assert.match(desc, /name/i);
+  assert.match(desc, /email|phone|contact/i);
+});
+
 test("runAssistantTurn returns immediately when no tool is used", async () => {
   const end = { stop_reason: "end_turn", content: [{ type: "text", text: "Hello" }] };
   const model = fakeModel([end]);

@@ -26,6 +26,10 @@ const knowledge = require("../../../shared/config/knowledge.js");
 const HANDOFF_COLS =
   "id,created_at,subject,body,status,channel,handoff_reason,customer_contact,handoff_question,draft_reply,approved_at,sent_at";
 
+// Cap on a manually-typed/edited reply (defence-in-depth; Resend would reject an
+// oversized body, but bound it before we store or send it).
+const MAX_REPLY_CHARS = 50000;
+
 // Pull the handoff queue from Supabase, newest first, as a plain shape the admin
 // renders as inert text. supabase === null (env not set) -> not configured, so the
 // dashboard degrades cleanly instead of erroring.
@@ -56,13 +60,22 @@ async function loadHandoffRow(supabase, id) {
   return (data && data[0]) || null;
 }
 
-async function updateHandoff(supabase, id, fields) {
-  const { error } = await supabase
+// Update a handoff row, hard-guarded to kind='human_handoff'. Returns the number
+// of rows changed so the caller can detect a lost race. opts.onlyIfNotSent adds a
+// status<>'sent' guard so a row already sent by a concurrent request is not
+// re-recorded. (The residual window where two simultaneous operators both pass the
+// pre-send check and both email is accepted for the single-operator admin; the
+// full fix is a 'sending' claim state, which needs a new message_status value.)
+async function updateHandoff(supabase, id, fields, opts = {}) {
+  let q = supabase
     .from("messages")
     .update(fields)
     .eq("id", id)
     .eq("kind", "human_handoff");
+  if (opts.onlyIfNotSent) q = q.neq("status", "sent");
+  const { data, error } = await q.select("id");
   if (error) throw new Error(error.message);
+  return Array.isArray(data) ? data.length : 0;
 }
 
 // Draft a customer reply from ONLY the question, grounded in the vetted KB and
@@ -192,6 +205,7 @@ async function handlePost(event, headers, deps) {
   if (action === "send") {
     const reply = typeof body.reply === "string" ? body.reply.trim() : "";
     if (!reply) return json(400, headers, { error: "Reply text is required." });
+    if (reply.length > MAX_REPLY_CHARS) return json(400, headers, { error: "Reply is too long." });
     const toEmail = extractEmail(row.customer_contact);
     if (!toEmail) return json(400, headers, { error: "No sendable email address for this customer. Reply manually." });
     if (!resendKey) return json(502, headers, { error: "Email sending is unavailable." });
@@ -201,8 +215,18 @@ async function handlePost(event, headers, deps) {
       console.log("Handoff send failed for", id, "-", e.message);
       return json(502, headers, { error: "Could not send the email." });
     }
-    // Only now, after Resend accepted it, record it as sent (fail-closed).
-    await updateHandoff(supabase, id, { status: "sent", sent_at: new Date().toISOString(), draft_reply: reply });
+    // Only now, after Resend accepted it, record it as sent (fail-closed). The
+    // onlyIfNotSent guard makes the mark conditional, so a concurrent send is
+    // detected (0 rows changed) rather than silently double-recorded.
+    const marked = await updateHandoff(
+      supabase, id,
+      { status: "sent", sent_at: new Date().toISOString(), draft_reply: reply },
+      { onlyIfNotSent: true }
+    );
+    if (!marked) {
+      console.log("Handoff send: already marked sent by a concurrent request -", id);
+      return json(409, headers, { error: "This handoff has already been sent." });
+    }
     console.log("Handoff reply sent for", id);
     return json(200, headers, { ok: true, status: "sent" });
   }
@@ -232,7 +256,8 @@ exports.handler = async function (event) {
     try {
       return json(200, headers, await fetchHandoffs(supabase));
     } catch (e) {
-      return json(500, headers, { handoffs: [], total: 0, error: e.message });
+      console.log("Handoff GET error:", e.message);
+      return json(500, headers, { handoffs: [], total: 0, error: "Could not load handoffs." });
     }
   }
 
@@ -245,7 +270,7 @@ exports.handler = async function (event) {
       });
     } catch (e) {
       console.log("Handoff POST error:", e.message);
-      return json(500, headers, { error: e.message });
+      return json(500, headers, { error: "Something went wrong handling this handoff." });
     }
   }
 

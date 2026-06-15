@@ -26,20 +26,41 @@ function fakeSupabase(result) {
   return { from() { return q; } };
 }
 
-// Richer fake for the POST dispatcher: supports the read chain
-// (select.eq.eq.limit) and the update chain (update.eq.eq, awaited). It records
-// every update payload so a test can assert what was written.
-function fakeDb(row) {
+// Richer fake for the POST dispatcher. It HONOURS the .eq("id") / .eq("kind") /
+// .neq("status") filters so the kind-guard and the conditional send-mark are
+// actually exercised, not absorbed. A read/update resolves to [row] only when the
+// row matches every filter; the row defaults to kind 'human_handoff'. Updates
+// record their payload. opts.updateMissesRow forces updates to match 0 rows, to
+// simulate a concurrent send winning the race between the pre-check and the mark.
+function fakeDb(row, opts = {}) {
+  const stored = row ? { kind: "human_handoff", ...row } : null;
   const calls = { updates: [] };
-  const chain = {
-    select() { return chain; },
-    order() { return chain; },
-    eq() { return chain; },
-    limit() { return Promise.resolve({ data: row ? [row] : [], error: null }); },
-    update(fields) { calls.updates.push(fields); return chain; },
-    then(resolve) { resolve({ data: row ? [row] : [], error: null }); }, // makes `await chain` work
-  };
-  return { client: { from() { return chain; } }, calls };
+  function makeChain() {
+    const filters = {};
+    let isUpdate = false;
+    function matches() {
+      if (!stored) return false;
+      if (filters.id != null && String(stored.id) !== String(filters.id)) return false;
+      if (filters.kind != null && stored.kind !== filters.kind) return false;
+      if (filters["neq:status"] != null && stored.status === filters["neq:status"]) return false;
+      return true;
+    }
+    function result() {
+      if (isUpdate && opts.updateMissesRow) return { data: [], error: null };
+      return { data: matches() ? [stored] : [], error: null };
+    }
+    const chain = {
+      select() { return chain; },
+      order() { return chain; },
+      eq(col, val) { filters[col] = val; return chain; },
+      neq(col, val) { filters["neq:" + col] = val; return chain; },
+      limit() { return Promise.resolve(result()); },
+      update(fields) { isUpdate = true; calls.updates.push(fields); return chain; },
+      then(resolve) { resolve(result()); }, // makes `await chain` / chain.select() work
+    };
+    return chain;
+  }
+  return { client: { from() { return makeChain(); } }, calls };
 }
 
 // --- GET / fetchHandoffs (Slice 5e) -----------------------------------------
@@ -184,6 +205,34 @@ test("handlePost send: a send failure does NOT mark the row sent (fail-closed)",
 test("handlePost: an already-sent handoff is 409 (no re-send)", async () => {
   const { client } = fakeDb({ id: "1", status: "sent", customer_contact: "jane@x.com" });
   assert.strictEqual((await handlePost(post({ action: "send", id: "1", reply: "x" }), headers, { supabase: client, resendKey: "k", sendFn: async () => {} })).statusCode, 409);
+});
+
+test("handlePost: kind guard — an id that is not a human_handoff is treated as not found (404), nothing mutated", async () => {
+  const { client, calls } = fakeDb({ id: "1", status: "draft", kind: "booking_confirmation", customer_contact: "jane@x.com" });
+  let sent = 0;
+  const res = await handlePost(post({ action: "send", id: "1", reply: "x" }), headers, { supabase: client, resendKey: "k", sendFn: async () => { sent++; } });
+  assert.strictEqual(res.statusCode, 404, "loadHandoffRow filters kind=human_handoff, so a foreign row never loads");
+  assert.strictEqual(sent, 0);
+  assert.strictEqual(calls.updates.length, 0);
+});
+
+test("handlePost send: an over-length reply is rejected (400) and nothing is sent", async () => {
+  const { client } = fakeDb({ id: "1", status: "draft", customer_contact: "jane@x.com" });
+  let sent = 0;
+  const big = "x".repeat(50001);
+  const res = await handlePost(post({ action: "send", id: "1", reply: big }), headers, { supabase: client, resendKey: "k", sendFn: async () => { sent++; } });
+  assert.strictEqual(res.statusCode, 400);
+  assert.strictEqual(sent, 0);
+});
+
+test("handlePost send: a concurrent send is detected by the conditional mark (409)", async () => {
+  // The row reads as 'draft' (passes the pre-check) but the conditional UPDATE
+  // matches 0 rows, as if another request marked it sent in between.
+  const { client } = fakeDb({ id: "1", status: "draft", customer_contact: "jane@x.com" }, { updateMissesRow: true });
+  let sent = 0;
+  const res = await handlePost(post({ action: "send", id: "1", reply: "Hello" }), headers, { supabase: client, resendKey: "k", sendFn: async () => { sent++; } });
+  assert.strictEqual(res.statusCode, 409);
+  assert.strictEqual(sent, 1, "the email had already been dispatched before the lost race was detected");
 });
 
 test("handlePost handle: marks the handoff approved (the manual path, incl. damage_risk)", async () => {
