@@ -2,14 +2,14 @@
 
 Premium carpet and upholstery cleaning platform for Mark McClymont, Cheltenham. An AI assistant gives genuine expert advice, quotes (including from photos), and books jobs; an admin platform lets Mark run the operational side of the business.
 
-Currently a working proof of concept on its way to a full platform. See [docs/DESIGN.md](docs/DESIGN.md) for the product brief and [ROADMAP.md](ROADMAP.md) for the phased plan.
+The Phase 1 public site is live and most of the Phase 2 operational backend is built and live (see [NEXT_SESSION.md](NEXT_SESSION.md) for the current state). See [docs/DESIGN.md](docs/DESIGN.md) for the product brief and [ROADMAP.md](ROADMAP.md) for the phased plan.
 
-## Stack (Phase 0)
+## Stack
 
-- Static site on **Netlify** (`index.html`, `admin.html`)
-- **Netlify serverless functions** (`server/netlify/functions/`) for the AI proxy, bookings, email, and PDF job cards
-- **Netlify Blobs** for booking storage (migrates to Supabase in Phase 2)
-- **Claude API** (Anthropic) for the assistant, **Resend** for email
+- Multi-page **Astro** site on **Netlify** (`site/`, live since 15 June 2026); an `admin.html` dashboard behind Supabase Auth. The old single-page `index.html` is retained as a rollback only.
+- **Netlify serverless functions** (`server/netlify/functions/`) for the AI proxy, bookings, handoffs, email, and PDF job cards
+- **Supabase Postgres** for booking and handoff storage; Netlify Blobs now holds only rate-limit windows and legacy bookings
+- **Claude API** (Anthropic) for the assistant, **Resend** (verified `intelligentclean.co.uk`) for email
 
 ## Quick start (local dev)
 
@@ -19,7 +19,7 @@ cp .env.example .env        # then fill in the values
 npx netlify dev             # serves the site + functions locally
 ```
 
-Functions are exposed under `/api/*` via the redirects in `netlify.toml`. The site needs `ANTHROPIC_API_KEY` (chat), `RESEND_API_KEY` (booking email), and `ADMIN_SECRET` (admin dashboard) to be functional.
+Functions are exposed under `/api/*` via the redirects in `netlify.toml`. The site needs `ANTHROPIC_API_KEY` (chat), `RESEND_API_KEY` (booking email), and the `SUPABASE_*` vars (bookings, handoffs, and admin auth) to be functional. The legacy `ADMIN_SECRET` is no longer read by the app (admin sign-in moved to Supabase Auth in Slice 5d).
 
 ## Where to look
 
