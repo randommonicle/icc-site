@@ -187,3 +187,63 @@ test("checkAvailability (Postgres) caps the slots query at 7 to match the bookin
     assert.strictEqual(ok.statusCode, 200);
   });
 });
+
+// --- A4: customer confirmation email identity (reply_to + privacy link) ------
+// Review finding A4 / UK GDPR Arts.13/14. The booking confirmation carries more
+// personal data than a handoff reply (name, address, appointment, price, T&Cs),
+// so it gets the same controller identity: a real Reply-To and a privacy-notice
+// link. Scope is the CUSTOMER email only; the operator email stays internal.
+
+const { privacyNoticeUrl } = chat;
+
+// Drive the REAL handleBooking under the Postgres path and capture the JSON
+// bodies POSTed to Resend, so we assert on the actual payload the live function
+// sends, not a reconstruction. Two emails go out (operator + customer); they are
+// told apart by the `to` address.
+async function captureBookingEmails(booking) {
+  const prevStore = process.env.BOOKINGS_STORE;
+  const prevFetch = global.fetch;
+  const sent = [];
+  process.env.BOOKINGS_STORE = "postgres";
+  global.fetch = async (url, opts) => {
+    sent.push({ url, body: JSON.parse(opts.body) });
+    return { json: async () => ({ id: "fake" }) };
+  };
+  try {
+    await handleBooking(booking, "re_test", {}, fakeSupabase());
+  } finally {
+    if (prevStore === undefined) delete process.env.BOOKINGS_STORE;
+    else process.env.BOOKINGS_STORE = prevStore;
+    global.fetch = prevFetch;
+  }
+  return sent;
+}
+
+test("confirmation email carries a real Reply-To and a /privacy link (A4, UK GDPR Arts.13/14)", async () => {
+  const sent = await captureBookingEmails(baseBooking());
+  const customer = sent.find((e) => e.body.to === "jane@example.com");
+  assert.ok(customer, "a confirmation email is sent to the customer");
+  assert.match(customer.body.reply_to, /@intelligentclean\.co\.uk$/); // a real monitored mailbox, not absent
+  assert.match(customer.body.html, /href="[^"]*\/privacy"/); // privacy-notice link present
+  assert.match(customer.body.html, /privacy notice/i);
+});
+
+test("the privacy link is NOT added to the operator email (scope: customer-facing only)", async () => {
+  const sent = await captureBookingEmails(baseBooking());
+  const operator = sent.find((e) => e.body.to !== "jane@example.com");
+  assert.ok(operator, "an operator email is also sent");
+  assert.ok(!/privacy notice/i.test(operator.body.html), "the operator email is internal to Mark, no privacy notice");
+});
+
+test("a customer-supplied name stays escaped in the confirmation email (no XSS, L-003)", async () => {
+  const sent = await captureBookingEmails(baseBooking({ name: "<script>alert(1)</script> Smith" }));
+  const customer = sent.find((e) => e.body.to === "jane@example.com");
+  assert.ok(!customer.body.html.includes("<script>alert(1)</script>"), "a raw script tag must not survive into the HTML");
+  assert.match(customer.body.html, /&lt;script&gt;/);
+});
+
+test("privacyNoticeUrl: default origin, and a trailing slash on an injected base is normalised", () => {
+  assert.match(privacyNoticeUrl(), /^https:\/\/www\.intelligentclean\.co\.uk\/privacy$/);
+  assert.strictEqual(privacyNoticeUrl("https://example.test"), "https://example.test/privacy");
+  assert.strictEqual(privacyNoticeUrl("https://example.test/"), "https://example.test/privacy");
+});
