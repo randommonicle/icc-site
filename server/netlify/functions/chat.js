@@ -862,6 +862,24 @@ function depositLabel(value){
   return (typeof value === "string" && value.trim()) ? value : "To be confirmed";
 }
 
+// Customer-facing email identity (review finding A4; UK GDPR Arts.13/14). A
+// privacy-notice link and a monitored Reply-To let a customer see who holds their
+// data and reach a real mailbox, even when the From is a send-only/sandbox
+// address. Both are env-overridable so they track the domain at cutover with no
+// code change; the defaults are the live ICC values. This mirrors the handoff
+// reply in handoffs.js so the two customer emails stay consistent.
+// TODO(dedupe/email-identity): once the handoffs.js A4 work is also on main, lift
+// PUBLIC_SITE_URL / privacyNoticeUrl / CUSTOMER_REPLY_TO into a shared
+// shared/emailIdentity.js so the two copies cannot drift.
+const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.intelligentclean.co.uk";
+
+// Build the public privacy-notice URL. siteUrl is injectable for tests; a trailing
+// slash on the base is normalised so we never emit a double slash.
+function privacyNoticeUrl(siteUrl) {
+  const base = String(siteUrl || PUBLIC_SITE_URL).replace(/\/+$/, "");
+  return `${base}/privacy`;
+}
+
 async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   const headers = Object.assign({}, baseHeaders || {}, { "Content-Type": "application/json" });
   const usePostgres = bookingsStoreIsPostgres() && !!supabase;
@@ -1019,6 +1037,12 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   const operatorEmail = process.env.OPERATOR_EMAIL || "ben.graham240689@gmail.com";
   const operatorFrom = process.env.OPERATOR_FROM || "ICC Bookings <onboarding@resend.dev>";
   const customerFrom = process.env.CUSTOMER_FROM || "Intelligent Carpet Cleaning <onboarding@resend.dev>";
+  // A4 customer-email identity (see privacyNoticeUrl above): a real monitored
+  // Reply-To so a customer's reply reaches ICC even when the From is a send-only
+  // address, and a privacy-notice link in the body (UK GDPR Arts.13/14). Operator
+  // emails (below) are internal to Mark and deliberately get neither.
+  const customerReplyTo = process.env.CUSTOMER_REPLY_TO || "hello@intelligentclean.co.uk";
+  const customerPrivacyUrl = privacyNoticeUrl();
 
   // Send email to Mark
   const markEmail = {
@@ -1064,6 +1088,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   // Send confirmation email to customer
   const customerEmail = {
     from: customerFrom,
+    reply_to: customerReplyTo,
     to: booking.email,
     subject: `Your Booking Confirmation - Intelligent Carpet Cleaning`,
     html: `
@@ -1103,6 +1128,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
             <p style="margin:0 0 8px;font-size:11px;color:#718096;line-height:1.6;"><strong>Re-clean guarantee:</strong> If you are not satisfied with the result, please contact us within 72 hours with photographic evidence and we will arrange a single return visit at no additional charge. This guarantee does not apply to pre-existing permanent staining present before the clean was carried out.</p>
             <p style="margin:0;font-size:11px;color:#718096;line-height:1.6;">These terms do not affect your statutory rights.</p>
           </div>
+          <p style="margin-top:15px;font-size:12px;color:#888;">How we handle your data: <a href="${escHtml(customerPrivacyUrl)}" style="color:#888;">our privacy notice</a>.</p>
           <p style="margin-top:15px;font-size:12px;color:#a0aec0;">Established Trust, Superior Cleaning.</p>
         </div>
       </div>`
@@ -1310,3 +1336,4 @@ exports.handleTool = handleTool;
 exports.handleEscalation = handleEscalation;
 exports.withKnowledgeDocument = withKnowledgeDocument;
 exports.collectCitations = collectCitations;
+exports.privacyNoticeUrl = privacyNoticeUrl;
