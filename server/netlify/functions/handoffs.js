@@ -150,20 +150,41 @@ function escHtml(s) {
 // contact-config could dedupe them later.
 const ICC_SIGN_OFF_LINES = ["Intelligent Carpet Cleaning", "Cheltenham, Gloucestershire", "01242 279590", "hello@intelligentclean.co.uk"];
 
-// Build the customer reply email body. Pure and exported for the test. The reply
-// is escaped for the HTML part (L-003); the sign-off identifies ICC.
-// TODO(prelaunch/email-identity): add a privacy-notice link here once the public
-// site is live at the domain (the remaining half of A4; UK GDPR Arts.13/14).
-function buildHandoffEmail(replyText) {
+// Public site origin used to build the privacy-notice link in the email. Env
+// overridable so the link tracks the domain at cutover with no code change; it
+// defaults to the production domain. For a pre-domain smoke, set PUBLIC_SITE_URL
+// to the live .netlify.app URL so the link resolves.
+const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.intelligentclean.co.uk";
+
+function privacyNoticeUrl(siteUrl) {
+  const base = String(siteUrl || PUBLIC_SITE_URL).replace(/\/+$/, "");
+  return `${base}/privacy`;
+}
+
+// Build the customer reply email body. Pure (the privacy URL is injectable) and
+// exported for the test. The reply is escaped for the HTML part (L-003); the
+// sign-off plus the privacy-notice link identify the controller and where to find
+// its data handling (review finding A4; UK GDPR Arts.13/14).
+// TODO(prelaunch/email-identity): the code-side identity is in place. Before live
+// traffic, set CUSTOMER_FROM (verified domain) and PUBLIC_SITE_URL in Netlify, and
+// Mark must complete the privacy-notice controller details (ICO reg, retention).
+function buildHandoffEmail(replyText, opts = {}) {
+  const privacyUrl = privacyNoticeUrl(opts.siteUrl);
   const body = escHtml(replyText).replace(/\n/g, "<br>");
   const sigHtml = ICC_SIGN_OFF_LINES
     .map((l, i) => (i === 0 ? `<strong>${escHtml(l)}</strong>` : escHtml(l)))
     .join("<br>");
+  // privacyUrl is a trusted env/constant, never customer input; escaped anyway.
+  const privacyHtml =
+    `<div style="margin-top:10px;font-size:12px;color:#888;">` +
+    `How we handle your data: <a href="${escHtml(privacyUrl)}" style="color:#888;">our privacy notice</a>.` +
+    `</div>`;
   const html =
     `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;font-size:14px;color:#1a1a2e;line-height:1.6;">${body}` +
     `<div style="margin-top:16px;padding-top:12px;border-top:1px solid #e0e0e0;font-size:13px;color:#555;">${sigHtml}</div>` +
+    privacyHtml +
     `</div>`;
-  const text = `${replyText}\n\n${ICC_SIGN_OFF_LINES.join("\n")}`;
+  const text = `${replyText}\n\n${ICC_SIGN_OFF_LINES.join("\n")}\n\nHow we handle your data: ${privacyUrl}`;
   return { html, text };
 }
 
@@ -172,12 +193,16 @@ function buildHandoffEmail(replyText) {
 // "delivered", L-004, but a non-2xx is a hard failure we must not mark sent on).
 async function sendHandoffReply(toEmail, replyText, resendKey) {
   const customerFrom = process.env.CUSTOMER_FROM || "Intelligent Carpet Cleaning <onboarding@resend.dev>";
+  // A real, monitored Reply-To so a customer's reply reaches ICC even when the
+  // From is a send-only or sandbox address (review finding A4).
+  const replyTo = process.env.CUSTOMER_REPLY_TO || "hello@intelligentclean.co.uk";
   const { html, text } = buildHandoffEmail(replyText);
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${resendKey}` },
     body: JSON.stringify({
       from: customerFrom,
+      reply_to: replyTo,
       to: toEmail,
       subject: "Re: your enquiry to Intelligent Carpet Cleaning",
       html,
@@ -316,3 +341,4 @@ exports.loadHandoffRow = loadHandoffRow;
 exports.updateHandoff = updateHandoff;
 exports.draftSystemPrompt = draftSystemPrompt;
 exports.buildHandoffEmail = buildHandoffEmail;
+exports.sendHandoffReply = sendHandoffReply;
