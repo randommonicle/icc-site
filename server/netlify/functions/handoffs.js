@@ -78,6 +78,21 @@ async function updateHandoff(supabase, id, fields, opts = {}) {
   return Array.isArray(data) ? data.length : 0;
 }
 
+// Hard-delete a handoff row, hard-guarded to kind='human_handoff' (UK GDPR Art.17
+// right to erasure + Art.5(1)(e) storage limitation). Returns the rows affected so
+// the caller can 404 a foreign/absent id. `messages` is a leaf for handoffs
+// (nothing references it), so the delete leaves no orphans (review finding A5).
+async function deleteHandoff(supabase, id) {
+  const { data, error } = await supabase
+    .from("messages")
+    .delete()
+    .eq("id", id)
+    .eq("kind", "human_handoff")
+    .select("id");
+  if (error) throw new Error(error.message);
+  return Array.isArray(data) ? data.length : 0;
+}
+
 // The draft generator's system prompt. Static (no per-request data), so it is
 // hoisted and exported for the test. The voice rules mirror the live chat
 // assistant (chat.js): standard British English and no dashes as sentence
@@ -237,6 +252,17 @@ async function handlePost(event, headers, deps) {
 
   const row = await loadHandoffRow(supabase, id);
   if (!row) return json(404, headers, { error: "Handoff not found" });
+
+  if (action === "erase") {
+    // UK GDPR Art.17 (erasure) + Art.5(1)(e) (storage limitation). Allowed in ANY
+    // status, including a sent handoff, because an erasure request can arrive after
+    // the reply. kind-guarded inside deleteHandoff; logs the id only, never PII.
+    const deleted = await deleteHandoff(supabase, id);
+    if (!deleted) return json(404, headers, { error: "Handoff not found" });
+    console.log("Handoff erased for", id);
+    return json(200, headers, { ok: true, status: "erased" });
+  }
+
   if (row.status === "sent") return json(409, headers, { error: "This handoff has already been sent" });
 
   if (action === "draft") {
@@ -339,6 +365,7 @@ exports.fetchHandoffs = fetchHandoffs;
 exports.handlePost = handlePost;
 exports.loadHandoffRow = loadHandoffRow;
 exports.updateHandoff = updateHandoff;
+exports.deleteHandoff = deleteHandoff;
 exports.draftSystemPrompt = draftSystemPrompt;
 exports.buildHandoffEmail = buildHandoffEmail;
 exports.sendHandoffReply = sendHandoffReply;

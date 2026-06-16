@@ -56,6 +56,7 @@ function fakeDb(row, opts = {}) {
       neq(col, val) { filters["neq:" + col] = val; return chain; },
       limit() { return Promise.resolve(result()); },
       update(fields) { isUpdate = true; calls.updates.push(fields); return chain; },
+      delete() { (calls.deletes || (calls.deletes = [])).push(true); return chain; },
       then(resolve) { resolve(result()); }, // makes `await chain` / chain.select() work
     };
     return chain;
@@ -303,6 +304,29 @@ test("handlePost handle: marks the handoff approved (the manual path, incl. dama
 test("handlePost: an unknown action is 400", async () => {
   const { client } = fakeDb({ id: "1", status: "draft" });
   assert.strictEqual((await handlePost(post({ action: "frobnicate", id: "1" }), headers, { supabase: client })).statusCode, 400);
+});
+
+// --- erase / right to erasure (Slice 5e-2, review finding A5) ----------------
+
+test("handlePost erase: hard-deletes a handoff lead, kind-guarded (UK GDPR Art.17)", async () => {
+  const { client, calls } = fakeDb({ id: "1", status: "draft", handoff_reason: "out_of_scope", customer_contact: "jane@x.com" });
+  const res = await handlePost(post({ action: "erase", id: "1" }), headers, { supabase: client });
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(JSON.parse(res.body).status, "erased");
+  assert.ok((calls.deletes || []).length >= 1, "a delete was issued against messages");
+});
+
+test("handlePost erase: a non-human_handoff id is 404 and nothing is deleted (kind guard)", async () => {
+  const { client, calls } = fakeDb({ id: "1", status: "draft", kind: "booking_confirmation", customer_contact: "jane@x.com" });
+  const res = await handlePost(post({ action: "erase", id: "1" }), headers, { supabase: client });
+  assert.strictEqual(res.statusCode, 404, "loadHandoffRow filters kind=human_handoff, so a foreign row never loads");
+  assert.strictEqual((calls.deletes || []).length, 0);
+});
+
+test("handlePost erase: allowed even on a sent handoff (an erasure request can arrive later)", async () => {
+  const { client } = fakeDb({ id: "1", status: "sent", handoff_reason: "out_of_scope", customer_contact: "jane@x.com" });
+  const res = await handlePost(post({ action: "erase", id: "1" }), headers, { supabase: client });
+  assert.strictEqual(res.statusCode, 200, "erase must bypass the sent-409 guard");
 });
 
 // --- Guarded integration: real local Supabase -------------------------------
