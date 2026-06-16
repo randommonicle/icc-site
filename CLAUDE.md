@@ -30,20 +30,21 @@ Three principles run through everything (from [docs/DESIGN.md](docs/DESIGN.md) �
 - Everything is built to be found. SEO and AI-search visibility are designed in from the structure up.
 - The back end is a real business tool, not just a booking inbox.
 
-We are at the very start: a working proof of concept (Phase 0). The roadmap takes it to a full platform in five phases. See [ROADMAP.md](ROADMAP.md).
+The Phase 1 public site is live and most of the Phase 2 operational backend is built and live; the roadmap takes it the rest of the way to the full platform. See [ROADMAP.md](ROADMAP.md).
 
 ---
 
 ## Architecture: where we are vs where we are going
 
-### Current (Phase 0 — proof of concept)
+### Where we are now (Phase 1 live, Phase 2 backend live)
 
-A zero-cost demonstrator, and correct for what it is today:
+The platform has moved past the Phase 0 single-page demonstrator. What is live in production today:
 
-- Single-file public site (`index.html`) plus a separate admin page (`admin.html`), static-hosted on Netlify.
-- Two Netlify serverless functions: `chat.js` (AI proxy, availability, booking confirmation, email, PDF job card) and `bookings.js` (admin-only booking list).
-- Booking storage in Netlify Blobs (a key-value store).
-- Transactional email through Resend.
+- A multi-page static **Astro** site (`site/`), cut over to production on 15 June 2026 (PR #49). Netlify builds and serves `site/dist`. The old single-page `index.html` is kept at the repo root as the **rollback only** and is no longer served.
+- A separate admin dashboard (`admin.html`), signed in with **per-user Supabase Auth** (Slice 5d).
+- Netlify serverless functions: `chat.js` (AI proxy, availability, booking confirmation, email, PDF job card), `bookings.js` (admin booking list) and `handoffs.js` (escalation queue + draft/send), plus `v1-quote.js` (stateless pricing) and the Supabase/auth helpers.
+- Booking storage in **Supabase Postgres** (`BOOKINGS_STORE=postgres`, enabled 14 June 2026); Netlify Blobs now holds only the rate-limit windows and legacy test bookings.
+- Transactional email through Resend (sending domain `intelligentclean.co.uk` verified).
 - AI through the Claude API, called only from the serverless functions so keys never reach the browser.
 
 ### Target (Phases 2+)
@@ -122,23 +123,31 @@ icc-platform/                   # (currently named icc-site; rename when conveni
 
 Netlify's build is scoped to `site/` (and `shared/`) so app-only commits do not trigger a site deploy. Site and app are worked on in separate sessions via branches (D-010) or git worktrees.
 
-### Current (Phase 0)
+### Current layout (Phase 1 live, Phase 2 backend)
 
 ```
-icc-site/                        # Phase 2 D-014 restructure underway (chore/d014-monorepo)
-├── index.html                  # LIVE Phase 0 public single-page site (hero, services, booking, chat client)
-├── admin.html                  # Password-gated bookings dashboard (Bearer token, in-memory only)
+icc-site/                        # monorepo layout (D-014): site/ + server/ + shared/ + supabase/
+├── index.html                  # Phase 0 single-page site — RETAINED AS ROLLBACK ONLY (no longer served)
+├── admin.html                  # Bookings + handoffs dashboard; per-user Supabase Auth (Slice 5d)
 ├── logo.jpg                    # Brand logo (extracted from inline base64 — keep as a real file)
-├── netlify.toml                # functions = server/netlify/functions; redirects (/api/*, /admin) + headers
-├── package.json                # Node 24 (D-017); deps: @netlify/blobs, pdfkit; "test": node --test
+├── netlify.toml                # builds site/dist; functions = server/netlify/functions; redirects + headers
+├── package.json                # Node 24 (D-017); deps: @netlify/blobs, @supabase/supabase-js, pdfkit; "test": node --test
 ├── .env.example                # Documented env vars — copy to .env for local dev
-├── server/                     # backend tier (D-014) — serverless functions live here now
+├── site/                       # LIVE public Astro site (cut over 15 June 2026, PR #49) — Netlify builds site/dist
+├── server/                     # backend tier (D-014) — serverless functions
 │   └── netlify/functions/
 │       ├── chat.js             # AI proxy + availability + booking confirmation + email + PDF
-│       └── bookings.js         # Admin-only: list all bookings from Blobs
-├── site/                       # Phase 1 public Astro site (built, not cut over)
+│       ├── bookings.js         # Admin-only: list all bookings (Postgres jobs + legacy Blobs)
+│       ├── handoffs.js         # Admin-only: escalation queue + AI draft → send reply (Slice 5e-2)
+│       ├── bookingsStore.js    # Postgres booking read/write mappers (Slice 5b)
+│       ├── v1-quote.js         # Stateless server-side pricing endpoint (Slice 3)
+│       ├── adminAuth.js        # Supabase-Auth JWT gate for the admin functions (Slice 5d)
+│       └── supabaseClient.js   # Service-role Supabase client singleton
+├── shared/                     # config single source: models, pricing, service area, knowledge (D-006/D-007)
+├── supabase/                   # migrations + pgTAP tests (D-002)
+├── scripts/                    # ops utilities (e.g. delete-booking.js)
 ├── app/                        # field-app placeholder (D-012) — empty until the Phase 2 API exists
-├── test/                       # node --test suite (hardening.test.js)
+├── test/                       # node --test suite
 └── docs/
     └── DESIGN.md               # The agreed product brief (scope reference for Mark)
 
@@ -180,10 +189,11 @@ These are real business rules encoded in `chat.js` (the system prompt) — keep 
 - **Service area (D-011):** Cheltenham, Gloucester and Winchcombe are core (no travel charge). Everywhere else in Gloucestershire (Stroud, Tewkesbury, Cirencester and the surrounding GL towns) carries a **flat £15 + VAT out-of-area surcharge** (confirmed by Mark, June 2026). The assistant quotes the £15 + VAT concretely and includes it in the itemised quote for out-of-area addresses. Remaining: the precise postcode boundary for "out of area" and **server-side enforcement** — `validateBooking` currently only bounds the total price (£30–£5000), so the surcharge lives in the assistant's quote, not the server; encode the boundary + surcharge in `validateBooking` in Phase 2 (pairs with moving pricing/area logic server-side, D-007).
 - **Hours, slots, pricing, deposit:** all in the `STATIC_SYSTEM_PROMPT`. Pricing is "+ VAT" throughout. A 10% non-refundable deposit secures a slot.
 
-### AI chat flow (`server/netlify/functions/chat.js` + `index.html`)
+### AI chat flow (`server/netlify/functions/chat.js` + `site/src/pages/book.astro`)
+The live chat client is the Astro `book.astro` since the Phase 1 cutover; the retained `index.html` rollback carries the same client mechanics (faithfully ported, same `/api/chat` contract).
 - The browser keeps `conversationHistory` and POSTs it to `/api/chat` with a randomised assistant name (Jamie/Alex/Sam/Ellie/Tom).
-- The system prompt is sent in two blocks: a large static block (business rules, pricing, method, booking script, and the L-009 claim guardrails) with `cache_control: ephemeral`, and a small dynamic block (assistant name, today's date, the pre-computed list of bookable dates). The split keeps the cache prefix stable so repeat messages in a 5-minute window pay roughly 10% of normal input cost (see LESSONS_LEARNED.md L-002). The carpet-science **facts** are no longer in this prompt: since Slice 4c they ride as a `cache_control`'d **citeable Citations document** on the first user turn (`withKnowledgeDocument`), so the assistant grounds and cites its claims and the customer sees the source (rendered as inert labels in `index.html`, L-003). The server resolves each citation back to its KB section (`collectCitations`) and still collapses the reply to one text block (L-014).
-- Two tools ride on every chat call (a byte-stable `TOOLS` constant, L-002): `escalate_to_human` (Slice 4b — out-of-KB, damage-risk, uncitable, or customer-request questions hand over to Mark instead of guessing) and the Anthropic-hosted `web_search` (Slice 4d — D-019's low-stakes lane: `max_uses: 3`, results localised to Cheltenham, prompt-gated to practical no-property-risk gaps only, never cleaning/treatment/aftercare advice). Web answers come back with `web_search_result_location` citations which `collectCitations` resolves to `{title, url}` and `index.html` renders as safe external links ("Looked up on the web", L-003). `runAssistantTurn` resolves custom tool rounds and `pause_turn` continuations server-side, bounded by `maxRounds`. Ops note: web search must be enabled org-side in the Anthropic Console for the `ANTHROPIC_API_KEY` account.
+- The system prompt is sent in two blocks: a large static block (business rules, pricing, method, booking script, and the L-009 claim guardrails) with `cache_control: ephemeral`, and a small dynamic block (assistant name, today's date, the pre-computed list of bookable dates). The split keeps the cache prefix stable so repeat messages in a 5-minute window pay roughly 10% of normal input cost (see LESSONS_LEARNED.md L-002). The carpet-science **facts** are no longer in this prompt: since Slice 4c they ride as a `cache_control`'d **citeable Citations document** on the first user turn (`withKnowledgeDocument`), so the assistant grounds and cites its claims and the customer sees the source (rendered as inert labels in the chat client, L-003). The server resolves each citation back to its KB section (`collectCitations`) and still collapses the reply to one text block (L-014).
+- Two tools ride on every chat call (a byte-stable `TOOLS` constant, L-002): `escalate_to_human` (Slice 4b — out-of-KB, damage-risk, uncitable, or customer-request questions hand over to Mark instead of guessing) and the Anthropic-hosted `web_search` (Slice 4d — D-019's low-stakes lane: `max_uses: 3`, results localised to Cheltenham, prompt-gated to practical no-property-risk gaps only, never cleaning/treatment/aftercare advice). Web answers come back with `web_search_result_location` citations which `collectCitations` resolves to `{title, url}` and the chat client renders as safe external links ("Looked up on the web", L-003). `runAssistantTurn` resolves custom tool rounds and `pause_turn` continuations server-side, bounded by `maxRounds`. Ops note: web search must be enabled org-side in the Anthropic Console for the `ANTHROPIC_API_KEY` account.
 - Dates are never calculated by the model. The function pre-computes the bookable date list (Mon–Sat, 7+ days out) and the model only quotes from it.
 - Per-IP rate limit on the chat path: 30 messages/hour, sliding window in Blobs, fails open if Blobs are unavailable.
 
@@ -243,9 +253,10 @@ Tracked in full in [LESSONS_LEARNED.md](LESSONS_LEARNED.md) and the roadmap. The
 
 - [ ] **Set `ALLOWED_ORIGINS`** in Netlify. The chat origin check fails open by default; the rate limits are currently the only defence on the AI cost path (L-001). Blocked on the final domain (D-013); the code auto-enforces strict mode once the env var is set (`chat.js`).
 - [x] **Rate-limit the booking/availability endpoints.** Done — per-IP caps on all three POST actions (chat 30/hr, `confirm_booking` 5/hr, `check_availability` 60/hr), fail-open if Blobs are unavailable (L-006).
-- [ ] **Verify a Resend sending domain** and set `OPERATOR_EMAIL` / `OPERATOR_FROM` / `CUSTOMER_FROM` to real addresses. Remember: "accepted by Resend" is not "delivered" (L-004).
-- [ ] **Customer-email identity (review finding A4).** Both customer-facing emails must identify the controller (trading name, business contact, privacy-notice link) and carry a real `Reply-To` before live traffic (UK GDPR Arts.13/14). Code-side **done for the booking-confirmation email** (`chat.js`): a `/privacy` link and a `CUSTOMER_REPLY_TO` Reply-To, env-overridable via `PUBLIC_SITE_URL`. The `handoffs.js` handoff reply is the matching surface (its A4 code is on branch `claude/funny-wilson-666c69`, commit `def17fb`, not yet merged). Remaining before live: set `CUSTOMER_REPLY_TO` / `PUBLIC_SITE_URL` / verified `CUSTOMER_FROM` in Netlify, and Mark must complete the privacy-notice controller details. Flagged `TODO(prelaunch/email-identity)`; couples with the Resend-domain item above.
-- [ ] **Add a privacy notice** to the public site before collecting data at any scale. Drafted and linked across the site; Mark must fill the `[to confirm: …]` data-controller details in `index.html` and get a data-protection review before go-live ([docs/DESIGN.md](docs/DESIGN.md) §11).
+- [x] **Verify a Resend sending domain** and set `OPERATOR_EMAIL` / `OPERATOR_FROM` / `CUSTOMER_FROM` to real addresses. **Done (10 June 2026):** `intelligentclean.co.uk` verified in Resend (DKIM/SPF/bounce MX), the addresses set in Netlify and confirmed delivering end-to-end (L-004, L-015). The customer-email identity work is the A4 item below.
+- [ ] **Customer-email identity (review finding A4).** Both customer-facing emails must identify the controller (trading name, business contact, privacy-notice link) and carry a real `Reply-To` before live traffic (UK GDPR Arts.13/14). Code-side **done for both**: the booking-confirmation email (`chat.js`, PR #51) and the handoff reply (`handoffs.js`, this branch) each carry a `/privacy` link (env-overridable via `PUBLIC_SITE_URL`) and a `CUSTOMER_REPLY_TO` Reply-To. Remaining before live: set `CUSTOMER_REPLY_TO` / `PUBLIC_SITE_URL` / verified `CUSTOMER_FROM` in Netlify, and Mark must complete the privacy-notice controller details. Flag `TODO(prelaunch/email-identity)`.
+- [ ] **Handoff-lead retention (review finding A5, D-023).** Erasure **mechanism** done: the admin "Erase lead" action hard-deletes a `human_handoff` row (UK GDPR Art.17). Full erasure is a documented two-part procedure (DB delete **plus** Mark deleting the matching escalation email; verify requester identity first, Art.12(6)). Remaining: the timed storage-limitation purge (Art.5(1)(e)) — confirm the retention period with Mark/DP (proposed 6 months) and wire a scheduled purge of old `human_handoff` rows (`TODO(D-008/retention)`).
+- [ ] **Add a privacy notice** to the public site before collecting data at any scale. Drafted and linked across the site; Mark must fill the `[to confirm: …]` data-controller details in the Astro privacy page (`site/src/pages/privacy.astro`) and get a data-protection review before go-live ([docs/DESIGN.md](docs/DESIGN.md) §11).
 - [x] **Constant-time compare** for the admin token — done (SHA-256 + `crypto.timingSafeEqual` in `bookings.js`).
 
 ---

@@ -324,6 +324,9 @@ function buildHandoffCard(h, i){
       '</div>'+
       '<div class="assessment-box"><label>Handoff detail</label><p style="white-space:pre-wrap;">'+bodyText+'</p></div>'+
       actionsHtml+
+      '<div class="card-actions" style="margin-top:0.75rem;">'+
+        '<button class="action-btn" style="color:#e53e3e;border-color:#e53e3e;" onclick="eraseHandoff('+i+')">Erase lead</button>'+
+      '</div>'+
     '</div>'+
   '</div>';
 }
@@ -383,6 +386,16 @@ async function handleHandoff(i){
   const { ok, data } = await postHandoffAction({ action: "handle", id: h.id });
   if(ok){ loadHandoffs(); }
   else { handoffMsg(i, (data && data.error) || "Could not update.", true); }
+}
+
+// Right to erasure (UK GDPR Art.17, D-023). Hard-deletes the lead and its PII; the
+// server kind-guards to human_handoff and allows it in any status. Confirm-gated.
+async function eraseHandoff(i){
+  const h = allHandoffs[i]; if(!h) return;
+  if(!confirm("Erase this lead's record from the dashboard? This cannot be undone. To complete the erasure, also delete the matching escalation email from your inbox (UK GDPR right to erasure).")) return;
+  const { ok, data } = await postHandoffAction({ action: "erase", id: h.id });
+  if(ok){ loadHandoffs(); }
+  else { alert((data && data.error) || "Could not erase this handoff."); }
 }
 
 function updateStats(bookings){

@@ -4,13 +4,13 @@ The phased forward plan, derived from [docs/DESIGN.md](docs/DESIGN.md) §12 and 
 
 **Status key (RAG):** 🟢 done · 🟡 in progress · 🔴 not started · ⚪ deferred/optional
 
-**Last updated:** 4 June 2026
+**Last updated:** 16 June 2026
 
 ---
 
 ## Phase 0 — Proof of concept 🟢 (with hardening gaps)
 
-What exists today: single-page site, AI chat assistant with vision, availability + booking via Netlify Blobs, Resend confirmation emails, PDF job card, password-gated admin dashboard.
+What Phase 0 delivered (now largely superseded by Phases 1–2): single-page site, AI chat assistant with vision, availability + booking via Netlify Blobs, Resend confirmation emails, PDF job card, password-gated admin dashboard.
 
 Outstanding before this can safely take real traffic (carried into Phase 1, tracked in [LESSONS_LEARNED.md](LESSONS_LEARNED.md)):
 
@@ -18,11 +18,11 @@ Outstanding before this can safely take real traffic (carried into Phase 1, trac
 |------|--------|-----|
 | Set `ALLOWED_ORIGINS` in Netlify (chat origin check fails open today) | 🔴 | L-001 |
 | Rate-limit booking/availability endpoints (slot-griefing risk) | 🟢 | L-006 |
-| Verify a Resend sending domain; set real from/operator addresses | 🔴 | L-004 |
+| Verify a Resend sending domain; set real from/operator addresses | 🟢 | L-004 |
 | Privacy notice on the public site | 🟡 | DESIGN §11 |
 | Constant-time admin token compare | 🟢 | — |
 
-🟢 done on `hardening/phase0-pre-launch` (rate limits L-006, constant-time admin compare). 🟡 privacy notice is **drafted and live-linked but not go-live ready** — Mark must fill the data-controller placeholders (`[to confirm: …]` in `index.html`) and the wording wants a data-protection review before real traffic. 🔴 `ALLOWED_ORIGINS` (L-001) and the Resend sending domain (L-004) are blocked on the final domain (D-013) and on Netlify/Resend access; the new rate limits are the interim defence on the cost/slot paths. Verified locally by `node --test` (pure logic) + in-browser render; live 429/email/CORS behaviour verifies on a Netlify deploy preview.
+🟢 done on `hardening/phase0-pre-launch` (rate limits L-006, constant-time admin compare). 🟡 privacy notice is **drafted and live-linked but not go-live ready** — Mark must fill the data-controller placeholders (`[to confirm: …]` in `site/src/pages/privacy.astro`) and the wording wants a data-protection review before real traffic. 🟢 the Resend sending domain (L-004) is verified with real from/operator addresses (10 June 2026). 🔴 `ALLOWED_ORIGINS` (L-001) is deliberately deferred to the domain cutover; the per-IP rate limit is the live defence on the cost path. Verified locally by `node --test` (pure logic) + in-browser render; live 429/email/CORS behaviour verifies on a Netlify deploy preview.
 
 ---
 
@@ -30,19 +30,19 @@ Outstanding before this can safely take real traffic (carried into Phase 1, trac
 
 **Outcome:** a fast, expert, fully indexable site that ranks and converts. No new backend yet.
 
-🟡 In progress on `feat/phase1-public-site` (built, not yet cut over). Done on the branch: Astro scaffold + pages (home, services, about, contact, history, privacy, book, guides, **service-area pages**), shared `BaseLayout` with per-page SEO + site-wide LocalBusiness JSON-LD, `@astrojs/sitemap`, a **care-guides content collection** (7 guides) carrying per-guide **Breadcrumb + Article + FAQ JSON-LD**, and a **service-area content collection** (6 towns) carrying **Breadcrumb + Service + FAQ JSON-LD** with the honest D-011 surcharge wording; a home-page "Areas we cover" strip; a CSS-only mobile nav; the chrome rebranded from ASH-blue onto the ICC logo's green (L-010). Remaining: encode the surcharge figure once Mark confirms it (D-011), Search Console/GBP + NAP (Mark-owned, needs the domain), the review-request engine, and the cutover PR. Carry the Phase 0 hardening items below into go-live.
+🟢 The Astro site is CUT OVER and live in production (15 June 2026, PR #49); Netlify builds `site/dist`. 🟡 Findability is still in progress (Mark-owned, needs the domain). Done so far: Astro scaffold + pages (home, services, about, contact, history, privacy, book, guides, **service-area pages**), shared `BaseLayout` with per-page SEO + site-wide LocalBusiness JSON-LD, `@astrojs/sitemap`, a **care-guides content collection** (7 guides) carrying per-guide **Breadcrumb + Article + FAQ JSON-LD**, and a **service-area content collection** (6 towns) carrying **Breadcrumb + Service + FAQ JSON-LD** with the honest D-011 surcharge wording; a home-page "Areas we cover" strip; a CSS-only mobile nav; the chrome rebranded from ASH-blue onto the ICC logo's green (L-010). Remaining: Search Console/GBP + NAP (Mark-owned, needs the domain) and the review-request engine. (The surcharge figure is now encoded, D-011/#27; the cutover PR shipped, #49.) Carry the Phase 0 hardening items below into go-live.
 
 Front end and content:
-- [ ] Convert the single-file PoC to a multi-page static site (D-001). Decide hand-built HTML vs Astro before starting (open in DECISIONS.md D-001).
-- [ ] Build pages: Home, Services, Booking, About, History of carpet cleaning, Carpet science & care guides, Area pages, Contact.
+- [x] Convert the single-file PoC to a multi-page static site (D-001) — built in Astro and cut over live (PR #49).
+- [x] Build pages: Home, Services, Booking, About, History of carpet cleaning, Carpet science & care guides, Area pages, Contact.
 - [x] Area pages reflect the service-area model (D-011): Cheltenham, Gloucester and Winchcombe as core/no-surcharge pages, plus wider-Gloucestershire pages (Stroud, Tewkesbury, Cirencester) stating the **flat £15 + VAT out-of-area surcharge** (confirmed by Mark, June 2026). **Built** with a `tier` switch; the £15 + VAT figure is now encoded on the area pages, the services page, the home-page strip and the assistant prompt. Still to do: encode the precise postcode boundary and apply the surcharge in `validateBooking` server-side (Phase 2, pairs with D-007); add surrounding towns as wanted.
-- [ ] Move the AI knowledge into a single maintainable source shared between site content and the assistant prompt (D-006).
-- [ ] Expand the AI knowledge base (fibre science, stain chemistry, method justification, history).
+- [x] Move the AI knowledge into a single maintainable source shared between site content and the assistant prompt (D-006) — `shared/config/knowledge.js` (Slice 4a).
+- [x] Expand the AI knowledge base (fibre science, stain chemistry, method justification, history).
 
 Findability:
-- [ ] Per-page unique title + meta description, one clear H1 per page.
-- [ ] Structured data (LocalBusiness: location, hours, service area, price range, aggregate rating) + FAQ markup on guides.
-- [ ] `sitemap.xml` + `robots.txt`; register Google Search Console + Bing Webmaster Tools.
+- [x] Per-page unique title + meta description, one clear H1 per page.
+- [x] Structured data (LocalBusiness: location, hours, service area, price range, aggregate rating) + FAQ markup on guides.
+- [ ] `sitemap.xml` + `robots.txt` (**built**); register Google Search Console + Bing Webmaster Tools (Mark-owned, needs the domain).
 - [ ] Google Business Profile claimed/verified (Mark-owned), categories, service area, photos, posts.
 - [ ] NAP consistency across Google, Bing Places, Apple Business Connect, Yell, Facebook.
 
@@ -53,19 +53,21 @@ Carry the Phase 0 hardening items above into this phase.
 
 ---
 
-## Phase 2 — Operational back end 🔴
+## Phase 2 — Operational back end 🟡
 
 **Outcome:** Mark runs the operational side from one place.
 
-- [ ] **Restructure to the monorepo layout first** (D-014): `site/`, `app/`, `server/`, `shared/`, `supabase/migrations/`, docs at root. Scope the Netlify build to `site/`+`shared/`. Do this before the API exists so the contract is born in `shared/`, not extracted later. **In progress — Slice 0 (`chore/d014-monorepo`):** folder resolved to `server/`; `chat.js`/`bookings.js` moved there (history preserved), test repointed, `netlify.toml functions` path updated — `node --test` green locally, awaiting sign-off. `shared/`, `supabase/migrations/`, npm workspaces and the Netlify build-scoping land in later slices.
-- [ ] Stand up Supabase: relational DB, admin auth, file storage for job photos, API (D-002).
-- [ ] Design the API surface deliberately so the future field app is a client, not a rebuild (D-003). Document it as an integration contract from day one (mirror the ASH/PropOS convention).
-- [ ] Migrate bookings off Netlify Blobs into Postgres (one-time migration + cutover).
-- [ ] Jobs dashboard: all jobs, filterable by status (enquiry, booked, in progress, completed, cancelled); outstanding vs completed views.
-- [ ] Job records: customer, address, carpet details, photos, AI assessment, quote, slot, notes.
+🟡 In progress — Slices 0–5 are built and largely live in production (monorepo restructure, hosted Supabase, `shared/config` single source, bookings migrated Blobs→Postgres, per-user Supabase Auth for the admin, and the handoff review + AI draft/send). **[NEXT_SESSION.md](NEXT_SESSION.md) is the authoritative slice ledger;** the boxes below track the headline deliverables.
+
+- [x] **Restructure to the monorepo layout** (D-014): `site/`, `app/`, `server/`, `shared/`, `supabase/migrations/`, docs at root. **Done** (Slices 0–2); the Netlify build is scoped to `site/dist`.
+- [x] Stand up Supabase: relational DB + admin auth (hosted `icc-platform`, London). File storage for job photos is still to come.
+- [ ] Design the API surface deliberately so the future field app is a client, not a rebuild (D-003). **Started** — `/api/v1/quote` + a versioned `shared/contract/`; the full surface is ongoing.
+- [x] Migrate bookings off Netlify Blobs into Postgres (Slice 5b, `BOOKINGS_STORE=postgres`, enabled 14 June 2026; fail-closed write, double-booking is a DB constraint).
+- [ ] Jobs dashboard: all jobs, filterable by status. **Partial** — bookings + handoffs are visible in the admin; status-filter / outstanding-vs-completed views are still to build.
+- [x] Job records: customer, address, carpet details, AI assessment, quote, slot, notes. (Photos are still emailed to Mark, not yet stored — `TODO(slice5x/photos)`.)
 - [ ] Basic invoice tracking (draft / sent / paid / overdue) against completed jobs.
-- [ ] Move model names + AI knowledge source server-side as a single source of truth (D-007, D-006).
-- [ ] First test suite (real services, no mocks) covering booking validation and the API contract.
+- [x] Move model names + AI knowledge source server-side as a single source of truth (Slices 1 + 4a, `shared/config`; D-007, D-006).
+- [x] First test suite (real services, no mocks): `node --test` + guarded real-Supabase integration tests + pgTAP.
 
 ---
 

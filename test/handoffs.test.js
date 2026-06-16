@@ -6,7 +6,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert");
 
-const { fetchHandoffs, handler, handlePost, updateHandoff, loadHandoffRow, draftSystemPrompt, buildHandoffEmail } = require("../server/netlify/functions/handoffs.js");
+const { fetchHandoffs, handler, handlePost, updateHandoff, loadHandoffRow, draftSystemPrompt, buildHandoffEmail, sendHandoffReply } = require("../server/netlify/functions/handoffs.js");
 const { getSupabaseAdmin, _resetForTest } = require("../server/netlify/functions/supabaseClient.js");
 const { escalationToMessageDraft } = require("../shared/messages.js");
 
@@ -56,6 +56,7 @@ function fakeDb(row, opts = {}) {
       neq(col, val) { filters["neq:" + col] = val; return chain; },
       limit() { return Promise.resolve(result()); },
       update(fields) { isUpdate = true; calls.updates.push(fields); return chain; },
+      delete() { (calls.deletes || (calls.deletes = [])).push(true); return chain; },
       then(resolve) { resolve(result()); }, // makes `await chain` / chain.select() work
     };
     return chain;
@@ -87,6 +88,37 @@ test("buildHandoffEmail adds the ICC sign-off and escapes the reply (A4, L-003)"
   assert.match(html, /&lt;script&gt;/);
   // the text part keeps the reply verbatim
   assert.match(text, /Hi there <script>alert\(1\)<\/script>/);
+});
+
+test("buildHandoffEmail includes a privacy-notice link in both parts (A4, UK GDPR Arts.13/14)", () => {
+  const { html, text } = buildHandoffEmail("Thanks for your enquiry.", { siteUrl: "https://example.test/" });
+  // a trailing slash on the base is normalised; the link points at /privacy
+  assert.match(text, /How we handle your data: https:\/\/example\.test\/privacy/);
+  assert.match(html, /href="https:\/\/example\.test\/privacy"/);
+  assert.match(html, /privacy notice/i);
+});
+
+test("sendHandoffReply identifies the sender: real Reply-To + privacy link in the Resend payload (A4)", async () => {
+  const orig = global.fetch;
+  let body = null;
+  global.fetch = async (url, opts) => { body = JSON.parse(opts.body); return { ok: true, json: async () => ({ id: "x" }) }; };
+  try {
+    await sendHandoffReply("jane@x.com", "Here is your answer.", "rk");
+  } finally { global.fetch = orig; }
+  assert.ok(body, "the send posts a JSON body to Resend");
+  assert.match(body.reply_to, /@intelligentclean\.co\.uk/); // a real monitored mailbox, not absent
+  assert.strictEqual(body.to, "jane@x.com");
+  assert.ok(body.from, "a From address is set");
+  assert.match(body.text, /privacy/i);
+  assert.match(body.html, /privacy notice/i);
+});
+
+test("sendHandoffReply throws on a non-2xx Resend response (fail-closed at the send unit)", async () => {
+  const orig = global.fetch;
+  global.fetch = async () => ({ ok: false, status: 422, text: async () => "bad" });
+  try {
+    await assert.rejects(() => sendHandoffReply("jane@x.com", "x", "rk"), /Resend 422/);
+  } finally { global.fetch = orig; }
 });
 
 // --- GET / fetchHandoffs (Slice 5e) -----------------------------------------
@@ -272,6 +304,29 @@ test("handlePost handle: marks the handoff approved (the manual path, incl. dama
 test("handlePost: an unknown action is 400", async () => {
   const { client } = fakeDb({ id: "1", status: "draft" });
   assert.strictEqual((await handlePost(post({ action: "frobnicate", id: "1" }), headers, { supabase: client })).statusCode, 400);
+});
+
+// --- erase / right to erasure (Slice 5e-2, review finding A5) ----------------
+
+test("handlePost erase: hard-deletes a handoff lead, kind-guarded (UK GDPR Art.17)", async () => {
+  const { client, calls } = fakeDb({ id: "1", status: "draft", handoff_reason: "out_of_scope", customer_contact: "jane@x.com" });
+  const res = await handlePost(post({ action: "erase", id: "1" }), headers, { supabase: client });
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(JSON.parse(res.body).status, "erased");
+  assert.ok((calls.deletes || []).length >= 1, "a delete was issued against messages");
+});
+
+test("handlePost erase: a non-human_handoff id is 404 and nothing is deleted (kind guard)", async () => {
+  const { client, calls } = fakeDb({ id: "1", status: "draft", kind: "booking_confirmation", customer_contact: "jane@x.com" });
+  const res = await handlePost(post({ action: "erase", id: "1" }), headers, { supabase: client });
+  assert.strictEqual(res.statusCode, 404, "loadHandoffRow filters kind=human_handoff, so a foreign row never loads");
+  assert.strictEqual((calls.deletes || []).length, 0);
+});
+
+test("handlePost erase: allowed even on a sent handoff (an erasure request can arrive later)", async () => {
+  const { client } = fakeDb({ id: "1", status: "sent", handoff_reason: "out_of_scope", customer_contact: "jane@x.com" });
+  const res = await handlePost(post({ action: "erase", id: "1" }), headers, { supabase: client });
+  assert.strictEqual(res.statusCode, 200, "erase must bypass the sent-409 guard");
 });
 
 // --- Guarded integration: real local Supabase -------------------------------
