@@ -1,30 +1,50 @@
 // Allowed origins for the chat endpoint.
 //
 // Order of precedence:
-//   1. The ALLOWED_ORIGINS env var (comma-separated) if explicitly set.
+//   1. The ALLOWED_ORIGINS env var (comma-separated) if explicitly set — strict
+//      mode: an unrecognised origin is 403'd. The site's OWN Netlify deploy
+//      origins (see netlifyDeployOrigins) are ALWAYS folded in, even here, so
+//      setting ALLOWED_ORIGINS to lock the public domain never 403s the
+//      .netlify.app host or a deploy preview the team tests on (the L-001 safe
+//      variant — strict mode without locking ourselves out).
 //   2. Netlify's auto-injected URL / DEPLOY_URL / DEPLOY_PRIME_URL — these
-//      always reflect the real deployed domain, so a default-named Netlify
-//      site (e.g. random-words-12345.netlify.app) works without manual config.
-//   3. A small set of common dev/prod fallbacks.
+//      always reflect the real deployed domain (production, branch deploys and
+//      deploy previews), so a default-named Netlify site works without config.
+//   3. A small set of common dev/prod fallbacks (fail-open mode only).
 //
-// If nothing matches at request time we fail OPEN with a warning rather than
-// 403 every customer — the per-IP rate limit on /api/chat is the real defence.
+// When ALLOWED_ORIGINS is unset we fail OPEN with a warning rather than 403
+// every customer — the per-IP rate limit on /api/chat is the real defence.
+function normaliseOrigins(list){
+  const seen = new Set();
+  const out = [];
+  for(const o of list){
+    if(!o) continue;
+    const n = String(o).replace(/\/+$/, ""); // strip trailing slashes
+    if(n && !seen.has(n)){ seen.add(n); out.push(n); }
+  }
+  return out;
+}
+// The site's own Netlify deploy origins: URL is the production / custom-domain
+// host, DEPLOY_URL the unique per-deploy host, DEPLOY_PRIME_URL the branch-deploy
+// / deploy-preview host. Allowed in BOTH modes so locking the public domain via
+// ALLOWED_ORIGINS does not 403 the .netlify.app or a preview (L-001).
+function netlifyDeployOrigins(){
+  return [process.env.URL, process.env.DEPLOY_URL, process.env.DEPLOY_PRIME_URL];
+}
 function buildAllowedOrigins(){
   const explicit = process.env.ALLOWED_ORIGINS;
   if(explicit){
-    return explicit.split(",").map(s => s.trim()).filter(Boolean);
+    const listed = explicit.split(",").map(s => s.trim()).filter(Boolean);
+    // Strict mode still trusts the site's own deploy origins (L-001 safe variant).
+    return normaliseOrigins(listed.concat(netlifyDeployOrigins()));
   }
-  const auto = [
-    process.env.URL,
-    process.env.DEPLOY_URL,
-    process.env.DEPLOY_PRIME_URL,
+  // Fail-open default: the deploy origins plus the known prod domains + localhost.
+  return normaliseOrigins(netlifyDeployOrigins().concat([
     "https://intelligentclean.co.uk",
     "https://www.intelligentclean.co.uk",
     "http://localhost:8888",
     "http://localhost:3000"
-  ].filter(Boolean);
-  // Normalise — strip trailing slashes
-  return auto.map(o => o.replace(/\/+$/, ""));
+  ]));
 }
 const ALLOWED_ORIGINS = buildAllowedOrigins();
 const ORIGIN_CHECK_STRICT = process.env.ALLOWED_ORIGINS ? true : false;
@@ -1337,3 +1357,4 @@ exports.handleEscalation = handleEscalation;
 exports.withKnowledgeDocument = withKnowledgeDocument;
 exports.collectCitations = collectCitations;
 exports.privacyNoticeUrl = privacyNoticeUrl;
+exports.buildAllowedOrigins = buildAllowedOrigins;
