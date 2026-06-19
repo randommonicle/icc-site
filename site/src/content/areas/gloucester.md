@@ -10,7 +10,7 @@ order: 20
 updated: "2026-06-04"
 faq:
   - question: "Is there a surcharge for carpet cleaning in Gloucester?"
-    answer: "No. Gloucester is part of our core service area with Cheltenham, so there is no out-of-area travel charge — just the standard per-room pricing shown on our services page, plus VAT."
+    answer: "No. Gloucester is part of our core service area with Cheltenham, so there is no out-of-area travel charge — just the standard per-room pricing shown on our services page."
   - question: "Which areas of Gloucester do you cover?"
     answer: "All of it — GL1 to GL4 — including Quedgeley, Hardwicke, Hucclecote, Longlevens, Abbeymead, Tuffley, Barnwood and Kingsholm."
   - question: "How do I get a price?"

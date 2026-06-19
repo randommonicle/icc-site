@@ -71,10 +71,10 @@ function depositFromNotes(notes) {
 // Map a validated booking (the BOOKING_READY payload) to a `jobs` insert row.
 // customer_id is added by insertBooking after the customers upsert (kept out here
 // so the mapper is pure). status is 'booked' — a confirmed booking holds the slot.
-// estimated_price_ex_vat / deposit_ex_vat stay NULL: the payload carries only a
-// display string ("£475 + VAT") and the deposit is an inc-VAT figure, so parsing
-// them into ex-VAT columns would store wrong-semantics numbers that later feed
-// invoicing. price_display is the verbatim authoritative figure.
+// estimated_price_ex_vat / deposit_ex_vat stay NULL (legacy column names; Mark is
+// not VAT-registered, so there is no VAT component): the payload carries only a
+// display string ("£475") and price_display is the verbatim authoritative figure.
+// The numeric columns would be populated from structured line items.
 // TODO(slice5x/structured-pricing): populate the ex-VAT / deposit numerics once
 // the booking carries structured line items (e.g. via /api/v1/quote).
 function bookingToJobRow(booking, opts) {
@@ -101,7 +101,7 @@ function bookingToJobRow(booking, opts) {
     ai_assessment: b.ai_assessment ?? null,
     rams: b.rams ?? null,
     estimated_price_ex_vat: null,
-    out_of_area_surcharge_ex_vat: outOfArea ? serviceArea.out_of_area_surcharge_ex_vat : 0,
+    out_of_area_surcharge_ex_vat: outOfArea ? serviceArea.out_of_area_surcharge : 0, // legacy column name; flat surcharge, no VAT
     deposit_ex_vat: null,
     price_display: b.estimated_price ?? null,
     notes: buildNotes(b, method),

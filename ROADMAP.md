@@ -35,7 +35,7 @@ Outstanding before this can safely take real traffic (carried into Phase 1, trac
 Front end and content:
 - [x] Convert the single-file PoC to a multi-page static site (D-001) — built in Astro and cut over live (PR #49).
 - [x] Build pages: Home, Services, Booking, About, History of carpet cleaning, Carpet science & care guides, Area pages, Contact.
-- [x] Area pages reflect the service-area model (D-011): Cheltenham, Gloucester and Winchcombe as core/no-surcharge pages, plus wider-Gloucestershire pages (Stroud, Tewkesbury, Cirencester) stating the **flat £15 + VAT out-of-area surcharge** (confirmed by Mark, June 2026). **Built** with a `tier` switch; the £15 + VAT figure is now encoded on the area pages, the services page, the home-page strip and the assistant prompt. Still to do: encode the precise postcode boundary and apply the surcharge in `validateBooking` server-side (Phase 2, pairs with D-007); add surrounding towns as wanted.
+- [x] Area pages reflect the service-area model (D-011): Cheltenham, Gloucester and Winchcombe as core/no-surcharge pages, plus wider-Gloucestershire pages (Stroud, Tewkesbury, Cirencester) stating the **flat £15 out-of-area surcharge** (confirmed by Mark, June 2026). **Built** with a `tier` switch; the £15 figure is now encoded on the area pages, the services page, the home-page strip and the assistant prompt. Still to do: encode the precise postcode boundary and apply the surcharge in `validateBooking` server-side (Phase 2, pairs with D-007); add surrounding towns as wanted.
 - [x] Move the AI knowledge into a single maintainable source shared between site content and the assistant prompt (D-006) — `shared/config/knowledge.js` (Slice 4a).
 - [x] Expand the AI knowledge base (fibre science, stain chemistry, method justification, history).
 
@@ -117,12 +117,12 @@ When the app is scoped, give it its own roadmap section here.
 ## Open questions (from DESIGN §13)
 
 Resolved with Mark (June 2026):
-- ✅ **Service area:** Cheltenham + Gloucester + Winchcombe core (no surcharge); wider Gloucestershire (Stroud, Tewkesbury, Cirencester, surrounding GL towns) with a flat £15 + VAT out-of-area surcharge (D-011, figure confirmed June 2026).
+- ✅ **Service area:** Cheltenham + Gloucester + Winchcombe core (no surcharge); wider Gloucestershire (Stroud, Tewkesbury, Cirencester, surrounding GL towns) with a flat £15 out-of-area surcharge (D-011, figure confirmed June 2026).
 - ✅ **Field app:** built concurrently with the website and fully integrated via the shared API, not deferred (D-012).
 - ⏸️ **Domain:** still to be chosen — parked, non-blocking for Phases 0–2 (D-013). Needed before Phase 1 go-live and `ALLOWED_ORIGINS` strict mode.
 
 Still to resolve before the phase that needs each:
-- ✅ Out-of-area surcharge figure resolved — flat £15 + VAT (D-011). Still to encode: the precise postcode boundary for "out of area" and server-side surcharge enforcement in `validateBooking` (Phase 2).
+- ✅ Out-of-area surcharge figure resolved — flat £15 (D-011). Still to encode: the precise postcode boundary for "out of area" and server-side surcharge enforcement in `validateBooking` (Phase 2).
 - Deposit policy — amount or percentage at booking (Phase 3).
 - Which calendar Mark actually uses day to day (Phase 3).
 - Account ownership (domain, Stripe, Google Business Profile, database) sitting with Mark from the start (D-009).

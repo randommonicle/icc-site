@@ -25,30 +25,27 @@ export interface QuoteRequest {
   outOfArea?: boolean;
 }
 
-/** A priced line in the response. Money fields are GBP, ex-VAT. */
+/** A priced line in the response. Money fields are GBP. */
 export interface QuoteLine {
   code: string;
   label: string;
   qty: number;
-  unit_ex_vat: number;
-  line_ex_vat: number;
+  unit_price: number;
+  line_total: number;
 }
 
-/** `POST /api/v1/quote` success response (HTTP 200). Money fields are GBP.
- *  All are ex-VAT except `vat`, `total_inc_vat` and `deposit_inc_vat`. The 10%
- *  deposit is taken on the inc-VAT total (what the customer actually pays). */
+/** `POST /api/v1/quote` success response (HTTP 200). Money fields are GBP. No VAT
+ *  is applied (the business is not VAT-registered); the 10% deposit is taken on
+ *  the total the customer pays. */
 export interface QuoteResponse {
   currency: "GBP";
   lines: QuoteLine[];
   out_of_area: boolean;
-  items_ex_vat: number;
-  out_of_area_surcharge_ex_vat: number;
-  subtotal_ex_vat: number;
-  vat_rate: number;
-  vat: number;
-  total_inc_vat: number;
+  items_total: number;
+  out_of_area_surcharge: number;
+  total: number;
   deposit_rate: number;
-  deposit_inc_vat: number;
+  deposit: number;
 }
 
 /** Error response shape for v1 endpoints (HTTP 4xx/5xx). */

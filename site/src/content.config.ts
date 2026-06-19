@@ -28,7 +28,7 @@ const guides = defineCollection({
 // nearby places, FAQ) the template renders AND emits as JSON-LD; the Markdown
 // body is the local prose. `tier` is the honesty switch: 'core' = Cheltenham,
 // Gloucester and Winchcombe, no travel surcharge; 'wider' = everywhere else in
-// Gloucestershire, a flat £15 + VAT out-of-area surcharge (confirmed by Mark,
+// Gloucestershire, a flat £15 out-of-area surcharge (confirmed by Mark,
 // June 2026; D-011).
 const areas = defineCollection({
   loader: glob({ pattern: '**/*.md', base: './src/content/areas' }),
@@ -37,7 +37,7 @@ const areas = defineCollection({
     title: z.string(), // full document <title>
     description: z.string(), // meta description / OG
     summary: z.string(), // listing-card blurb on /areas
-    tier: z.enum(['core', 'wider']), // 'core' = no surcharge; 'wider' = flat £15 + VAT out-of-area surcharge
+    tier: z.enum(['core', 'wider']), // 'core' = no surcharge; 'wider' = flat £15 out-of-area surcharge
     postcodes: z.array(z.string()).default([]), // GL districts we cover here
     nearby: z.array(z.string()).default([]), // neighbouring places served
     order: z.number().default(50), // listing sort (low number = first)

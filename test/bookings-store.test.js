@@ -34,8 +34,8 @@ const SAMPLE = {
   concerns: "Red wine stain",
   furniture_moving: true,
   pets: false,
-  estimated_price: "£475 + VAT",
-  deposit: "£57 + VAT",
+  estimated_price: "£475",
+  deposit: "£57",
   recommended_method: "Texatherm low-moisture",
   ai_assessment: "Wool lounge carpet, low-moisture recommended.",
   rams: "Activity: cleaning\\nHazards: slip",
@@ -91,7 +91,7 @@ test("bookingToJobRow maps the core fields and stamps status 'booked'", () => {
 
 test("bookingToJobRow keeps price_display verbatim and leaves ex-VAT/deposit numerics null", () => {
   const row = bookingToJobRow(SAMPLE, {});
-  assert.strictEqual(row.price_display, "£475 + VAT");
+  assert.strictEqual(row.price_display, "£475");
   assert.strictEqual(row.estimated_price_ex_vat, null);
   assert.strictEqual(row.deposit_ex_vat, null);
 });
@@ -136,8 +136,8 @@ test("resolvePostcode prefers the captured postcode, then the address, then null
 });
 
 test("buildNotes / depositFromNotes round-trip the deposit display", () => {
-  const notes = buildNotes({ deposit: "£57 + VAT", recommended_method: "Texatherm low-moisture" }, "texatherm_low_moisture");
-  assert.strictEqual(depositFromNotes(notes), "£57 + VAT");
+  const notes = buildNotes({ deposit: "£57", recommended_method: "Texatherm low-moisture" }, "texatherm_low_moisture");
+  assert.strictEqual(depositFromNotes(notes), "£57");
   // missing deposit falls back, and an unmapped method keeps its raw text
   const notes2 = buildNotes({ recommended_method: "magic foam" }, null);
   assert.strictEqual(depositFromNotes(notes2), "To be confirmed");
@@ -162,8 +162,8 @@ test("jobRowToAdminRecord maps a joined jobs row to the admin record shape", () 
     pets: true,
     recommended_method: "wet_extraction",
     ai_assessment: "fine",
-    price_display: "£200 + VAT",
-    notes: "Deposit due: £24 + VAT",
+    price_display: "£200",
+    notes: "Deposit due: £24",
     cal_link: "https://calendar.google.com/y",
     customers: { name: "Jane", phone: "01242 1", email: "jane@example.com" },
   });
@@ -172,8 +172,8 @@ test("jobRowToAdminRecord maps a joined jobs row to the admin record shape", () 
   assert.strictEqual(adminRow.email, "jane@example.com");
   assert.strictEqual(adminRow.date, "2026-07-10");
   assert.strictEqual(adminRow.start_time, "9:00");
-  assert.strictEqual(adminRow.estimated_price, "£200 + VAT");
-  assert.strictEqual(adminRow.deposit, "£24 + VAT");
+  assert.strictEqual(adminRow.estimated_price, "£200");
+  assert.strictEqual(adminRow.deposit, "£24");
   assert.strictEqual(adminRow.recommended_method, "Texatherm wet extraction");
   assert.strictEqual(adminRow.calLink, "https://calendar.google.com/y");
   assert.strictEqual(adminRow.pets, true);
@@ -232,13 +232,13 @@ test("availabilityFromJobs returns the union of booked hour-slots", async () => 
 test("fetchBookingsFromJobs maps rows to admin records and returns [] when not configured", async () => {
   assert.deepStrictEqual(await fetchBookingsFromJobs(null), []);
   const sb = fakeSupabase({
-    jobsSelect: { data: [{ id: "j1", slot_date: "2026-07-10", start_hour: 9, slots_needed: 1, price_display: "£90 + VAT", notes: "Deposit due: £9 + VAT", customers: { name: "A", phone: "p", email: "a@x.com" } }], error: null },
+    jobsSelect: { data: [{ id: "j1", slot_date: "2026-07-10", start_hour: 9, slots_needed: 1, price_display: "£90", notes: "Deposit due: £9", customers: { name: "A", phone: "p", email: "a@x.com" } }], error: null },
   });
   const rows = await fetchBookingsFromJobs(sb);
   assert.strictEqual(rows.length, 1);
   assert.strictEqual(rows[0].name, "A");
-  assert.strictEqual(rows[0].estimated_price, "£90 + VAT");
-  assert.strictEqual(rows[0].deposit, "£9 + VAT");
+  assert.strictEqual(rows[0].estimated_price, "£90");
+  assert.strictEqual(rows[0].deposit, "£9");
 });
 
 // --- Guarded integration: real Supabase (D-010 real services, no mocks) -----
@@ -265,8 +265,8 @@ const IT_BOOKING = {
   concerns: "none",
   furniture_moving: false,
   pets: false,
-  estimated_price: "£200 + VAT",
-  deposit: "£24 + VAT",
+  estimated_price: "£200",
+  deposit: "£24",
   recommended_method: "Texatherm low-moisture",
   ai_assessment: "ok",
   rams: "Activity: cleaning",
@@ -315,8 +315,8 @@ test("[integration] insertBooking persists, blocks the slot, reads back, and rej
     assert.ok(mine, "the new booking appears in the admin list");
     assert.strictEqual(mine.name, "IT Five-B");
     assert.strictEqual(mine.start_time, "10:00");
-    assert.strictEqual(mine.estimated_price, "£200 + VAT");
-    assert.strictEqual(mine.deposit, "£24 + VAT");
+    assert.strictEqual(mine.estimated_price, "£200");
+    assert.strictEqual(mine.deposit, "£24");
 
     // an overlapping booking (11..13 vs the booked 10..12) is rejected by the
     // exclusion constraint -> conflict:true (the concurrency-safe double-book guard)

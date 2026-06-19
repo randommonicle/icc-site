@@ -79,7 +79,7 @@ test("safeEqual: empty / non-string inputs do not match", () => {
 });
 
 test("depositLabel keeps a provided deposit verbatim", () => {
-  assert.strictEqual(depositLabel("£90 + VAT"), "£90 + VAT");
+  assert.strictEqual(depositLabel("£90"), "£90");
 });
 
 test("depositLabel falls back to a clear label when missing or blank", () => {

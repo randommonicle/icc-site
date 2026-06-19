@@ -31,7 +31,7 @@ Use the domain once it is pointed at Netlify. If the profile is created before t
 
 **Service areas (where you serve):**
 - Core (no travel charge): Cheltenham, Gloucester, Winchcombe, Bishop's Cleeve, Prestbury, Charlton Kings, Quedgeley, Churchdown, Brockworth.
-- Wider Gloucestershire (a flat £15 + VAT travel surcharge applies, per D-011): Tewkesbury, Stroud, Cirencester, Bourton-on-the-Water, Stow-on-the-Wold, Northleach.
+- Wider Gloucestershire (a flat £15 travel surcharge applies, per D-011): Tewkesbury, Stroud, Cirencester, Bourton-on-the-Water, Stow-on-the-Wold, Northleach.
 
 Google allows up to 20 service areas. The surcharge is never shown on Google; it is quoted in the chat and the on-site quote. Listing the wider towns simply tells Google that ICC serves them.
 
@@ -42,7 +42,7 @@ Matches the booking system's trading hours. Confirm with Mark before publishing.
 
 > Intelligent Carpet Cleaning provides professional carpet, rug and upholstery cleaning across Cheltenham, Gloucester, Winchcombe and the wider Gloucestershire area. We use a low-moisture cleaning method that is well suited to wool and natural-fibre carpets, with short drying times and no soaked carpets left behind. We give honest, expert advice on what cleaning can and cannot achieve, an accurate quote up front, and a clear price with no surprises. From a single room or staircase to a full house or a commercial floor, we treat your home with care. Book online or call us on 01242 279590.
 
-**Services (all prices + VAT; source of truth is `shared/config/pricing.js`):**
+**Services (all prices are the final price — Mark is not VAT-registered, so no VAT is added; source of truth is `shared/config/pricing.js`):**
 
 Carpet cleaning:
 - First room / call-out (up to 15m2): £75
@@ -65,7 +65,7 @@ Other:
 - Full house packages: discount, quote on request
 - Commercial: tailored pricing
 
-A 10% deposit secures a booking. Prices are ex-VAT. On Google you can either enter each price with a "+ VAT" note or omit individual prices and keep them on the site; whichever, keep them in step with `shared/config/pricing.js`.
+A 10% deposit secures a booking. Prices are flat (Mark is not VAT-registered, so no VAT is added). On Google, enter each price as shown or omit individual prices and keep them on the site; whichever, keep them in step with `shared/config/pricing.js`.
 
 **Attributes / service options (set only the ones that are genuinely true):**
 - Online appointments: yes

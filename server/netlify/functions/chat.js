@@ -168,10 +168,10 @@ Collect in this order, one question at a time:
 10. Preferred date (must be from the AVAILABLE BOOKING DATES list in the PER-CONVERSATION CONTEXT block, Monday to Saturday only)
 11. Preferred start time (9am to 5pm, hourly slots)
 
-Once you have all details, calculate the total estimated time needed (minimum 1 hour per room, round up, add 1 hour buffer). Tell the customer the estimated duration, total price plus VAT, and the 10% deposit amount. Then ask them to confirm they want to proceed.
+Once you have all details, calculate the total estimated time needed (minimum 1 hour per room, round up, add 1 hour buffer). Tell the customer the estimated duration, total price, and the 10% deposit amount. Then ask them to confirm they want to proceed.
 
 When they confirm, output a special booking confirmation block in this EXACT format on its own line:
-BOOKING_READY:{"name":"[full name]","phone":"[phone]","email":"[email]","address":"[full address]","postcode":"[postcode]","date":"[YYYY-MM-DD]","start_time":"[HH:MM]","slots_needed":[number of 1-hour slots],"rooms":"[description of rooms]","carpet_types":"[carpet types]","concerns":"[any concerns or stains]","furniture_moving":[true/false],"pets":[true/false],"estimated_price":"[price + VAT]","deposit":"[10% amount + VAT]","recommended_method":"[Texatherm low-moisture / Texatherm wet extraction / combination]","ai_assessment":"[brief professional assessment of carpet type and recommended approach]","rams":"[see RAMS instructions below]"}
+BOOKING_READY:{"name":"[full name]","phone":"[phone]","email":"[email]","address":"[full address]","postcode":"[postcode]","date":"[YYYY-MM-DD]","start_time":"[HH:MM]","slots_needed":[number of 1-hour slots],"rooms":"[description of rooms]","carpet_types":"[carpet types]","concerns":"[any concerns or stains]","furniture_moving":[true/false],"pets":[true/false],"estimated_price":"[price]","deposit":"[10% amount]","recommended_method":"[Texatherm low-moisture / Texatherm wet extraction / combination]","ai_assessment":"[brief professional assessment of carpet type and recommended approach]","rams":"[see RAMS instructions below]"}
 
 RAMS FIELD INSTRUCTIONS:
 The rams field must contain a plain-English risk assessment tailored to this specific job. Use \\n to separate each line within the JSON string. Include only hazards relevant to this job. Format exactly as follows:
@@ -840,7 +840,7 @@ function validateBooking(b, opts){
   const startHour = parseInt(b.start_time.split(":")[0], 10);
   if(startHour + slots > latestEndHour) return "Slots overflow trading hours";
 
-  // Price floor — minimum call-out is £75 + VAT (£90 inc). Anything under £30
+  // Price floor — minimum call-out is £75. Anything under £30
   // is almost certainly a prompt-injection or tampered payload.
   if(b.estimated_price && typeof b.estimated_price === "string"){
     const match = b.estimated_price.replace(/,/g,"").match(/[\d.]+/);
@@ -1087,7 +1087,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Rooms</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.rooms)}</td></tr>
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Carpet Types</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.carpet_types)}</td></tr>
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Concerns / Stains</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.concerns || "None noted")}</td></tr>
-            <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Furniture Moving</strong></td><td style="padding:8px 0;font-size:14px;">${booking.furniture_moving ? `Yes - \u00a3${pricing.priceOf("furniture_moving")} + VAT surcharge applies` : "No"}</td></tr>
+            <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Furniture Moving</strong></td><td style="padding:8px 0;font-size:14px;">${booking.furniture_moving ? `Yes - \u00a3${pricing.priceOf("furniture_moving")} surcharge applies` : "No"}</td></tr>
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Pets on site</strong></td><td style="padding:8px 0;font-size:14px;">${booking.pets ? "Yes - remind customer to keep pets away" : "No"}</td></tr>
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Recommended Method</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.recommended_method)}</td></tr>
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>AI Assessment</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.ai_assessment)}</td></tr>
@@ -1256,7 +1256,7 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
       } catch(e){ return booking.date; }
     })();
     twoCol("DATE", dateFormatted, "START TIME", booking.start_time);
-    twoCol("ESTIMATED DURATION", `${booking.slots_needed} hour(s)`, "FURNITURE MOVING", booking.furniture_moving ? `Yes - £${pricing.priceOf("furniture_moving")} + VAT` : "No");
+    twoCol("ESTIMATED DURATION", `${booking.slots_needed} hour(s)`, "FURNITURE MOVING", booking.furniture_moving ? `Yes - £${pricing.priceOf("furniture_moving")}` : "No");
     twoCol("PETS ON SITE", booking.pets ? "Yes - keep away during clean and until dry" : "No", "", "");
     fullRow("ROOMS TO BE CLEANED", booking.rooms);
 
@@ -1299,7 +1299,7 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
     const pY = doc.y;
     const boxW = (W / 2) - 5;
     doc.rect(40, pY, boxW, 42).fill(navy);
-    doc.fontSize(7).fillColor("rgba(255,255,255,0.55)").font("Helvetica").text("ESTIMATED PRICE (EX VAT)", 50, pY + 7);
+    doc.fontSize(7).fillColor("rgba(255,255,255,0.55)").font("Helvetica").text("ESTIMATED PRICE", 50, pY + 7);
     doc.fontSize(14).fillColor("white").font("Helvetica-Bold").text(booking.estimated_price || "N/A", 50, pY + 19);
     doc.rect(40 + boxW + 10, pY, boxW, 42).fill(teal);
     doc.fontSize(7).fillColor("rgba(255,255,255,0.55)").font("Helvetica").text("DEPOSIT DUE", 50 + boxW + 10, pY + 7);

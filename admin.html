@@ -133,7 +133,7 @@
       <div class="stat-card"><div class="stat-num" id="statTotal">-</div><div class="stat-label">Total Bookings</div></div>
       <div class="stat-card"><div class="stat-num" id="statUpcoming">-</div><div class="stat-label">Upcoming</div></div>
       <div class="stat-card"><div class="stat-num" id="statThisWeek">-</div><div class="stat-label">This Week</div></div>
-      <div class="stat-card"><div class="stat-num" id="statRevenue">-</div><div class="stat-label">Est. Revenue (Ex VAT)</div></div>
+      <div class="stat-card"><div class="stat-num" id="statRevenue">-</div><div class="stat-label">Est. Revenue</div></div>
     </div>
 
     <div class="section-header">
@@ -477,7 +477,7 @@ function buildCard(b, i){
         '<div class="detail-item"><label>Rooms</label><p>'+esc(b.rooms||"-")+'</p></div>'+
         '<div class="detail-item"><label>Carpet Types</label><p>'+esc(b.carpet_types||"-")+'</p></div>'+
         '<div class="detail-item"><label>Concerns</label><p>'+esc(b.concerns||"None noted")+'</p></div>'+
-        '<div class="detail-item"><label>Furniture Moving</label><p>'+(b.furniture_moving?"Yes - \u00a330+VAT":"No")+'</p></div>'+
+        '<div class="detail-item"><label>Furniture Moving</label><p>'+(b.furniture_moving?"Yes - \u00a330":"No")+'</p></div>'+
         '<div class="detail-item"><label>Pets on Site</label><p>'+(b.pets?"Yes":"No")+'</p></div>'+
         '<div class="detail-item"><label>Recommended Method</label><p>'+esc(b.recommended_method||"-")+'</p></div>'+
       '</div>'+
