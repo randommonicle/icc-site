@@ -62,10 +62,12 @@ function transcriptSnippet(messages, turns = 6) {
 // customer_id stays null — a handoff is a lead with no customer row yet (D-020);
 // the messages_customer_or_handoff constraint permits null only for this kind.
 // Retention/erasure (review finding A5, D-023): these handoff-lead rows (customer_id
-// null) hold contact, question and transcript PII. Erasure is built (the admin
-// "erase" action hard-deletes a row; UK GDPR Art.17). TODO(D-008/retention): the
-// timed purge (Art.5(1)(e), proposed 6 months, pending Mark/DP confirmation) is not
-// wired yet; see D-023.
+// null) hold contact, question and transcript PII. Both UK GDPR duties are now built:
+// erasure on request (the admin "erase" action hard-deletes a row; Art.17) and the
+// timed storage-limitation purge (Art.5(1)(e)) — a daily scheduled function
+// (server/netlify/functions/purge-handoffs.js) deletes rows older than the retention
+// period in shared/config/retention.js (6 months, the figure the privacy notice
+// states; pending the DP review). See D-023.
 function escalationToMessageDraft(input, context) {
   const inp = input || {};
   const reasonLabel = HANDOFF_REASON_LABELS[inp.reason]
