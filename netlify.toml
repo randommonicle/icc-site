@@ -12,6 +12,13 @@
 [build.environment]
   NODE_VERSION = "24"
 
+# Scheduled retention purge (A5 / D-023, UK GDPR Art.5(1)(e)): once a day, delete
+# handoff-lead rows older than the retention period in shared/config/retention.js
+# (the "no longer than 6 months" the privacy notice promises). The function is
+# kind-guarded and only removes already-expired rows (see purge-handoffs.js).
+[functions."purge-handoffs"]
+  schedule = "@daily"
+
 [[redirects]]
   from = "/api/chat"
   to = "/.netlify/functions/chat"
