@@ -45,25 +45,21 @@ test("isOutOfArea: tolerant of spacing, case and bare districts", () => {
 
 // --- pricing.quote (D-003/D-007/D-011) -----------------------------------
 
-test("quote: core single room — no surcharge, deposit on inc-VAT", () => {
+test("quote: core single room — no surcharge, deposit is 10% of the total", () => {
   const q = pricing.quote([{ code: "base_room" }], { outOfArea: false });
-  assert.strictEqual(q.items_ex_vat, 75);
-  assert.strictEqual(q.out_of_area_surcharge_ex_vat, 0);
-  assert.strictEqual(q.subtotal_ex_vat, 75);
-  assert.strictEqual(q.vat, 15);
-  assert.strictEqual(q.total_inc_vat, 90);
-  assert.strictEqual(q.deposit_inc_vat, 9); // 10% of the inc-VAT total
+  assert.strictEqual(q.items_total, 75);
+  assert.strictEqual(q.out_of_area_surcharge, 0);
+  assert.strictEqual(q.total, 75);
+  assert.strictEqual(q.deposit, 7.5); // 10% of the total (no VAT — Mark not registered)
   assert.strictEqual(q.currency, "GBP");
 });
 
-test("quote: out-of-area adds the flat £15 surcharge before VAT", () => {
+test("quote: out-of-area adds the flat £15 surcharge", () => {
   const q = pricing.quote([{ code: "base_room" }], { outOfArea: true });
   assert.strictEqual(q.out_of_area, true);
-  assert.strictEqual(q.out_of_area_surcharge_ex_vat, 15);
-  assert.strictEqual(q.subtotal_ex_vat, 90);
-  assert.strictEqual(q.vat, 18);
-  assert.strictEqual(q.total_inc_vat, 108);
-  assert.strictEqual(q.deposit_inc_vat, 10.8);
+  assert.strictEqual(q.out_of_area_surcharge, 15);
+  assert.strictEqual(q.total, 90); // 75 + 15
+  assert.strictEqual(q.deposit, 9); // 10% of 90
 });
 
 test("quote: quantities and multiple lines sum correctly", () => {
@@ -71,11 +67,10 @@ test("quote: quantities and multiple lines sum correctly", () => {
     [{ code: "large_room", qty: 2 }, { code: "stairs_to_13" }],
     { outOfArea: false }
   );
-  assert.strictEqual(q.items_ex_vat, 295); // 2*115 + 65
-  assert.strictEqual(q.subtotal_ex_vat, 295);
-  assert.strictEqual(q.total_inc_vat, 354);
-  assert.strictEqual(q.deposit_inc_vat, 35.4);
-  assert.strictEqual(q.lines[0].line_ex_vat, 230);
+  assert.strictEqual(q.items_total, 295); // 2*115 + 65
+  assert.strictEqual(q.total, 295);
+  assert.strictEqual(q.deposit, 29.5);
+  assert.strictEqual(q.lines[0].line_total, 230);
   assert.strictEqual(q.lines[0].label, "Large room / lounge (20-30m2)");
 });
 

@@ -12,7 +12,7 @@ faq:
   - question: "Do you cover Winchcombe?"
     answer: "Yes. Winchcombe and the surrounding GL54 villages — Greet, Gretton, Sudeley and others — are part of our core service area, alongside Cheltenham and Gloucester."
   - question: "Is there a surcharge for Winchcombe?"
-    answer: "No. Winchcombe is part of our core service area, alongside Cheltenham and Gloucester, so there is no out-of-area travel surcharge — just the standard per-room pricing shown on our services page, plus VAT."
+    answer: "No. Winchcombe is part of our core service area, alongside Cheltenham and Gloucester, so there is no out-of-area travel surcharge — just the standard per-room pricing shown on our services page."
   - question: "Can you clean wool and natural-fibre rugs?"
     answer: "Yes, and they suit our low-moisture method well. Wool and natural fibres can shrink or brown if over-wet, so we keep moisture low and drying fast. Our wool and natural-fibre guides explain why."
 ---

@@ -30,9 +30,9 @@ existing behaviour.
   Provide `postcode` and the server derives the out-of-area surcharge
   (D-011) via `isOutOfArea`; or pass `outOfArea` to override; with neither, a
   core (no-surcharge) quote is returned.
-- **200:** [`QuoteResponse`](quote.ts) — priced lines, ex-VAT subtotal, the flat
-  £15 + VAT surcharge when applicable, VAT (20%), inc-VAT total, and the 10%
-  deposit (taken on the inc-VAT total).
+- **200:** [`QuoteResponse`](quote.ts) — priced lines, the items total, the flat
+  £15 surcharge when applicable, the grand total, and the 10% deposit (taken on
+  the total). No VAT is applied (the business is not VAT-registered).
 - **400:** [`ApiError`](quote.ts) — invalid body, unknown item `code`, or invalid
   quantity.
 - **Server:** [`server/netlify/functions/v1-quote.js`](../../server/netlify/functions/v1-quote.js).

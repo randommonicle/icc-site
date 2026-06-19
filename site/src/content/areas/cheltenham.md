@@ -10,9 +10,9 @@ order: 10
 updated: "2026-06-04"
 faq:
   - question: "Do you charge extra for carpet cleaning in Cheltenham?"
-    answer: "No. Cheltenham is our home town and core service area, so there is no out-of-area travel surcharge. You pay the standard per-room pricing shown on our services page, plus VAT."
+    answer: "No. Cheltenham is our home town and core service area, so there is no out-of-area travel surcharge. You pay the standard per-room pricing shown on our services page."
   - question: "Which parts of Cheltenham do you cover?"
-    answer: "All of it — GL50, GL51, GL52 and GL53 — including Charlton Kings, Prestbury, Leckhampton, Up Hatherley, Benhall, Pittville and Battledown. If you are just outside the town, we almost certainly still cover you; anywhere beyond our core Cheltenham, Gloucester and Winchcombe area carries a flat £15 + VAT out-of-area surcharge, shown up front."
+    answer: "All of it — GL50, GL51, GL52 and GL53 — including Charlton Kings, Prestbury, Leckhampton, Up Hatherley, Benhall, Pittville and Battledown. If you are just outside the town, we almost certainly still cover you; anywhere beyond our core Cheltenham, Gloucester and Winchcombe area carries a flat £15 out-of-area surcharge, shown up front."
   - question: "Can you clean wool and natural-fibre carpets?"
     answer: "Yes. We identify the fibre and pile construction first, then clean wool, Axminster, Wilton and natural fibres such as sisal and seagrass with a low-moisture method that avoids the shrinkage and browning over-wetting can cause. See our wool-carpet guide for the detail."
 ---

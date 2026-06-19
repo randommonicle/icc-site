@@ -32,8 +32,9 @@ const core_sectors = ["GL545"];
 // Example wider-Gloucestershire towns named in the assistant's area prose.
 const wider_towns = ["Stroud", "Tewkesbury", "Cirencester"];
 
-// Flat out-of-area surcharge, ex-VAT (D-011, confirmed by Mark June 2026).
-const out_of_area_surcharge_ex_vat = 15;
+// Flat out-of-area surcharge (D-011, confirmed by Mark June 2026). Mark is not
+// VAT-registered, so this is a flat figure the customer pays - no VAT is added.
+const out_of_area_surcharge = 15;
 
 // "Cheltenham, Gloucester and Winchcombe" — the core towns as an English list.
 // Centralised so the assistant prompt and the pricing block never disagree.
@@ -50,16 +51,16 @@ function coreTownsPhrase() {
 function serviceAreaBlock() {
   const core = coreTownsPhrase();
   const wider = wider_towns.join(", ");
-  const s = out_of_area_surcharge_ex_vat;
+  const s = out_of_area_surcharge;
   return `SERVICE AREA AND OUT OF AREA CHARGE:
-The core service area with no travel charge is ${core}, plus roughly a 5-mile radius around each (this includes the immediate surrounding villages such as Bishop's Cleeve, Prestbury, Charlton Kings, Quedgeley, Churchdown and Brockworth). Anywhere outside that core area incurs a flat out of area surcharge of £${s} + VAT. This covers the wider Gloucestershire towns (${wider} and similar) and the far Cotswold villages. Note that Bourton-on-the-Water, Stow-on-the-Wold and Northleach share Winchcombe's GL54 postcode but sit well outside the 5-mile core, so they DO carry the surcharge. When the customer's address is outside the core area, mention clearly and early that a flat £${s} + VAT out of area surcharge applies, include it in the itemised quote, and state it plainly as a fixed figure (not something "to be confirmed"). If you are not sure whether an address is within the 5-mile core, assume it is out of area and include the surcharge.`;
+The core service area with no travel charge is ${core}, plus roughly a 5-mile radius around each (this includes the immediate surrounding villages such as Bishop's Cleeve, Prestbury, Charlton Kings, Quedgeley, Churchdown and Brockworth). Anywhere outside that core area incurs a flat out of area surcharge of £${s}. This covers the wider Gloucestershire towns (${wider} and similar) and the far Cotswold villages. Note that Bourton-on-the-Water, Stow-on-the-Wold and Northleach share Winchcombe's GL54 postcode but sit well outside the 5-mile core, so they DO carry the surcharge. When the customer's address is outside the core area, mention clearly and early that a flat £${s} out of area surcharge applies, include it in the itemised quote, and state it plainly as a fixed figure (not something "to be confirmed"). If you are not sure whether an address is within the 5-mile core, assume it is out of area and include the surcharge.`;
 }
 
 // True when an address postcode falls OUTSIDE the core no-surcharge area (D-011)
-// and so attracts the flat £15 + VAT out-of-area surcharge. Accepts a full
-// postcode ("GL51 2AB"), a no-space postcode ("GL512AB") or a bare outward
-// district ("GL3"). The UK inward code is always the last three characters, so
-// the outward code is everything before them.
+// and so attracts the flat £15 out-of-area surcharge. Accepts a full postcode
+// ("GL51 2AB"), a no-space postcode ("GL512AB") or a bare outward district
+// ("GL3"). The UK inward code is always the last three characters, so the
+// outward code is everything before them.
 //
 // Core = the GL50-53 / GL1-4 districts (Cheltenham, Gloucester and their ~5-mile
 // rings) OR the GL54 5 sector (Winchcombe). The rest of GL54 (Bourton, Stow,
@@ -87,7 +88,7 @@ module.exports = {
   core_postcodes,
   core_sectors,
   wider_towns,
-  out_of_area_surcharge_ex_vat,
+  out_of_area_surcharge,
   coreTownsPhrase,
   isOutOfArea,
   serviceAreaBlock,

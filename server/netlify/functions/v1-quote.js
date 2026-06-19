@@ -1,6 +1,6 @@
 // POST /api/v1/quote — stateless server-side quote (Phase 2, Slice 3).
 //
-// Computes an itemised quote, the flat £15 + VAT out-of-area surcharge (D-011)
+// Computes an itemised quote, the flat £15 out-of-area surcharge (D-011)
 // and the 10% deposit ENTIRELY server-side from shared/config, so the website
 // and the future field app price identically (D-003/D-007/D-012). No database,
 // no Blobs, no AI, no secrets — pure compute over the request body. This is the
