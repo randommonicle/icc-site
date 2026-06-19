@@ -1,11 +1,14 @@
 ---
-// Privacy Notice page. UK GDPR/PECR-aware. DRAFT — NOT yet go-live ready.
-// Before real traffic, the business owner must fill every "[to confirm: ...]"
-// placeholder (registered/trading name + legal status, business postal address,
-// ICO registration number, retention period, the "last updated" date), the
-// international-transfer wording should be checked against each provider, and
-// the whole notice reviewed by a data-protection professional before any
-// marketing capability is added (Phase 4 / PECR). See ROADMAP.md and docs/DESIGN.md §11.
+// Privacy Notice page. UK GDPR/PECR-aware. Pre-launch: controller is Mark McClymont,
+// sole trader trading as Intelligent Carpet Cleaning (confirmed June 2026). The
+// controller postal address is held OFF this public page by decision (D-016) and
+// given to the ICO privately, so the public contact route is email/phone/post-on-request.
+// Still to do before go-live: drop in the ICO registration number once registered
+// (the [to confirm: ...] slot below), confirm the international-transfer position with
+// each provider, and have the whole notice reviewed by a data-protection professional
+// before any marketing capability is added (Phase 4 / PECR). Retention: ~6 years for
+// financial records / 6 months for unconverted leads (D-023). See ROADMAP.md,
+// DECISIONS.md (D-016/D-023) and docs/DESIGN.md §11.
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 <BaseLayout
@@ -18,11 +21,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   </header>
 
   <div class="legal-wrap">
-    <p class="legal-meta">Last updated: [to confirm: date]. This notice explains what we do with your personal data when you use this website, chat with our AI assistant, or book a clean.</p>
+    <p class="legal-meta">Last updated: 18 June 2026. This notice explains what we do with your personal data when you use this website, chat with our AI assistant, or book a clean.</p>
 
     <h2>Who we are</h2>
-    <p>This website is operated by Intelligent Carpet Cleaning ([to confirm: registered trading name and legal status, for example sole trader, or limited company name and number]), based in Cheltenham, Gloucestershire. We are the data controller for the personal information described in this notice.</p>
-    <p>You can contact us about your data by email at <a href="mailto:hello@intelligentclean.co.uk">hello@intelligentclean.co.uk</a>, by phone on 01242 279590, or by post at [to confirm: business postal address]. Our ICO registration number is [to confirm: ICO registration number].</p>
+    <p>This website is operated by Mark McClymont, a sole trader trading as Intelligent Carpet Cleaning, based in the Cheltenham and Gloucester area of Gloucestershire. We are the data controller for the personal information described in this notice.</p>
+    <p>You can contact us about your data by email at <a href="mailto:hello@intelligentclean.co.uk">hello@intelligentclean.co.uk</a>, by phone on 01242 279590, or by post (our postal address is available on request). Our ICO registration number is [to confirm: ICO registration number].</p>
 
     <h2>What we collect</h2>
     <p>Depending on how you use the site, we may collect:</p>
@@ -30,7 +33,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       <li>Your name, phone number, and email address.</li>
       <li>The address and postcode where the work is to be carried out.</li>
       <li>Details you give us about your property, carpets, and any concerns or staining, including any photographs you choose to upload.</li>
-      <li>The content of your conversation with our AI assistant.</li>
+      <li>The content of your conversation with our AI assistant, and, if you ask to speak to a member of the team, the contact details and question you leave so we can get back to you.</li>
       <li>Limited technical data such as your IP address, which we use to keep the service secure and prevent abuse.</li>
     </ul>
 
@@ -39,28 +42,30 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       <li>To answer your enquiry and prepare a quote, on the basis of our legitimate interest in responding to you and to take steps at your request before entering a contract.</li>
       <li>To arrange, confirm, and carry out your booking, to perform our contract with you.</li>
       <li>To send you a booking confirmation by email, to perform our contract with you.</li>
+      <li>If you ask to speak to a member of the team, to pass your question and contact details to Mark so he can reply to you personally, on the basis of our legitimate interest in answering your enquiry.</li>
       <li>To protect the website from abuse and overuse (including limiting requests by IP address), on the basis of our legitimate interest in keeping the service available and secure.</li>
     </ul>
     <p>We do not use your details for marketing without your clear consent, and you can withdraw that consent at any time.</p>
 
     <h2>Our AI assistant</h2>
-    <p>Your enquiry is handled by an AI assistant, and any photographs you upload are analysed by AI to help identify your carpet type and recommend a cleaning method. No decision with a legal or similarly significant effect is made about you by automated means alone. Mark personally reviews and confirms every booking.</p>
+    <p>Your enquiry is handled by an AI assistant provided by Anthropic, the makers of Claude. Any photographs you upload are analysed by AI to help identify your carpet type and recommend a cleaning method. Your messages and photos are sent to Anthropic only to generate a response, and under our commercial agreement Anthropic does not use them to train its models. No decision with a legal or similarly significant effect is made about you by automated means alone, and Mark personally reviews and confirms every booking.</p>
 
     <h2>Who we share it with</h2>
     <p>We do not sell your personal data. We share it only with the service providers that allow us to run the service, who act on our instructions:</p>
     <ul>
       <li>Anthropic, which provides the AI assistant that processes your messages and any uploaded photos.</li>
-      <li>Resend, which sends your booking confirmation email.</li>
-      <li>Netlify, which hosts this website and stores booking records.</li>
-      <li>Google, where we generate a calendar link so we can add your appointment to our diary.</li>
+      <li>Resend, which sends your booking confirmation and any reply emails.</li>
+      <li>Supabase, which provides the secure database that holds our booking, customer and enquiry records (hosted in London, in the UK).</li>
+      <li>Netlify, which hosts this website and runs the booking and chat functions.</li>
+      <li>Google, which provides our business email (where Mark receives booking notifications and replies to you) and the calendar link we use to add your appointment to our diary.</li>
     </ul>
-    <p>Some of these providers may process data outside the UK. Where they do, we rely on appropriate safeguards such as UK or EU approved transfer mechanisms. [to confirm: review the transfer position with each provider before go-live.]</p>
+    <p>Our database is hosted in the UK. Some of the other providers (for example Anthropic, Resend, and Netlify) are based in the United States and may process data outside the UK. Where they do, we rely on appropriate safeguards such as the UK International Data Transfer Agreement or other approved transfer mechanisms. [to confirm: review the transfer position with each provider before go-live.]</p>
 
     <h2>How long we keep it</h2>
-    <p>We keep booking records for as long as we need them to provide the service and to meet our legal and accounting obligations (typically [to confirm: 6] years for financial records), after which we delete them. Enquiry conversations that do not lead to a booking are kept only for a short period.</p>
+    <p>We keep booking records for as long as we need them to provide the service and to meet our legal and accounting obligations (around 6 years for financial records), after which we delete them. Enquiries that do not lead to a booking, including any conversation you ask us to follow up, are kept for no longer than 6 months and then deleted.</p>
 
-    <h2>Cookies</h2>
-    <p>This site does not use advertising or tracking cookies. The information you enter in the chat stays in your browser for the duration of your visit and is only sent to us when you submit a booking.</p>
+    <h2>Cookies and your chat</h2>
+    <p>This site does not use advertising or tracking cookies. Your conversation with the assistant is sent to us, and to Anthropic, so that we can answer you, but we do not keep a copy of the conversation itself unless you make a booking or ask us to get back to you, in which case we keep only the details needed to do that.</p>
 
     <h2>Your rights</h2>
     <p>You have the right to ask us for a copy of your data, to correct it, to delete it, to restrict or object to how we use it, and to receive it in a portable format. To exercise any of these, email <a href="mailto:hello@intelligentclean.co.uk">hello@intelligentclean.co.uk</a> and we will respond within one month.</p>
