@@ -2,6 +2,7 @@
 // Home page. Ported from the Phase 0 #home section; the showSection() toggles
 // become real links to /book (where the AI assistant + booking flow will live).
 import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
 import { getCollection } from 'astro:content';
 // "From £…" figures render from the single pricing source (D-006) so they never
 // drift from the assistant/server quote. Labels stay hand-written for the site.
@@ -54,9 +55,9 @@ const areas = (await getCollection('areas', ({ data }) => !data.draft)).sort(
 
   <div class="features-strip">
     <div class="features-inner">
-      <div class="feature-card"><div class="feature-icon">🔬</div><div class="feature-title">Carpet Type Identification</div><div class="feature-desc">Describe your carpet and our AI will identify the fibre type, pile construction, and the exact cleaning method required.</div></div>
-      <div class="feature-card"><div class="feature-icon">💬</div><div class="feature-title">Instant AI Quotes</div><div class="feature-desc">No waiting for a callback. Get a fully explained, itemised quote in real time with clear reasoning behind every figure.</div></div>
-      <div class="feature-card"><div class="feature-icon">📅</div><div class="feature-title">Seamless Booking</div><div class="feature-desc">The AI collects your details, checks availability, and hands a complete customer file directly to our team.</div></div>
+      <div class="feature-card"><div class="feature-icon"><Icon name="search" color="var(--teal)" /></div><div class="feature-title">Carpet Type Identification</div><div class="feature-desc">Describe your carpet and our AI will identify the fibre type, pile construction, and the exact cleaning method required.</div></div>
+      <div class="feature-card"><div class="feature-icon"><Icon name="message-circle" color="var(--teal)" /></div><div class="feature-title">Instant AI Quotes</div><div class="feature-desc">No waiting for a callback. Get a fully explained, itemised quote in real time with clear reasoning behind every figure.</div></div>
+      <div class="feature-card"><div class="feature-icon"><Icon name="calendar" color="var(--teal)" /></div><div class="feature-title">Seamless Booking</div><div class="feature-desc">The AI collects your details, checks availability, and hands a complete customer file directly to our team.</div></div>
     </div>
   </div>
 
@@ -65,10 +66,10 @@ const areas = (await getCollection('areas', ({ data }) => !data.draft)).sort(
     <h2 class="section-title">Specialist Cleaning Services</h2>
     <p class="section-sub">Every carpet is different. We match the cleaning method to the fibre, construction, and soiling type every time.</p>
     <div class="services-grid">
-      <a class="service-card" href="/book"><div class="service-card-icon">🏠</div><div><div class="service-card-title">Residential Carpet Cleaning</div><div class="service-card-desc">Hot water extraction, low-moisture, and dry cleaning options for all domestic carpet types including wool, synthetic, and natural fibres.</div><div class="service-price">From £{priceOf('base_room')} per room</div></div></a>
-      <a class="service-card" href="/book"><div class="service-card-icon">🏢</div><div><div class="service-card-title">Commercial Contracts</div><div class="service-card-desc">Regular maintenance programmes for offices, hospitality venues, and rental properties across Gloucestershire.</div><div class="service-price">Contact for tailored pricing</div></div></a>
-      <a class="service-card" href="/book"><div class="service-card-icon">🍷</div><div><div class="service-card-title">Stain Treatment</div><div class="service-card-desc">Specialist treatment for red wine, pet staining, bleach damage, and ingrained soiling. Pre-assessment included.</div><div class="service-price">From £{priceOf('stain')}</div></div></a>
-      <a class="service-card" href="/book"><div class="service-card-icon">🛋️</div><div><div class="service-card-title">Upholstery Cleaning</div><div class="service-card-desc">Safe, effective cleaning for sofas, chairs, and curtains using fabric-appropriate methods.</div><div class="service-price">From £{priceOf('upholstery_chair')} per item</div></div></a>
+      <a class="service-card" href="/book"><div class="service-card-icon"><Icon name="home" color="#fff" /></div><div><div class="service-card-title">Residential Carpet Cleaning</div><div class="service-card-desc">Hot water extraction, low-moisture, and dry cleaning options for all domestic carpet types including wool, synthetic, and natural fibres.</div><div class="service-price">From £{priceOf('base_room')} per room</div></div></a>
+      <a class="service-card" href="/book"><div class="service-card-icon"><Icon name="building" color="#fff" /></div><div><div class="service-card-title">Commercial Contracts</div><div class="service-card-desc">Regular maintenance programmes for offices, hospitality venues, and rental properties across Gloucestershire.</div><div class="service-price">Contact for tailored pricing</div></div></a>
+      <a class="service-card" href="/book"><div class="service-card-icon"><Icon name="wine" color="#fff" /></div><div><div class="service-card-title">Stain Treatment</div><div class="service-card-desc">Specialist treatment for red wine, pet staining, bleach damage, and ingrained soiling. Pre-assessment included.</div><div class="service-price">From £{priceOf('stain')}</div></div></a>
+      <a class="service-card" href="/book"><div class="service-card-icon"><Icon name="sofa" color="#fff" /></div><div><div class="service-card-title">Upholstery Cleaning</div><div class="service-card-desc">Safe, effective cleaning for sofas, chairs, and curtains using fabric-appropriate methods.</div><div class="service-price">From £{priceOf('upholstery_chair')} per item</div></div></a>
     </div>
   </div>
 

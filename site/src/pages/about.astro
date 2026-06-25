@@ -5,6 +5,7 @@
 // The page-specific .about-* / .value-* / .trust-* styles are not in global.css,
 // so they live in the scoped <style> block below (Astro auto-scopes them).
 import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
 ---
 <BaseLayout
   title="About | Intelligent Carpet Cleaning, Cheltenham"
@@ -31,10 +32,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         </div>
       </div>
       <div class="about-values">
-        <div class="value-item"><div class="value-icon">🔬</div><div><div class="value-title">Technical knowledge first</div><div class="value-desc">We identify fibre type, pile construction, and soiling category before selecting any cleaning method. This is not standard practice in the industry.</div></div></div>
-        <div class="value-item"><div class="value-icon">💬</div><div><div class="value-title">Transparent pricing</div><div class="value-desc">Our AI explains exactly why a clean costs what it costs. No vague estimates, no upselling on arrival.</div></div></div>
-        <div class="value-item"><div class="value-icon">🛡️</div><div><div class="value-title">Honest about limitations</div><div class="value-desc">Some stains are permanent. Some damage is irreversible. We will always tell you the truth rather than take your money for a job that cannot be done.</div></div></div>
-        <div class="value-item"><div class="value-icon">📍</div><div><div class="value-title">Local and accountable</div><div class="value-desc">We are based in Cheltenham and serve Gloucestershire. If something is not right, you speak to us directly, not a call centre.</div></div></div>
+        <div class="value-item"><div class="value-icon"><Icon name="search" color="var(--teal)" /></div><div><div class="value-title">Technical knowledge first</div><div class="value-desc">We identify fibre type, pile construction, and soiling category before selecting any cleaning method. This is not standard practice in the industry.</div></div></div>
+        <div class="value-item"><div class="value-icon"><Icon name="message-circle" color="var(--teal)" /></div><div><div class="value-title">Transparent pricing</div><div class="value-desc">Our AI explains exactly why a clean costs what it costs. No vague estimates, no upselling on arrival.</div></div></div>
+        <div class="value-item"><div class="value-icon"><Icon name="shield-check" color="var(--teal)" /></div><div><div class="value-title">Honest about limitations</div><div class="value-desc">Some stains are permanent. Some damage is irreversible. We will always tell you the truth rather than take your money for a job that cannot be done.</div></div></div>
+        <div class="value-item"><div class="value-icon"><Icon name="map-pin" color="var(--teal)" /></div><div><div class="value-title">Local and accountable</div><div class="value-desc">We are based in Cheltenham and serve Gloucestershire. If something is not right, you speak to us directly, not a call centre.</div></div></div>
       </div>
     </div>
     <div class="about-cta">

@@ -6,6 +6,7 @@
 // labels here are hand-written for the site (m², commas); only the £ figures are
 // wired. Page-specific CSS is scoped below; shared tokens/classes from global.css.
 import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
 import pricing from '../../../shared/config/pricing.js';
 const { priceOf } = pricing;
 ---
@@ -28,25 +29,25 @@ const { priceOf } = pricing;
 
     <div class="svc-detail-grid">
       <article class="svc-detail">
-        <div class="svc-detail-icon">🏠</div>
+        <div class="svc-detail-icon"><Icon name="home" color="#fff" /></div>
         <h3 class="svc-detail-title">Residential Carpet Cleaning</h3>
         <p class="svc-detail-desc">Deep cleaning for all domestic carpet types, including wool, Axminster and Wilton, polypropylene, nylon, polyester, Berber loop pile, and natural fibres such as sisal and seagrass. We identify the fibre and construction first, then clean with hot water extraction, low-moisture, or a dry method as appropriate. Wool and natural fibres are cleaned with the low-moisture method only, which avoids the shrinkage and browning that overwetting can cause.</p>
       </article>
 
       <article class="svc-detail">
-        <div class="svc-detail-icon">🏢</div>
+        <div class="svc-detail-icon"><Icon name="building" color="#fff" /></div>
         <h3 class="svc-detail-title">Commercial Cleaning</h3>
         <p class="svc-detail-desc">Regular maintenance programmes and one-off cleans for offices, hospitality venues, and rental properties across Gloucestershire. The low-moisture method means fast drying and minimal disruption, so areas are back in use quickly. Commercial carpet tiles can be cleaned with either method. Pricing for commercial work is tailored to the site, and full-house and contract packages carry a significant discount, quoted on request.</p>
       </article>
 
       <article class="svc-detail">
-        <div class="svc-detail-icon">🍷</div>
+        <div class="svc-detail-icon"><Icon name="wine" color="#fff" /></div>
         <h3 class="svc-detail-title">Stain Treatment</h3>
         <p class="svc-detail-desc">Specialist treatment for red wine, pet urine, blood, food, oil-based marks, and ingrained soiling, with a pre-assessment included. We use an enzyme-based pre-spray on protein stains and a solvent spotter on oil-based marks, applied before the main clean. We are honest about outcomes: fresh stains are highly treatable, but some older staining and bleach damage is permanent, and we will tell you that upfront rather than let you be disappointed on the day.</p>
       </article>
 
       <article class="svc-detail">
-        <div class="svc-detail-icon">🛋️</div>
+        <div class="svc-detail-icon"><Icon name="sofa" color="#fff" /></div>
         <h3 class="svc-detail-title">Upholstery Cleaning</h3>
         <p class="svc-detail-desc">Safe, effective cleaning for sofas, armchairs, and other upholstered furniture using fabric-appropriate methods and the same low-moisture system we use on carpets. Two-seater and three-seater sofas and individual armchairs are each priced separately. The low-moisture approach dries quickly, leaves minimal residue, and is well suited to homes with children and pets.</p>
       </article>
