@@ -14,6 +14,7 @@
 // existing inline on* handlers in the markup (Astro's default module <script>
 // would scope them and break the handlers).
 import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
 ---
 <BaseLayout
   title="Book a Carpet Clean | Intelligent Carpet Cleaning"
@@ -27,7 +28,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     <div class="chat-container-outer">
       <div class="chat-window">
         <div class="chat-window-header">
-          <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid rgba(255,255,255,0.3);flex-shrink:0;">🧠</div>
+          <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid rgba(255,255,255,0.3);flex-shrink:0;"><Icon name="sparkles" size={20} color="#fff" /></div>
           <div class="chat-window-info">
             <div class="chat-window-name">ICC Assistant</div>
             <div class="chat-window-status"><span class="chat-status-dot"></span>Online — Intelligent Carpet Cleaning</div>
@@ -49,16 +50,16 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           <button type="button" class="suggestion-chip" onclick="sendSuggestion('I have a red wine stain, can you help?')">Stain advice</button>
         </div>
         <div class="chat-input-area">
-          <label for="imageUpload" style="width:38px;height:38px;background:rgba(26,138,122,0.15);border:1px solid rgba(26,138,122,0.3);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:16px;transition:background 0.2s;" title="Upload carpet photo">📷</label>
+          <label for="imageUpload" style="width:38px;height:38px;background:rgba(26,138,122,0.15);border:1px solid rgba(26,138,122,0.3);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:16px;transition:background 0.2s;" title="Upload carpet photo"><Icon name="camera" size={18} color="var(--teal)" /></label>
           <input type="file" id="imageUpload" accept="image/*" aria-label="Upload a photo of your carpet" style="display:none" onchange="handleImageUpload(event)" />
           <textarea class="chat-input" id="chatInput" aria-label="Type your message to the carpet cleaning assistant" placeholder="Ask about quotes, carpet types, stains, or upload a photo..." rows="1" onkeydown="handleKeyDown(event)" oninput="autoResize(this);onInputActivity();"></textarea>
-          <button class="chat-send-btn" id="sendBtn" aria-label="Send message" onclick="sendMessage()">▶</button>
+          <button class="chat-send-btn" id="sendBtn" aria-label="Send message" onclick="sendMessage()"><Icon name="send" size={18} /></button>
         </div>
         <div id="imagePreviewArea" style="display:none;padding:0.5rem 1.25rem;background:#fff;border-top:1px solid var(--border);">
           <div style="display:flex;align-items:center;gap:8px;background:rgba(26,138,122,0.08);border:1px solid rgba(26,138,122,0.2);border-radius:8px;padding:8px 12px;">
             <img id="imagePreviewThumb" style="width:48px;height:48px;object-fit:cover;border-radius:6px;" src="" alt="" />
             <div style="flex:1;font-size:0.8rem;color:var(--text-mid);" id="imagePreviewName">Image ready to send</div>
-            <button onclick="clearImage()" style="background:none;border:none;cursor:pointer;color:var(--text-light);font-size:1rem;">✕</button>
+            <button onclick="clearImage()" style="background:none;border:none;cursor:pointer;color:var(--text-light);font-size:1rem;"><Icon name="x" size={16} /></button>
           </div>
         </div>
       </div>
@@ -306,7 +307,7 @@ async function processBooking(booking){
     confirmDiv.className = "msg-row";
     const av = document.createElement("div");
     av.className = "msg-avatar bot";
-    av.textContent = "✓";
+    av.textContent = "✓"; // unslop-ignore: functional sent-status tick, not decorative emoji
     av.style.cssText = "background:linear-gradient(135deg,#1a8a7a,#0c2c25);font-size:16px;color:#fff;";
     const wrap = document.createElement("div");
     const bub = document.createElement("div");

@@ -3,6 +3,7 @@
 // Phase 0 index.html book-section. Bookings run through the AI assistant, so the
 // primary call to action points at /book. Page-specific CSS is scoped below.
 import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
 ---
 <BaseLayout
   title="Contact | Intelligent Carpet Cleaning, Cheltenham"
@@ -19,28 +20,28 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   <div class="contact-layout">
     <div class="contact-info-card">
       <div class="contact-block">
-        <div class="contact-icon">📍</div>
+        <div class="contact-icon"><Icon name="map-pin" color="var(--teal)" /></div>
         <div>
           <div class="contact-label">Service Area</div>
           <div class="contact-value">Cheltenham and Gloucestershire</div>
         </div>
       </div>
       <div class="contact-block">
-        <div class="contact-icon">📞</div>
+        <div class="contact-icon"><Icon name="phone" color="var(--teal)" /></div>
         <div>
           <div class="contact-label">Phone</div>
           <div class="contact-value"><a href="tel:01242279590">01242 279590</a></div>
         </div>
       </div>
       <div class="contact-block">
-        <div class="contact-icon">✉️</div>
+        <div class="contact-icon"><Icon name="mail" color="var(--teal)" /></div>
         <div>
           <div class="contact-label">Email</div>
           <div class="contact-value"><a href="mailto:hello@intelligentclean.co.uk">hello@intelligentclean.co.uk</a></div>
         </div>
       </div>
       <div class="contact-block">
-        <div class="contact-icon">🕐</div>
+        <div class="contact-icon"><Icon name="clock" color="var(--teal)" /></div>
         <div>
           <div class="contact-label">Operating Hours</div>
           <div class="contact-value">Monday to Saturday, 8am to 6pm</div>

@@ -9,6 +9,7 @@
 // care-guide template.
 import { getCollection, render } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import Icon from '../../components/Icon.astro';
 
 export async function getStaticPaths() {
   const areas = await getCollection('areas', ({ data }) => !data.draft);
@@ -60,10 +61,10 @@ const faqSchema = faq.length
   : null;
 
 const services = [
-  { icon: '🏠', name: 'Residential carpets', desc: 'Wool, Axminster, Wilton, synthetic and natural-fibre carpets, cleaned to the right method for the fibre.' },
-  { icon: '🛋️', name: 'Upholstery', desc: 'Sofas, armchairs and other furniture, cleaned with fabric-appropriate low-moisture methods.' },
-  { icon: '🍷', name: 'Stain treatment', desc: 'Red wine, pet, food and oil marks, with an honest pre-assessment of what will and will not lift.' },
-  { icon: '🏢', name: 'Commercial', desc: 'Offices, lettings and hospitality, with fast drying that gets rooms back in use quickly.' },
+  { icon: 'home', name: 'Residential carpets', desc: 'Wool, Axminster, Wilton, synthetic and natural-fibre carpets, cleaned to the right method for the fibre.' },
+  { icon: 'sofa', name: 'Upholstery', desc: 'Sofas, armchairs and other furniture, cleaned with fabric-appropriate low-moisture methods.' },
+  { icon: 'wine', name: 'Stain treatment', desc: 'Red wine, pet, food and oil marks, with an honest pre-assessment of what will and will not lift.' },
+  { icon: 'building', name: 'Commercial', desc: 'Offices, lettings and hospitality, with fast drying that gets rooms back in use quickly.' },
 ];
 ---
 <BaseLayout title={title} description={description}>
@@ -112,7 +113,7 @@ const services = [
         <div class="area-services-grid">
           {services.map((s) => (
             <a class="area-service-card" href="/services">
-              <span class="area-service-icon">{s.icon}</span>
+              <span class="area-service-icon"><Icon name={s.icon} size={22} color="var(--teal)" /></span>
               <span class="area-service-name">{s.name}</span>
               <span class="area-service-desc">{s.desc}</span>
             </a>
