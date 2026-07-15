@@ -121,6 +121,7 @@ function jobRowToAdminRecord(row) {
   const cust = r.customers || {};
   return {
     id: r.id,
+    job_status: r.status ?? null,   // real jobs.status (enquiry/booked/.../completed) — drives the review action (D-025)
     name: cust.name ?? null,
     phone: cust.phone ?? null,
     email: cust.email ?? null,
@@ -203,7 +204,7 @@ async function fetchBookingsFromJobs(supabase, limit = 500) {
   const { data, error } = await supabase
     .from("jobs")
     .select(
-      "id,created_at,slot_date,start_hour,slots_needed,address,postcode,rooms,carpet_types,concerns,furniture_moving,pets,recommended_method,ai_assessment,price_display,notes,cal_link,customers(name,phone,email)"
+      "id,created_at,status,slot_date,start_hour,slots_needed,address,postcode,rooms,carpet_types,concerns,furniture_moving,pets,recommended_method,ai_assessment,price_display,notes,cal_link,customers(name,phone,email)"
     )
     .order("created_at", { ascending: false })
     .limit(limit);

@@ -90,6 +90,8 @@
   .handoff-reply:focus{outline:none;border-color:var(--teal);}
   .handoff-note{font-size:0.8rem;color:var(--text-light);align-self:center;}
   .handoff-msg{font-size:0.8rem;margin-top:0.5rem;min-height:1rem;}
+  .review-note{font-size:0.82rem;color:var(--teal);font-weight:700;align-self:center;}
+  .review-msg{font-size:0.8rem;margin-top:0.5rem;min-height:1rem;width:100%;}
 
   @media(max-width:768px){
     .stats-row{grid-template-columns:repeat(2,1fr);}
@@ -398,6 +400,45 @@ async function eraseHandoff(i){
   else { alert((data && data.error) || "Could not erase this handoff."); }
 }
 
+// D-025 — one-click "mark complete & request review". POSTs the job id; the
+// server marks the job completed and sends the Google-review ask over email + SMS,
+// returning a per-channel result we show inline (textContent, never innerHTML).
+function reviewMsg(id, text, isError){
+  const el = document.getElementById("review-msg-"+id);
+  if(el){ el.textContent = text; el.style.color = isError ? "#e53e3e" : "var(--teal)"; }
+}
+function reviewChannelLine(label, r){
+  if(r && r.sent) return label+": sent";
+  if(r && r.reason === "Already sent") return label+": already sent";
+  return label+": not sent"+(r && r.reason ? " ("+r.reason+")" : "");
+}
+async function completeAndRequestReview(id){
+  const rec = allBookings.find(b => String(b.id) === String(id));
+  const isRetry = !!(rec && rec.review_sent);
+  const ask = isRetry
+    ? "Retry the review request? Channels already sent are skipped — only ones that have not gone yet will send."
+    : "Mark this job complete and send the customer a review request by email and text?";
+  if(!confirm(ask)) return;
+  reviewMsg(id, "Sending review request...", false);
+  let res, data = {};
+  try{
+    res = await fetch("/api/review-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + adminToken },
+      body: JSON.stringify({ action: "complete_and_request", job_id: id })
+    });
+    data = await res.json();
+  } catch(e){ reviewMsg(id, "Could not reach the server.", true); return; }
+  if(!res.ok){ reviewMsg(id, (data && data.error) || "Could not send the review request.", true); return; }
+  const r = data.results || {};
+  const anySent = !!((r.email && r.email.sent) || (r.sms && r.sms.sent));
+  reviewMsg(id, "Job completed. "+reviewChannelLine("Email", r.email)+"  |  "+reviewChannelLine("Text", r.sms), !anySent);
+  // Reflect the new state locally so a later Refresh keeps it (a full reload now
+  // would wipe the per-channel message the operator needs to read). Reuse `rec`
+  // resolved above.
+  if(rec){ rec.job_status = "completed"; if(anySent) rec.review_sent = true; }
+}
+
 function updateStats(bookings){
   const today = new Date().toISOString().split("T")[0];
   const weekEnd = new Date(Date.now() + 7*24*60*60*1000).toISOString().split("T")[0];
@@ -440,8 +481,12 @@ function esc(s){
 function buildCard(b, i){
   const initials = b.name ? b.name.split(" ").map(w=>w[0]).join("").substring(0,2).toUpperCase() : "?";
   const today = new Date().toISOString().split("T")[0];
-  const status = b.date < today ? "completed" : b.date === today ? "confirmed" : "pending";
-  const statusLabel = b.date < today ? "Completed" : b.date === today ? "Today" : "Upcoming";
+  // Prefer the real jobs.status (D-025) when present; fall back to the date-derived
+  // label for legacy Blobs records that carry no status.
+  let status, statusLabel;
+  if(b.job_status === "completed"){ status = "completed"; statusLabel = "Completed"; }
+  else { status = b.date < today ? "completed" : b.date === today ? "confirmed" : "pending";
+         statusLabel = b.date < today ? "Past" : b.date === today ? "Today" : "Upcoming"; }
 
   // Image: only render if mediaType is a safe image type
   const safeMediaTypes = ["image/jpeg","image/png","image/gif","image/webp"];
@@ -454,6 +499,18 @@ function buildCard(b, i){
   const calBtn = calLinkSafe
     ? '<a class="cal-link" href="'+esc(calLinkSafe)+'" target="_blank" rel="noopener">&#128197; Add to Calendar</a>'
     : "";
+
+  // Review action (D-025): only real jobs (Postgres uuid id, so they carry
+  // job_status) can be completed + reviewed; legacy Blobs rows have no job to
+  // mark complete, so they get no button. Once a review request has been sent the
+  // button becomes a note plus a "Retry unsent" (the server always skips a channel
+  // already sent, so a retry only sends the channels that have not gone yet).
+  const isJob = b.id != null && b.job_status !== undefined && b.job_status !== null;
+  const reviewControls = !isJob ? ""
+    : (b.review_sent
+        ? '<span class="review-note">&#10003; Review requested</span>'+
+          '<button class="action-btn" onclick="completeAndRequestReview(\''+esc(b.id)+'\')">Retry unsent</button>'
+        : '<button class="action-btn primary" onclick="completeAndRequestReview(\''+esc(b.id)+'\')">Mark complete &amp; request review</button>');
 
   return '<div class="booking-card">'+
     '<div class="booking-card-header" onclick="toggleCard('+i+')">'+
@@ -491,7 +548,9 @@ function buildCard(b, i){
         calBtn+
         '<a class="action-btn" href="tel:'+esc(b.phone||"")+'">Call Customer</a>'+
         '<a class="action-btn" href="mailto:'+esc(b.email||"")+'">Email Customer</a>'+
+        reviewControls+
       '</div>'+
+      '<div class="review-msg" id="review-msg-'+esc(b.id)+'"></div>'+
     '</div>'+
   '</div>';
 }

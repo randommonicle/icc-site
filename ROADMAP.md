@@ -47,7 +47,7 @@ Findability:
 - [ ] NAP consistency across Google, Bing Places, Apple Business Connect, Yell, Facebook.
 
 Review engine (high value, build early — DESIGN §9 priority 2):
-- [ ] Automated Google-review request triggered when a job is marked complete. (Depends on a "mark complete" action — minimal job state can live in Blobs in Phase 1, or wait for Phase 2. Decide in DECISIONS.md.)
+- [x] Automated Google-review request triggered when a job is marked complete — **built (D-025)**. One-click "mark complete & request review" on each admin card sends the ask over **email + SMS**; dormant behind env flags until `GOOGLE_REVIEW_URL` + the SMS gateway key are set. Remaining: Mark's Google Business Profile review link and a The SMS Works account (both out-of-repo, D-009), then set the three env vars in Netlify.
 
 Carry the Phase 0 hardening items above into this phase.
 
@@ -107,7 +107,7 @@ When the app is scoped, give it its own roadmap section here.
 
 ## Phase 5 and beyond — optional integrations ⚪
 
-- [ ] ⚪ SMS notifications (Mark and customers).
+- [~] ⚪ SMS notifications (Mark and customers). **Partly pulled forward (D-025):** customer review-request texts are built (The SMS Works, provider-agnostic adapter). Other SMS (booking reminders, operator alerts) remain here.
 - [ ] ⚪ Open banking for direct bank payments.
 - [ ] ⚪ Accounting software export for invoices.
 - [ ] ⚪ Public additions: review wall, before/after gallery, instant quote calculator.

@@ -66,6 +66,21 @@ exports.handler = async function(event) {
   if (supabase) {
     try {
       pgBookings = await fetchBookingsFromJobs(supabase);
+      // Annotate each job with whether a review request has already been sent
+      // (D-025), so the dashboard shows "review requested" instead of the button
+      // and a repeat send is obvious. Best-effort: a failure here just leaves the
+      // flag unset (the review endpoint is the real idempotency guard).
+      try {
+        const { data } = await supabase
+          .from("messages")
+          .select("job_id")
+          .eq("kind", "review_request")
+          .eq("status", "sent");
+        const reviewed = new Set((data || []).map(r => r.job_id).filter(Boolean));
+        pgBookings = annotateReviewSent(pgBookings, reviewed);
+      } catch(e){
+        console.log("review-sent annotation skipped:", e.message);
+      }
     } catch(e){
       pgError = e;
       console.log("Postgres bookings read failed:", e.message);
@@ -106,8 +121,17 @@ function mergeBookings(pgBookings, blobsBookings){
   return bookings;
 }
 
+// Set review_sent on each record whose id is in the "already had a review_request
+// sent" set (D-025). Pure, so it is unit-tested directly. Only jobs (uuid ids)
+// can match; legacy Blobs records never carry job_status and never match.
+function annotateReviewSent(records, reviewedIds){
+  const set = reviewedIds instanceof Set ? reviewedIds : new Set(reviewedIds || []);
+  return (records || []).map(r => (r && set.has(r.id)) ? { ...r, review_sent: true } : r);
+}
+
 // safeEqual is retained as a tested constant-time-compare utility
 // (test/hardening.test.js); since Slice 5d it is no longer the admin gate — that
 // moved to adminAuth.requireAdmin (Supabase Auth).
 exports.safeEqual = safeEqual;
 exports.mergeBookings = mergeBookings;
+exports.annotateReviewSent = annotateReviewSent;
