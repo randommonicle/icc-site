@@ -19,6 +19,11 @@
 [functions."purge-handoffs"]
   schedule = "@daily"
 
+# Keep the free-tier Supabase project awake pre-launch: one cheap daily read so it
+# does not auto-pause for inactivity (read-only, no PII — see supabase-keepalive.js).
+[functions."supabase-keepalive"]
+  schedule = "@daily"
+
 [[redirects]]
   from = "/api/chat"
   to = "/.netlify/functions/chat"
@@ -32,6 +37,14 @@
 [[redirects]]
   from = "/api/handoffs"
   to = "/.netlify/functions/handoffs"
+  status = 200
+
+# D-025 — one-click "mark job complete & request a Google review" (email + SMS).
+# Admin-gated (requireAdmin); dormant until GOOGLE_REVIEW_URL + the SMS gateway
+# key are set in Netlify.
+[[redirects]]
+  from = "/api/review-request"
+  to = "/.netlify/functions/reviewRequest"
   status = 200
 
 # Phase 2, Slice 3 — versioned API (/api/v1/*). Stateless server-side quote;
