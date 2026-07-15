@@ -14,8 +14,10 @@
 //   - Dormant until configured: with no GOOGLE_REVIEW_URL the job is still marked
 //     complete but nothing is sent (reported back per channel), the house
 //     env-flag pattern.
-//   - Idempotent: a channel already 'sent' for the job is skipped unless
-//     resend:true, so a second click never double-texts the customer.
+//   - Idempotent per channel: a channel already 'sent' for the job is ALWAYS
+//     skipped, so the "Retry" button after a partial failure only sends the
+//     channels that have not gone yet and never double-sends the customer. A
+//     'failed' channel is not in the sent set, so it is correctly retried.
 
 const { requireAdmin } = require("./adminAuth.js");
 const { getSupabaseAdmin } = require("./supabaseClient.js");
@@ -146,11 +148,15 @@ async function handlePost(event, headers, deps) {
     return json(200, headers, { ok: true, status: "completed", results });
   }
 
+  // A channel already successfully SENT is always skipped — never re-sent — so a
+  // retry (the admin "Retry" button after a partial failure) sends only the
+  // channels that have not gone yet. This is what makes recovering a failed SMS
+  // safe: it can never double-send the email that already succeeded. A 'failed'
+  // row is NOT in this set, so a failed channel is correctly retried.
   const already = await sentReviewChannels(supabase, id);
-  const resend = body.resend === true;
 
   // Email channel
-  if (already.has("email") && !resend) {
+  if (already.has("email")) {
     results.email = { sent: false, reason: "Already sent" };
   } else if (!cust.email) {
     results.email = { sent: false, reason: "No email on file" };
@@ -171,7 +177,7 @@ async function handlePost(event, headers, deps) {
 
   // SMS channel
   const mobile = normalizeUkMobile(cust.phone);
-  if (already.has("sms") && !resend) {
+  if (already.has("sms")) {
     results.sms = { sent: false, reason: "Already sent" };
   } else if (!mobile) {
     results.sms = { sent: false, reason: "No valid UK mobile on file" };

@@ -141,13 +141,18 @@ test("idempotent: a channel already sent is skipped, and nothing is re-sent", as
   assert.equal(f.inserts.length, 0);
 });
 
-test("resend:true overrides the idempotency skip", async () => {
-  const fake = makeSupabase({ job: baseJob(), sentChannels: ["email", "sms"] });
-  const { body, d } = await run(fake, { action: "complete_and_request", job_id: "job-1", resend: true });
-  assert.equal(body.results.email.sent, true);
-  assert.equal(body.results.sms.sent, true);
-  assert.equal(d.sendEmailFn.calls.length, 1);
+test("retry sends only channels not yet sent — never re-sends a succeeded channel", async () => {
+  // Partial-failure recovery: the email already went (prior success), the SMS did
+  // not. A retry must send ONLY the SMS and never a duplicate email.
+  const fake = makeSupabase({ job: baseJob(), sentChannels: ["email"] });
+  const { body, d, fake: f } = await run(fake, { action: "complete_and_request", job_id: "job-1" });
+  assert.equal(body.results.email.sent, false);
+  assert.equal(body.results.email.reason, "Already sent");
+  assert.equal(d.sendEmailFn.calls.length, 0);         // no duplicate email
+  assert.equal(body.results.sms.sent, true);           // the unsent channel is retried
   assert.equal(d.sendSmsFn.calls.length, 1);
+  const smsRow = f.inserts.find((r) => r.channel === "sms");
+  assert.equal(smsRow.status, "sent");
 });
 
 test("dormant: no review link => job still completes, nothing is sent", async () => {

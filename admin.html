@@ -409,11 +409,14 @@ function reviewMsg(id, text, isError){
 }
 function reviewChannelLine(label, r){
   if(r && r.sent) return label+": sent";
+  if(r && r.reason === "Already sent") return label+": already sent";
   return label+": not sent"+(r && r.reason ? " ("+r.reason+")" : "");
 }
-async function completeAndRequestReview(id, resend){
-  const ask = resend
-    ? "Send the review request to this customer again?"
+async function completeAndRequestReview(id){
+  const rec = allBookings.find(b => String(b.id) === String(id));
+  const isRetry = !!(rec && rec.review_sent);
+  const ask = isRetry
+    ? "Retry the review request? Channels already sent are skipped — only ones that have not gone yet will send."
     : "Mark this job complete and send the customer a review request by email and text?";
   if(!confirm(ask)) return;
   reviewMsg(id, "Sending review request...", false);
@@ -422,7 +425,7 @@ async function completeAndRequestReview(id, resend){
     res = await fetch("/api/review-request", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + adminToken },
-      body: JSON.stringify({ action: "complete_and_request", job_id: id, resend: !!resend })
+      body: JSON.stringify({ action: "complete_and_request", job_id: id })
     });
     data = await res.json();
   } catch(e){ reviewMsg(id, "Could not reach the server.", true); return; }
@@ -431,8 +434,8 @@ async function completeAndRequestReview(id, resend){
   const anySent = !!((r.email && r.email.sent) || (r.sms && r.sms.sent));
   reviewMsg(id, "Job completed. "+reviewChannelLine("Email", r.email)+"  |  "+reviewChannelLine("Text", r.sms), !anySent);
   // Reflect the new state locally so a later Refresh keeps it (a full reload now
-  // would wipe the per-channel message the operator needs to read).
-  const rec = allBookings.find(b => String(b.id) === String(id));
+  // would wipe the per-channel message the operator needs to read). Reuse `rec`
+  // resolved above.
   if(rec){ rec.job_status = "completed"; if(anySent) rec.review_sent = true; }
 }
 
@@ -500,14 +503,14 @@ function buildCard(b, i){
   // Review action (D-025): only real jobs (Postgres uuid id, so they carry
   // job_status) can be completed + reviewed; legacy Blobs rows have no job to
   // mark complete, so they get no button. Once a review request has been sent the
-  // button becomes a note plus a deliberate "Resend" (server is idempotent unless
-  // resend=true).
+  // button becomes a note plus a "Retry unsent" (the server always skips a channel
+  // already sent, so a retry only sends the channels that have not gone yet).
   const isJob = b.id != null && b.job_status !== undefined && b.job_status !== null;
   const reviewControls = !isJob ? ""
     : (b.review_sent
         ? '<span class="review-note">&#10003; Review requested</span>'+
-          '<button class="action-btn" onclick="completeAndRequestReview(\''+esc(b.id)+'\',true)">Resend review</button>'
-        : '<button class="action-btn primary" onclick="completeAndRequestReview(\''+esc(b.id)+'\',false)">Mark complete &amp; request review</button>');
+          '<button class="action-btn" onclick="completeAndRequestReview(\''+esc(b.id)+'\')">Retry unsent</button>'
+        : '<button class="action-btn primary" onclick="completeAndRequestReview(\''+esc(b.id)+'\')">Mark complete &amp; request review</button>');
 
   return '<div class="booking-card">'+
     '<div class="booking-card-header" onclick="toggleCard('+i+')">'+
