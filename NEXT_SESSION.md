@@ -2,6 +2,22 @@
 
 Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file at the end of every working session so the next person (or AI) can continue cold.
 
+---
+
+## ⏰ STANDING REMINDER — Netlify personal access token expires **24 July 2026**
+
+The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used for Blobs auth) is set to **expire on 24 July 2026**. Recorded here so its lapse is not mistaken for a real fault.
+
+**When it expires the site does NOT go down** — chat, Postgres bookings and Resend email all keep working (bookings moved to Supabase; Blobs now only holds the rate-limit windows + a few legacy test bookings). What breaks, quietly:
+
+- **The per-IP rate limit on `/api/chat` (+ availability/booking) stops working.** The Blobs-backed rate-limit windows **fail open** on an auth error (L-006/L-007), so the chat endpoint silently loses its only cost defence (L-001) — no error surfaces to the user. This is the one that matters: fix it promptly to avoid open AI-cost exposure.
+- **Legacy test bookings drop off the admin list.** `bookings.js`'s dual-store read catches the Blobs error and still returns the live Postgres `jobs`, so real bookings are unaffected — only the old Blobs test rows disappear.
+- **`scripts/delete-booking.js`** (manual ops tool) stops authenticating.
+
+**The fix (~2 min):** generate a new token at Netlify → **User settings → Applications → Personal access tokens → New token**, paste it into **Site settings → Environment variables → `NETLIFY_TOKEN`**, then **trigger a redeploy** (Netlify functions pick up new env vars only on the next deploy, not the moment the var is saved). Also update the gitignored local `.env` on both machines ([MACHINE_LAYOUT.md](MACHINE_LAYOUT.md)). Consider setting a longer-lived or non-expiring token to avoid the annual repeat. See LESSONS_LEARNED **L-007**.
+
+---
+
 ## This session — 2026-07-15, post-job review requests (email + SMS) — MERGED + LIVE ([#62](https://github.com/randommonicle/icc-site/pull/62), squash `090c6ba`)
 
 **Status: merged to `main` and deployed.** Dormant behind env flags, so nothing sends until Mark's keys are set (see "To turn it on" below). A pre-merge adversarial multi-lens review (5 lenses, each finding independently verified) ran over the diff and caught two things, both fixed before merge: (1) `resend:true` overrode idempotency for ALL channels, so recovering a failed SMS re-sent the already-sent email (duplicate) — replaced with **per-channel idempotency** (a channel already `sent` is always skipped; the button is now "Retry unsent"); (2) browser verification caught a **duplicate `const rec`** that broke the entire admin inline script (login included) — fixed, and `test/admin-html-syntax.test.js` was added so a broken inline script fails `node --test`. **Live-verified in production:** `/api/review-request` 401 (admin-gated), `/.netlify/functions/supabase-keepalive` 200, `check_availability` 200 (no regression to the bookings path), `/api/bookings` 401. `node --test` **196 (193 pass / 3 skip)**.
