@@ -5,6 +5,9 @@
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
 import '../styles/global.css';
+// Trading day from the single source (D-006). The JSON-LD hours are the ones
+// Google shows, so they must match the booking engine and the Business Profile.
+import tradingHours from '../../../shared/config/tradingHours.js';
 
 interface Props {
   title: string;
@@ -37,12 +40,7 @@ const localBusiness = {
     'Cheltenham', 'Gloucester', 'Stroud', 'Tewkesbury', 'Cirencester',
     'Winchcombe', 'Bishops Cleeve', 'Charlton Kings', 'Prestbury', 'Gloucestershire',
   ],
-  openingHoursSpecification: [{
-    '@type': 'OpeningHoursSpecification',
-    dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-    opens: '08:00',
-    closes: '18:00',
-  }],
+  openingHoursSpecification: tradingHours.openingHoursSpecification(),
   priceRange: '££',
 };
 ---
