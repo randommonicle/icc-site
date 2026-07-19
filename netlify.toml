@@ -77,3 +77,29 @@
   [headers.values]
     Cache-Control = "no-store, no-cache, must-revalidate"
     X-Robots-Tag = "noindex, nofollow"
+
+# ---------------------------------------------------------------------------
+# PRE-LAUNCH ONLY — DELETE THIS BLOCK AT THE DOMAIN CUTOVER (D-013)
+# ---------------------------------------------------------------------------
+# The site is served from super-frangollo-c3a14a.netlify.app and is not yet on
+# intelligentclean.co.uk. Left crawlable, the temporary host is what enters the
+# index first, and three things make that actively unhelpful:
+#
+#   1. Every page's canonical, og:url and sitemap entry already points at
+#      www.intelligentclean.co.uk, which today serves a 123 Reg parking page with
+#      third-party ads. The canonical cannot be honoured, so the signal is wasted
+#      at exactly the moment the brand's first crawl impressions form.
+#   2. The privacy notice still carries a live "[to confirm: ICO registration
+#      number]" placeholder (privacy.astro), which should not be the first
+#      version of that page Google sees.
+#   3. Anything indexed under the netlify.app name has to be cleaned up after the
+#      cutover rather than simply starting on the real domain.
+#
+# TODO(prelaunch/noindex): remove this block when DNS points at Netlify and the
+# custom domain is primary. Leaving it in place after cutover would keep the real
+# site out of the index entirely, so it is the first thing to check if the site
+# does not appear in Search Console.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"

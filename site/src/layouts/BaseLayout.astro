@@ -4,6 +4,29 @@
 // so SEO metadata and chrome stay consistent and DRY (CLAUDE.md rule #6).
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
+// Fonts are self-hosted rather than fetched from Google's CDN. Two reasons: the
+// privacy notice's processor list names Google for business email and the calendar
+// link, not for serving fonts to every visitor, and embedding Google Fonts
+// discloses each visitor's IP to Google (treated as a GDPR problem in EU case
+// law). Self-hosting also removes a render-blocking cross-origin fetch.
+// Only the weights actually used are imported: Raleway 400/700/800 (headings) and
+// Lato 300/400/700 (body). The old CDN link declared eight, two of which
+// (Raleway 300 and 600) nothing on the site ever used.
+//
+// Subsets are pinned rather than taking the default bundle, which ships Cyrillic,
+// Greek and Vietnamese too. Raleway is latin only because it renders our own
+// headings. Lato also takes latin-ext, because it is the body font and therefore
+// the one that renders customer-typed names in the chat, which can carry accented
+// characters outside plain latin.
+import '@fontsource/raleway/latin-400.css';
+import '@fontsource/raleway/latin-700.css';
+import '@fontsource/raleway/latin-800.css';
+import '@fontsource/lato/latin-300.css';
+import '@fontsource/lato/latin-400.css';
+import '@fontsource/lato/latin-700.css';
+import '@fontsource/lato/latin-ext-300.css';
+import '@fontsource/lato/latin-ext-400.css';
+import '@fontsource/lato/latin-ext-700.css';
 import '../styles/global.css';
 // Trading day from the single source (D-006). The JSON-LD hours are the ones
 // Google shows, so they must match the booking engine and the Business Profile.
@@ -64,10 +87,6 @@ const localBusiness = {
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={`${siteUrl}/logo.jpg`} />
     <script type="application/ld+json" set:html={JSON.stringify(localBusiness)} />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;600;700;800&family=Lato:wght@300;400;700&display=swap"
-      rel="stylesheet"
-    />
     <!-- Optional per-page head content (e.g. care-guide FAQ/Article JSON-LD). -->
     <slot name="head" />
   </head>
