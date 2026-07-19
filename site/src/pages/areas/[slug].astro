@@ -10,6 +10,12 @@
 import { getCollection, render } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Icon from '../../components/Icon.astro';
+// The surcharge figure comes from the single source (D-006), the same way the home
+// page reads pricing. It used to be typed as a literal here and in areas/index.astro,
+// so changing it in serviceArea.js left four templates quietly disagreeing.
+import serviceArea from '../../../../shared/config/serviceArea.js';
+
+const surcharge = `£${serviceArea.out_of_area_surcharge}`;
 
 export async function getStaticPaths() {
   const areas = await getCollection('areas', ({ data }) => !data.draft);
@@ -81,7 +87,7 @@ const services = [
       {tier === 'core' ? (
         <div class="area-badge area-badge-core">Core service area &mdash; no travel surcharge</div>
       ) : (
-        <div class="area-badge area-badge-wider">Wider Gloucestershire &mdash; flat £15 out-of-area surcharge</div>
+        <div class="area-badge area-badge-wider">Wider Gloucestershire &mdash; flat {surcharge} out-of-area surcharge</div>
       )}
     </div>
 
@@ -104,7 +110,7 @@ const services = [
         {tier === 'core' ? (
           <p><strong>No travel surcharge.</strong> {town} is within our core Cheltenham, Gloucester and Winchcombe service area, so you pay the standard per-room pricing on our <a href="/services">services page</a>.</p>
         ) : (
-          <p><strong>A flat £15 out-of-area surcharge applies.</strong> {town} sits outside our core Cheltenham, Gloucester and Winchcombe area, so a flat £15 travel surcharge is added and shown up front &mdash; no hidden charges, and you will have the full price before you commit. Everything else follows the standard pricing on our <a href="/services">services page</a>.</p>
+          <p><strong>A flat {surcharge} out-of-area surcharge applies.</strong> {town} sits outside our core Cheltenham, Gloucester and Winchcombe area, so a flat {surcharge} travel surcharge is added and shown up front &mdash; no hidden charges, and you will have the full price before you commit. Everything else follows the standard pricing on our <a href="/services">services page</a>.</p>
         )}
       </div>
 
