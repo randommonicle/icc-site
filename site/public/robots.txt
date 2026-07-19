@@ -1,3 +1,14 @@
+# Crawling stays ALLOWED on purpose, even while the site is pre-launch.
+#
+# The pre-launch noindex is served as an X-Robots-Tag header from netlify.toml,
+# and a crawler only sees that header if it is allowed to fetch the page. Adding
+# "Disallow: /" here would have the opposite of the intended effect: crawlers
+# would skip the fetch, never see the noindex, and the URLs could still surface
+# in results without content. Allow + noindex is the combination that keeps the
+# temporary netlify.app host out of the index.
+#
+# Leave this file as-is at the domain cutover; the block to remove is the
+# pre-launch [[headers]] section in netlify.toml (TODO(prelaunch/noindex)).
 User-agent: *
 Allow: /
 
