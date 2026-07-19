@@ -34,7 +34,10 @@ import Icon from '../components/Icon.astro';
             <div class="chat-window-status"><span class="chat-status-dot"></span>Online — Intelligent Carpet Cleaning</div>
           </div>
         </div>
-        <div class="chat-messages" id="chatMessages">
+        <!-- role="log" + aria-live so a screen reader announces the assistant's
+             replies as they arrive; without it the conversation is silent to
+             anyone not watching the screen. -->
+        <div class="chat-messages" id="chatMessages" role="log" aria-live="polite" aria-atomic="false" aria-label="Conversation with the carpet cleaning assistant">
           <div class="msg-row">
             <div class="msg-avatar"><img src="/logo.jpg" alt="ICC" /></div>
             <div>
@@ -112,6 +115,27 @@ import Icon from '../components/Icon.astro';
   .chat-fallback{max-width:800px;margin:0 auto;padding:0 2rem 2.5rem;text-align:center;font-size:0.82rem;color:var(--text-light);line-height:1.6;}
   .chat-fallback a{color:var(--teal);text-decoration:none;font-weight:700;}
   .chat-fallback a:hover{text-decoration:underline;}
+
+  /* The chat is the conversion surface, so on a phone the text box has to be on
+     screen when the page loads. At 375x812 it sat ~167px below the fold: the page
+     header ate 190px before the chat even started, then a fixed 480px message list
+     pushed the suggestions strip and input off-screen. Two changes rather than one,
+     because shrinking only the conversation would have made it uselessly short:
+     tighten the header chrome, then size the message list against the viewport.
+     The 450px subtrahend is the chat furniture below the list (suggestions 89 +
+     input area 83) plus everything above it, with a few pixels of margin;
+     measured at 375x812, not guessed. dvh first for browsers that have it, vh as
+     the fallback, and a min-height so a very short screen degrades to a scroll
+     rather than a sliver.
+     The 16px input size is deliberate: iOS Safari auto-zooms the whole page when a
+     focused input is under 16px, and 0.9rem computes to 14.4px. */
+  @media (max-width: 768px){
+    .chat-page-header{padding:1.5rem 1.25rem;}
+    .chat-page-header h1{font-size:1.4rem;}
+    .chat-page-header p{font-size:0.85rem;}
+    .chat-messages{height:auto;min-height:220px;max-height:calc(100vh - 450px);max-height:calc(100dvh - 450px);}
+    .chat-input{font-size:16px;}
+  }
 </style>
 
 <script is:inline>
@@ -135,6 +159,7 @@ const aiAssistantName=AI_NAMES[Math.floor(Math.random()*AI_NAMES.length)];
 // Inactivity timer - 3 minutes between checks, max 3 reminders then session ends
 let inactivityTimer=null;
 let inactivityCount=0;
+let conversationClosed=false;
 const INACTIVITY_MS=3*60*1000;
 
 function scheduleInactivityCheck(){
@@ -150,6 +175,20 @@ function cancelInactivityTimer(){
 function resetInactivityTimer(){
   inactivityCount=0;
   scheduleInactivityCheck();
+}
+
+// Close the conversation when the customer has said goodbye (the model emits a
+// CONVERSATION_END marker, stripped before display). Cancels the inactivity timer
+// so we never nag "still there?" after they're done, and ends the session the same
+// way the final inactivity reminder does. Refreshing the page starts a fresh
+// conversation.
+function endConversation(){
+  conversationClosed=true;
+  cancelInactivityTimer();
+  const input=document.getElementById("chatInput");
+  const btn=document.getElementById("sendBtn");
+  if(input){ input.disabled=true; input.placeholder="Chat ended — refresh the page to start a new conversation."; }
+  if(btn) btn.disabled=true;
 }
 
 function handleInactivity(){
@@ -180,7 +219,7 @@ function handleKeyDown(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();se
 function sendSuggestion(t){document.getElementById("chatInput").value=t;document.getElementById("quickSuggestions").style.display="none";sendMessage();}
 function getTime(){return new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});}
 
-function appendMessage(role,text){
+function appendMessage(role,text,citations){
   const c=document.getElementById("chatMessages");
   const row=document.createElement("div");row.className="msg-row "+role;
   const av=document.createElement("div");av.className="msg-avatar"+(role==="user"?" user":"");
@@ -202,9 +241,85 @@ function appendMessage(role,text){
     });
     bub.appendChild(pEl);
   });
+  if(role==="bot") renderCitations(bub,citations);
   const t=document.createElement("div");t.className="msg-time";t.textContent=getTime();
   wrap.appendChild(bub);wrap.appendChild(t);row.appendChild(av);row.appendChild(wrap);c.appendChild(row);
   c.scrollTop=c.scrollHeight;
+}
+
+// Maps a knowledge-base section id (shared/config/knowledge.js) to the care guide
+// that covers the same ground. Only sections a guide genuinely covers appear here:
+// an entry with no guide stays an inert caption rather than becoming a link that
+// lands the customer somewhere that does not answer the question. Keep in step with
+// site/src/content/guides/ — a slug here that has no matching guide is a 404.
+const KB_GUIDE_SLUGS={
+  texatherm_system:"low-moisture-vs-hot-water-extraction",
+  carpet_type_and_method:"natural-fibre-carpets",
+  stain_guidance:"which-carpet-stains-are-permanent",
+  time_estimates:"carpet-drying-and-aftercare"
+};
+
+// Render the sources an answer was grounded in (Slice 4c/4d, D-019) as a small,
+// muted provenance caption. Everything is built from DOM nodes (never innerHTML),
+// so it stays L-003-safe. Two lanes:
+//   - KB sections (no url): the section title, linked to its care guide where one
+//     exists (KB_GUIDE_SLUGS above) and inert text where it does not. The guides
+//     went live at the Phase 1 cutover, which is what the original
+//     TODO(citation-links) was waiting on.
+//   - Web sources (Slice 4d, entries with a url): attributed external links, per
+//     D-019. The href is only set after an http(s) check (the server filters too,
+//     belt and braces), built with createElement + setAttribute, opened in a new
+//     tab with rel="noopener noreferrer".
+function renderCitations(bub,citations){
+  if(!Array.isArray(citations)||!citations.length) return;
+  const isWeb=function(cit){return cit&&typeof cit.url==="string"&&/^https?:\/\//i.test(cit.url);};
+  // Three-way split: KB entries carry no url at all; web entries carry a SAFE
+  // http(s) url; anything with an unsafe url is dropped outright, never demoted
+  // to a trusted-looking KB label (defence in depth with the server filter).
+  const kb=citations.filter(function(cit){return cit&&cit.url==null;});
+  const web=citations.filter(isWeb);
+  const box=document.createElement("div");
+  box.style.cssText="margin-top:0.6em;padding-top:0.45em;border-top:1px solid rgba(0,0,0,0.08);font-size:0.75em;line-height:1.4;opacity:0.62;";
+  if(kb.length){
+    const kbLine=document.createElement("div");
+    kbLine.appendChild(document.createTextNode("Based on ICC's expert guidance: "));
+    kb.forEach(function(cit,i){
+      if(i>0) kbLine.appendChild(document.createTextNode(", "));
+      const title=String(cit&&cit.title?cit.title:"reference");
+      const slug=cit&&cit.id?KB_GUIDE_SLUGS[cit.id]:null;
+      if(slug){
+        const a=document.createElement("a");
+        a.textContent=title;
+        // Slug comes from our own constant, never from the model, so the path is
+        // built from a known-safe value rather than anything the reply supplied.
+        a.setAttribute("href","/guides/"+slug+"/");
+        a.style.cssText="color:inherit;text-decoration:underline;";
+        kbLine.appendChild(a);
+      } else {
+        kbLine.appendChild(document.createTextNode(title));
+      }
+    });
+    kbLine.appendChild(document.createTextNode("."));
+    box.appendChild(kbLine);
+  }
+  if(web.length){
+    const webLine=document.createElement("div");
+    webLine.appendChild(document.createTextNode("Looked up on the web: "));
+    web.forEach(function(cit,i){
+      if(i>0) webLine.appendChild(document.createTextNode(", "));
+      const a=document.createElement("a");
+      a.textContent=String(cit.title||"source");
+      a.setAttribute("href",cit.url);
+      a.setAttribute("target","_blank");
+      a.setAttribute("rel","noopener noreferrer");
+      a.style.cssText="color:inherit;text-decoration:underline;";
+      webLine.appendChild(a);
+    });
+    webLine.appendChild(document.createTextNode("."));
+    box.appendChild(webLine);
+  }
+  if(!box.childNodes.length) return;
+  bub.appendChild(box);
 }
 
 function showTyping(){
@@ -405,22 +520,29 @@ async function sendMessage(){
     const d=await r.json();removeTyping();
     if(d.content&&d.content[0]){
       const reply=d.content[0].text;
+      // Slice 4c: the server may attach the KB sections the answer was grounded in.
+      const citations=Array.isArray(d.citations)?d.citations:null;
+      // The model appends a CONVERSATION_END marker once the customer has said
+      // goodbye; detect it, strip it from the visible text, and close the chat.
+      const conversationEnded=/CONVERSATION_END/.test(reply);
       const bookingMatch=reply.match(/BOOKING_READY:(\{[\s\S]*?\})/);
       if(bookingMatch){
         try{
           const booking=JSON.parse(bookingMatch[1]);
-          const cleanReply=reply.replace(/BOOKING_READY:\{[\s\S]*?\}/,"").trim();
-          if(cleanReply) appendMessage("bot",cleanReply);
+          const cleanReply=reply.replace(/BOOKING_READY:\{[\s\S]*?\}/,"").replace(/CONVERSATION_END/g,"").trim();
+          if(cleanReply) appendMessage("bot",cleanReply,citations);
           appendMessage("bot","One moment, confirming your slot...");
           await processBooking(booking);
         }catch(e){
-          appendMessage("bot",reply.replace(/BOOKING_READY:[\s\S]*$/,"").trim());
+          appendMessage("bot",reply.replace(/BOOKING_READY:[\s\S]*$/,"").replace(/CONVERSATION_END/g,"").trim(),citations);
         }
       } else {
-        appendMessage("bot",reply);
+        const cleanReply=reply.replace(/CONVERSATION_END/g,"").trim();
+        if(cleanReply) appendMessage("bot",cleanReply,citations);
       }
       conversationHistory.push({role:"assistant",content:reply});
-      resetInactivityTimer();
+      if(conversationEnded) endConversation();
+      else resetInactivityTimer();
     } else if(d.error){
       // Surface the real error so we can diagnose 403/429/500 instead of a
       // generic "I encountered an issue" fallback.
@@ -434,6 +556,8 @@ async function sendMessage(){
     removeTyping();
     appendMessage("bot","I am unable to connect at the moment. Please try again shortly or contact us directly.");
   }
-  btn.disabled=false;input.focus();
+  // Leave the input disabled once the customer has said goodbye, otherwise the
+  // closing message would be immediately followed by a live, focused box again.
+  if(!conversationClosed){ btn.disabled=false; input.focus(); }
 }
 </script>
