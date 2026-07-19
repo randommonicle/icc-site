@@ -15,7 +15,14 @@
   --navy:var(--green); --navy-dark:var(--green-dark); --navy-mid:var(--green-mid);
   --teal:#178072; --teal-light:#2ab8a4; --gold:#c8a84b; --gold-deep:#8a6d23; /* --teal and --gold-deep meet WCAG AA as text on white; --teal-light and --gold are for light-on-dark and decorative use */
   --off-white:#f7f8fa;
-  --text-dark:#1a1a2e; --text-mid:#4a5568; --text-light:#718096;
+  /* --text-light was #718096, which is 4.02:1 on white and fails WCAG AA for
+     normal text (4.5:1). It is used at small sizes for the chat fallback line
+     carrying the phone number and privacy link, the message timestamps and the
+     privacy-page legal meta, so it is real body copy, not decoration. #64748b is
+     4.76:1, sits alongside --teal (4.81:1), and stays visibly lighter than
+     --text-mid so the hierarchy is unchanged. Ratios are computed in
+     test/contrast.test.js, not eyeballed. */
+  --text-dark:#1a1a2e; --text-mid:#4a5568; --text-light:#64748b;
   --border:#e2e8f0; --chat-bg:#f0f7f6;
 }
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -88,7 +95,9 @@ nav{position:fixed;top:0;left:0;right:0;background:rgba(12,44,37,0.97);backdrop-
 
 /* Footer */
 footer{background:var(--navy-dark);padding:2rem;text-align:center;border-top:1px solid rgba(26,138,122,0.2);}
-footer p{color:rgba(255,255,255,0.4);font-size:0.8rem;}
+/* 0.4 alpha blends to 3.6:1 on --navy-dark, a clear AA fail at 0.8rem. 0.65 is
+   7.11:1 and is the same value the hero already uses for its body copy. */
+footer p{color:rgba(255,255,255,0.65);font-size:0.8rem;}
 footer span{color:var(--teal-light);}
 footer a{color:var(--teal-light);text-decoration:none;}
 footer a:hover{text-decoration:underline;}

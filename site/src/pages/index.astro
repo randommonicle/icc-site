@@ -4,6 +4,13 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Icon from '../components/Icon.astro';
 import { getCollection } from 'astro:content';
+// The hero logo lives in src/assets, not public/, so astro:assets processes it.
+// As a 438KB PNG served byte-for-byte from public/ it was ~95% of the home page's
+// transfer weight, on the landing page of a business whose pitch includes modern
+// technology. <Image> emits width/height (no layout shift) and a responsive
+// srcset, and serves WebP.
+import { Image } from 'astro:assets';
+import logoGreen from '../assets/logo-green.png';
 // "From £…" figures render from the single pricing source (D-006) so they never
 // drift from the assistant/server quote. Labels stay hand-written for the site.
 import pricing from '../../../shared/config/pricing.js';
@@ -42,7 +49,16 @@ const areas = (await getCollection('areas', ({ data }) => !data.draft)).sort(
       </div>
       <div class="hero-logo-panel">
         <div class="hero-logo-frame">
-          <img src="/logo-green.png" alt="Intelligent Carpet Cleaning" />
+          <Image
+            src={logoGreen}
+            alt="Intelligent Carpet Cleaning"
+            widths={[280, 560, 900]}
+            sizes="(max-width: 820px) 60vw, 500px"
+            format="webp"
+            quality={82}
+            loading="eager"
+            fetchpriority="high"
+          />
         </div>
         <a class="hero-chat-teaser" href="/book">
           <div class="chat-teaser-dot"></div>

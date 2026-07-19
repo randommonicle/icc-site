@@ -22,8 +22,14 @@ const links = [
       <span style="font-size:0.6rem;font-weight:400;color:#2ab8a4;letter-spacing:0.15em;text-transform:uppercase;">Established Trust, Superior Cleaning</span>
     </div>
   </a>
-  <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-hidden="true" />
-  <label for="nav-toggle" class="nav-burger" aria-label="Open menu"><span></span><span></span><span></span></label>
+  <!-- The checkbox IS the menu control (CSS-only disclosure), and global.css
+       deliberately keeps it focusable at mobile widths so it works by keyboard.
+       It therefore must not be aria-hidden: that combination puts a control in
+       the tab order that announces nothing (WCAG 4.1.2). The accessible name
+       belongs on the input, not the label, because the label's aria-label is
+       not exposed for the control the user actually focuses. -->
+  <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Menu" />
+  <label for="nav-toggle" class="nav-burger" aria-hidden="true"><span></span><span></span><span></span></label>
   <ul class="nav-links">
     {links.map((l) => (
       <li>
