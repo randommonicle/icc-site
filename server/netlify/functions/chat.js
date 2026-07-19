@@ -56,6 +56,7 @@ const ORIGIN_CHECK_STRICT = process.env.ALLOWED_ORIGINS ? true : false;
 const models = require("../../../shared/config/models.js");
 const pricing = require("../../../shared/config/pricing.js");
 const serviceArea = require("../../../shared/config/serviceArea.js");
+const tradingHours = require("../../../shared/config/tradingHours.js");
 const knowledge = require("../../../shared/config/knowledge.js");
 // Slice 5a (D-020): the operational-backend client + the pure handoff-row builder.
 const { getSupabaseAdmin } = require("./supabaseClient.js");
@@ -106,8 +107,7 @@ Owner: Mark McClymont
 Phone: 01242 279590
 Email: hello@intelligentclean.co.uk
 Service area: All GL postcodes - full Gloucestershire
-Hours: Monday to Saturday, 8am to 6pm
-Available slots: 9am, 10am, 11am, 12pm, 1pm, 2pm, 3pm, 4pm, 5pm (Mon-Sat)
+${tradingHours.hoursBlock()}
 
 ${serviceArea.serviceAreaBlock()}
 
@@ -166,7 +166,7 @@ Collect in this order, one question at a time:
 8. Whether furniture needs moving
 9. Any pets
 10. Preferred date (must be from the AVAILABLE BOOKING DATES list in the PER-CONVERSATION CONTEXT block, Monday to Saturday only)
-11. Preferred start time (9am to 5pm, hourly slots)
+11. Preferred start time (${tradingHours.formatHour(tradingHours.earliest_start_hour)} to ${tradingHours.formatHour(tradingHours.latest_start_hour)}, hourly slots)
 
 Once you have all details, calculate the total estimated time needed (minimum 1 hour per room, round up, add 1 hour buffer). Tell the customer the estimated duration, total price, and the 10% deposit amount. Then ask them to confirm they want to proceed.
 
@@ -741,8 +741,10 @@ async function checkAvailability(date, slotsNeeded, baseHeaders, supabase) {
   if (bookingsStoreIsPostgres() && !supabase) {
     console.log("WARNING: BOOKINGS_STORE=postgres but no Supabase client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY unset) — availability is using Blobs.");
   }
-  const allSlots = usePostgres ? [9,10,11,12,13,14,15] : [9,10,11,12,13,14,15,16,17];
-  const maxSlots = usePostgres ? 7 : 9;
+  const allSlots = usePostgres
+    ? tradingHours.startHours()
+    : [9,10,11,12,13,14,15,16,17];
+  const maxSlots = usePostgres ? tradingHours.max_slots : tradingHours.legacy_blobs.max_slots;
   // Light input check — bookings.js does the full validate; this path is read-only.
   // Cap matches the active store so the endpoint agrees with the booking engine.
   const slots = Number(slotsNeeded);
@@ -796,15 +798,16 @@ function validateBooking(b, opts){
   if(!b || typeof b !== "object") return "Invalid booking payload";
 
   // Trading-hours bounds depend on the active store (Slice 5b / D-021): the
-  // Postgres `jobs` table enforces the 09:00-16:30 day (start 9..15, end <= 16,
-  // up to 7 slots); the Phase 0 Blobs grid is 09:00-17:00 (start 9..17, end <= 18,
-  // up to 9 slots). The defaults reproduce the exact Blobs behaviour, so the
-  // flag-off path is byte-identical and the DB constraint is a backstop, not the
-  // gate (a too-late/too-long slot is a clean 400 here, never a 23514 at insert).
+  // Postgres `jobs` table enforces the live day from shared/config/tradingHours.js
+  // (start 9..15, end <= 16, up to 7 slots), passed in by the caller; the Phase 0
+  // Blobs grid is the longer 09:00-17:00 day. The defaults reproduce the exact
+  // Blobs behaviour, so the flag-off path is byte-identical and the DB constraint
+  // is a backstop, not the gate (a too-late/too-long slot is a clean 400 here,
+  // never a 23514 at insert).
   const o = opts || {};
-  const latestStartHour = o.latestStartHour || 17;
-  const latestEndHour = o.latestEndHour || 18;
-  const maxSlots = o.maxSlots || 9;
+  const latestStartHour = o.latestStartHour || tradingHours.legacy_blobs.latest_start_hour;
+  const latestEndHour = o.latestEndHour || tradingHours.legacy_blobs.latest_end_hour;
+  const maxSlots = o.maxSlots || tradingHours.legacy_blobs.max_slots;
 
   const required = ["name","phone","email","address","date","start_time","slots_needed"];
   for(const f of required){
@@ -914,7 +917,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   // too-long slot is a clean 400 here, never a DB constraint error at insert
   // (Slice 5b / D-021).
   const validationError = usePostgres
-    ? validateBooking(booking, { latestStartHour: 15, latestEndHour: 16, maxSlots: 7 })
+    ? validateBooking(booking, tradingHours.bookingBounds())
     : validateBooking(booking);
   if(validationError){
     console.log("Booking rejected:", validationError);

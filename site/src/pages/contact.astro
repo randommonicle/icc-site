@@ -4,6 +4,9 @@
 // primary call to action points at /book. Page-specific CSS is scoped below.
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Icon from '../components/Icon.astro';
+// Trading day from the single source (D-006), so the page can never drift from
+// what the booking engine actually accepts.
+import tradingHours from '../../../shared/config/tradingHours.js';
 ---
 <BaseLayout
   title="Contact | Intelligent Carpet Cleaning, Cheltenham"
@@ -44,7 +47,7 @@ import Icon from '../components/Icon.astro';
         <div class="contact-icon"><Icon name="clock" color="var(--teal)" /></div>
         <div>
           <div class="contact-label">Operating Hours</div>
-          <div class="contact-value">Monday to Saturday, 8am to 6pm</div>
+          <div class="contact-value">{tradingHours.hoursPhrase()}</div>
         </div>
       </div>
       <div class="area-coverage">
