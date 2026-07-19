@@ -18,7 +18,65 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
-## This session — 2026-07-19, home-machine housekeeping (no product change)
+## This session — 2026-07-19, full site review remediation — ALL MERGED + LIVE (PRs [#67](https://github.com/randommonicle/icc-site/pull/67)–[#72](https://github.com/randommonicle/icc-site/pull/72))
+
+**Start here if you are picking this up on the work machine.** A developer-and-marketing review of the whole site produced eleven findings (F1–F11). All eleven are fixed, merged to `main` and deployed. The suite went from 196 to 239 tests (236 pass, 3 skipped, 0 fail) and the site builds 23 pages. Nothing is in flight and no branch is open.
+
+The full review, including the GREEN findings worth not breaking, was written to a scratchpad file that does **not** survive the session. What mattered is summarised here.
+
+### What was wrong and what changed
+
+| PR | Findings | Substance |
+|----|----------|-----------|
+| [#67](https://github.com/randommonicle/icc-site/pull/67) | F1, F7, F8 | **RED.** The Phase 1 cutover (#49) silently dropped two shipped chat features |
+| [#68](https://github.com/randommonicle/icc-site/pull/68) | F2 | **RED.** Trading hours drift: the site sold slots the booking engine rejects |
+| [#69](https://github.com/randommonicle/icc-site/pull/69) | F3, F9 | **RED.** Pre-launch host indexable + Google Fonts privacy exposure |
+| [#70](https://github.com/randommonicle/icc-site/pull/70) | F5, F10 | Winchcombe page contradicted D-011; surcharge hardcoded |
+| [#71](https://github.com/randommonicle/icc-site/pull/71) | F4, F6, F7 | WCAG AA failures, silent nav toggle, 438KB hero |
+| [#72](https://github.com/randommonicle/icc-site/pull/72) | F11 | The missing DIY-vs-professional guide |
+
+**F1 (the worst one).** `book.astro` never handled `CONVERSATION_END` or the `citations` payload, though `chat.js` had been sending both since the Slice 4c/4d work. Live customers saw the raw `CONVERSATION_END` marker in the chat, the PR #21 goodbye-close never ran, and the "Based on ICC's expert guidance" provenance captions were invisible for a month. `TODO(citation-links)` is now closed too: KB section ids map to care guides via `KB_GUIDE_SLUGS` in `book.astro`. **Keep that map in step with `site/src/content/guides/`** — `test/chat-client-parity.test.js` fails if a mapped slug has no guide.
+
+**F2.** The prompt advertised "8am to 6pm" with slots to 5pm; the live Postgres validation rejects starts after 15:00. A customer could complete the whole consultation and be refused at `confirm_booking`. Now single-sourced in **`shared/config/tradingHours.js`** (D-006 pattern) and consumed by the prompt, the availability grid, `validateBooking`, `contact.astro` and the JSON-LD.
+
+**F3.** Every canonical/`og:url`/sitemap entry points at `www.intelligentclean.co.uk`, which currently serves a **123 Reg parking page with third-party ads**. The `.netlify.app` host was fully crawlable. A site-wide `X-Robots-Tag: noindex` now ships, flagged **`TODO(prelaunch/noindex)`** in `netlify.toml`. `robots.txt` deliberately keeps `Allow`: a crawler must be able to fetch the page to see the header, so `Disallow` would defeat the noindex rather than reinforce it.
+
+**F4.** `logo-green.png` moved from `public/` to `src/assets/` so `astro:assets` processes it: **438KB → 35KB desktop, 12KB mobile**, with `width`/`height` and a `srcset`. The seamless cutout from #59 survives WebP (verified by sampling decoded pixel alpha).
+
+**F9.** Fonts self-hosted via `@fontsource`, subsets pinned. Google Fonts disclosed every visitor's IP to Google, which the privacy notice's processor list did not cover.
+
+### New tests worth knowing about
+
+Five new files, all of which check code against a source of truth rather than against themselves:
+
+- **`test/chat-client-parity.test.js`** — the live Astro client must keep handling everything the server sends. Confirmed to fail against the pre-fix `book.astro`, not pass vacuously.
+- **`test/trading-hours.test.js`** — whatever the booking engine accepts is what the assistant may offer and the site may advertise.
+- **`test/area-content-accuracy.test.js`** — area pages checked against `serviceArea.js`, including real `isOutOfArea()` postcodes and every `£` figure.
+- **`test/contrast.test.js`** — computes WCAG ratios from the stylesheet, resolving `var()` aliases, so a colour change is checked against the standard.
+- **`test/guide-claims.test.js`** — the DIY guide's claims must trace to `knowledge.js`; no invented statistics, no brand names (PR #23 rule).
+
+### ⚠️ Two judgement calls made without Mark, and one correction needed
+
+1. **Trading hours are now 09:00–16:30.** That is taken from the database constraint and the GBP spec, which already agreed. The old "8am to 6pm" copy was the outlier. **Mark must confirm the real trading day before launch** — it is a one-line change in `shared/config/tradingHours.js` if it moves.
+2. **The pre-launch host is set to `noindex`.** Reversible: delete the flagged block in `netlify.toml`.
+
+### Still open, and needs Ben or Mark rather than code
+
+- **`NETLIFY_TOKEN` expires 24 July 2026** (see the standing reminder above). Unchanged and still the most urgent item.
+- **Netlify env vars:** `PUBLIC_SITE_URL` is the two-minute one — until it is set, the privacy link in booking and handoff emails resolves to the 123 Reg ad page. Also `ALLOWED_ORIGINS`, `CUSTOMER_FROM`, `CUSTOMER_REPLY_TO`. Redeploy after (L-018).
+- **Turn off 123 Reg domain parking** so the brand domain stops serving ads.
+- **Mark's steer on two pieces of copy:** the "Established Trust, Superior Cleaning" tagline reads oddly for a business with no track record yet (it invites exactly the question D-015 exists to avoid), and the About meta description says "a local team" for a sole trader; "local specialist" would be truer and better positioning. Both are brand wording, so his call, not a code fix.
+- **Phone number decision** (from the 18 June session) still outstanding before GBP creation, or NAP is split from day one.
+
+### What the review found working, so it does not get broken
+
+Claim discipline held everywhere checked: no fabricated statistics anywhere in the built output, manufacturer figures properly attributed, and the `TODO(trust-stats)` anchors still in place. Structured data is correct for a service-area business (no street address per D-016, no invented `aggregateRating`). The area pages are genuinely local rather than doorway pages. Pages are lean, 13–23KB of HTML.
+
+The review engine (D-025, built but dormant) remains the single biggest trust lever available once GBP exists, precisely because D-015 rightly forbids invented social proof. Switch-on instructions are in [docs/REVIEW_REQUESTS_SETUP.md](docs/REVIEW_REQUESTS_SETUP.md).
+
+---
+
+## Earlier that day — 2026-07-19, home-machine housekeeping (no product change)
 
 Housekeeping only, no behaviour change. The home machine had drifted badly out of sync.
 
