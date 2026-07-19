@@ -18,6 +18,26 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session — 2026-07-19, home-machine housekeeping (no product change)
+
+Housekeeping only, no behaviour change. The home machine had drifted badly out of sync.
+
+**What was wrong.** The home checkout sat on the long-dead `feat/supabase-schema` branch with local `main` 17 commits behind `origin/main`, and both `node_modules` trees predated the Supabase dependency, so the whole suite failed with `Cannot find module '@supabase/supabase-js'`. Nine stale local branches and four stale git worktrees had accumulated.
+
+**What was done.**
+
+- `main` fast-forwarded to `origin/main` (`5ce506c`). Nothing local was ahead, so nothing was at risk.
+- Nine stale branches deleted, each verified first: four merge-reachable, four patch-equivalent via `git cherry`, and `claude/funny-wilson-666c69` confirmed landed as squash `ffcfa8c` (#52) by checking the A4 privacy link in `handoffs.js` and the A5 `retention.js` / `purge-handoffs.js` files on main.
+- All four worktrees removed. The last, `friendly-dewdney-464b0d`, held 32 uncommitted files and needed checking rather than deleting: it turned out to be a 5 June snapshot on the pre-monorepo `netlify/functions/` paths, missing every test and migration added since. All 112 identifiers in its `chat.js`, and every identifier in its `admin.html` and `index.html`, already exist on main. The only three absent (`adminSecret`, `authHeader`, `providedToken`) are the legacy `ADMIN_SECRET` auth that Slice 5d deliberately replaced. Nothing was salvageable. Its stray `nul` file (a Windows reserved device name, from a bad `> nul` redirect) needed `del "\\?\<path>\nul"` to remove — see **L-022**.
+- Both `npm install`s re-run. Suite green: **196 tests, 193 pass, 0 fail, 3 skipped**. `npm run build --prefix site` builds 22 pages. npm blocks the `esbuild`/`sharp` install scripts on this machine; the build passes regardless, so it needs no action.
+- Four `ICC-Progress-Update-for-Mark*` docs moved out of the repo root to `C:\Users\bengr\Projects\ICC\deliverables\`.
+
+**Docs corrected in this branch.** `MACHINE_LAYOUT.md` recorded the home path as the OneDrive Desktop; the repo has since moved to `C:\Users\bengr\Projects\ICC\icc-site`, outside OneDrive, and an empty stub still sits on the Desktop. `CLAUDE.md` described the GitHub repo as private when it is **public**.
+
+**Open item for Ben.** The repo is public. No credentials are exposed (`.env` is git-ignored and has never been committed; a scan of tracked files for Anthropic, Netlify, Resend and JWT key patterns found nothing), but pricing logic, Mark's contact details and the decision history are readable. Decision this session: leave it public while pre-launch, flip at the domain cutover. It is now a pre-launch checklist item in CLAUDE.md.
+
+---
+
 ## This session — 2026-07-15, post-job review requests (email + SMS) — MERGED + LIVE ([#62](https://github.com/randommonicle/icc-site/pull/62), squash `090c6ba`)
 
 **Status: merged to `main` and deployed.** Dormant behind env flags, so nothing sends until Mark's keys are set (see "To turn it on" below). A pre-merge adversarial multi-lens review (5 lenses, each finding independently verified) ran over the diff and caught two things, both fixed before merge: (1) `resend:true` overrode idempotency for ALL channels, so recovering a failed SMS re-sent the already-sent email (duplicate) — replaced with **per-channel idempotency** (a channel already `sent` is always skipped; the button is now "Retry unsent"); (2) browser verification caught a **duplicate `const rec`** that broke the entire admin inline script (login included) — fixed, and `test/admin-html-syntax.test.js` was added so a broken inline script fails `node --test`. **Live-verified in production:** `/api/review-request` 401 (admin-gated), `/.netlify/functions/supabase-keepalive` 200, `check_availability` 200 (no regression to the bookings path), `/api/bookings` 401. `node --test` **196 (193 pass / 3 skip)**.

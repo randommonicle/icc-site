@@ -22,8 +22,10 @@ no git repo in it, not a second checkout. (D-014: the repo may be renamed `icc-s
 - **Syncs via git:** all tracked code and committed docs, including this file.
 - **Does NOT sync** (local, per-path): the `.claude/projects/<key>/memory/` dirs, `.claude.json`,
   the gitignored `.env` (holds the real `NETLIFY_SITE_ID` + `NETLIFY_TOKEN`), and `node_modules`.
-  The ICC client deliverables and brand assets live loose in the work machine's `Downloads`, not
-  in the repo.
+  The ICC client deliverables and brand assets live outside the repo on both machines: loose in
+  the work machine's `Downloads`, and under `C:\Users\bengr\Projects\ICC\deliverables\` at home
+  (four `ICC-Progress-Update-for-Mark*` files were moved there out of the repo root on
+  2026-07-19). Keep client documents out of the repo — it is public today (see CLAUDE.md).
 
 ## Guidance for whichever Claude picks this up
 
