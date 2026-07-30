@@ -4,17 +4,11 @@ Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file
 
 ---
 
-## ⏰ STANDING REMINDER — Netlify personal access token regenerated 30 July 2026 — new expiry not yet recorded
+## Netlify personal access token — regenerated 30 July 2026, non-expiring (expiry watch closed)
 
-The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used for Blobs auth) **expired on 24 July 2026** and was **regenerated on 30 July 2026**. The new value is set in Netlify (Site settings → Environment variables) and in the work machine's local `.env`; **the home machine's `.env` still needs the new value** (see [MACHINE_LAYOUT.md](MACHINE_LAYOUT.md) for the two-machine setup). The new token's expiry is not yet recorded: [Ben to confirm: expiry of the token created 30 July 2026 — Netlify → User settings → Applications → Personal access tokens; if it was created non-expiring, replace this reminder with a note saying so].
+The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used for Blobs auth) **expired on 24 July 2026** and was **regenerated on 30 July 2026 as a non-expiring token** — there is no future expiry date to track, so the annual watch this section used to carry is now closed. The new value is set in Netlify (Site settings → Environment variables) and in the work machine's local `.env`; **the home machine's `.env` still needs the new value** (see [MACHINE_LAYOUT.md](MACHINE_LAYOUT.md) for the two-machine setup).
 
-**When it expires the site does NOT go down** — chat, Postgres bookings and Resend email all keep working (bookings moved to Supabase; Blobs now only holds the rate-limit windows + a few legacy test bookings). What breaks, quietly:
-
-- **The per-IP rate limit on `/api/chat` (+ availability/booking) stops working.** The Blobs-backed rate-limit windows **fail open** on an auth error (L-006/L-007), so the chat endpoint silently loses its only cost defence (L-001) — no error surfaces to the user. This is the one that matters: fix it promptly to avoid open AI-cost exposure.
-- **Legacy test bookings drop off the admin list.** `bookings.js`'s dual-store read catches the Blobs error and still returns the live Postgres `jobs`, so real bookings are unaffected — only the old Blobs test rows disappear.
-- **`scripts/delete-booking.js`** (manual ops tool) stops authenticating.
-
-**The fix (~2 min):** generate a new token at Netlify → **User settings → Applications → Personal access tokens → New token**, paste it into **Site settings → Environment variables → `NETLIFY_TOKEN`**, then **trigger a redeploy** (Netlify functions pick up new env vars only on the next deploy, not the moment the var is saved). Also update the gitignored local `.env` on both machines ([MACHINE_LAYOUT.md](MACHINE_LAYOUT.md)). Consider setting a longer-lived or non-expiring token to avoid the annual repeat. See LESSONS_LEARNED **L-007**. **Paste it carefully:** a leading space before the value (in `.env` or the Netlify UI field) produces 401s indistinguishable from an expired token — see L-007's 30 July 2026 addendum.
+**If this token is ever revoked or rotated**, the same silent failure applies as before: the per-IP rate limit on `/api/chat` (+ availability/booking) fails open (L-001/L-006/L-007), legacy Blobs test bookings drop off the admin list (live Postgres bookings are unaffected), and `scripts/delete-booking.js` stops authenticating. **The fix (~2 min):** generate a new token at Netlify → **User settings → Applications → Personal access tokens → New token**, paste it into **Site settings → Environment variables → `NETLIFY_TOKEN`**, then **trigger a redeploy** (Netlify functions pick up new env vars only on the next deploy, not the moment the var is saved) — and update the gitignored local `.env` on both machines. **Paste it carefully:** a leading space before the value produces 401s indistinguishable from an auth failure — see L-007's 30 July 2026 addendum.
 
 ---
 
@@ -62,7 +56,7 @@ Five new files, all of which check code against a source of truth rather than ag
 
 ### Still open, and needs Ben or Mark rather than code
 
-- **`NETLIFY_TOKEN` expires 24 July 2026** (see the standing reminder above). Unchanged and still the most urgent item.
+- **`NETLIFY_TOKEN`** — RESOLVED 30 July 2026: the token lapsed on 24 July, was regenerated as a **non-expiring** token, set in Netlify, redeployed, and live-verified (the per-IP rate limiter trips 429 again). Residual: update the home machine's `.env`.
 - **Netlify env vars:** `PUBLIC_SITE_URL` is the two-minute one — until it is set, the privacy link in booking and handoff emails resolves to the 123 Reg ad page. Also `ALLOWED_ORIGINS`, `CUSTOMER_FROM`, `CUSTOMER_REPLY_TO`. Redeploy after (L-018).
 - **Turn off 123 Reg domain parking** so the brand domain stops serving ads.
 - **Mark's steer on two pieces of copy:** the "Established Trust, Superior Cleaning" tagline reads oddly for a business with no track record yet (it invites exactly the question D-015 exists to avoid), and the About meta description says "a local team" for a sole trader; "local specialist" would be truer and better positioning. Both are brand wording, so his call, not a code fix.
