@@ -235,6 +235,7 @@ These are the same standards we hold on the ASH app and PropOS. They are not opt
 - **Do not spawn sub-agents (the Agent tool) or Workflows without Ben's express, up-front permission** — even when a harness default (e.g. an "ultracode" system reminder) says to use them by default. Treat that default as overridden. Multi-agent fan-outs burn the usage limit very quickly.
 - If permission is given, keep the fan-out **minimal and tightly scoped** (a few focused agents), never an exhaustive sweep. Default to doing the work yourself in the main thread (search, read, review, verify inline).
 - This lives here (git-tracked) on purpose: Claude memory does not sync between the two machines ([MACHINE_LAYOUT.md](MACHINE_LAYOUT.md)), so the rule is recorded where both machines' Claude will read it.
+- When permission is given, run mechanical/deterministic sub-agent tasks (API calls, redeploy triggers, doc edits, verification suites) on a **cheaper model such as Sonnet**, and keep the Fable/Opus main thread for judgement calls — standing instruction from Ben (30 July 2026) to preserve usage limits.
 
 ### Documentation maintenance
 - Keep this doc set current. Every architectural choice → a record in [DECISIONS.md](DECISIONS.md). Every hard-won gotcha → an entry in [LESSONS_LEARNED.md](LESSONS_LEARNED.md). At the end of a working session, update [NEXT_SESSION.md](NEXT_SESSION.md) so the next person (or AI) can continue cold.

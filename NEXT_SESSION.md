@@ -4,9 +4,9 @@ Live handover note. Read this and [CLAUDE.md](CLAUDE.md) first. Update this file
 
 ---
 
-## ⏰ STANDING REMINDER — Netlify personal access token expires **24 July 2026**
+## ⏰ STANDING REMINDER — Netlify personal access token regenerated 30 July 2026 — new expiry not yet recorded
 
-The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used for Blobs auth) is set to **expire on 24 July 2026**. Recorded here so its lapse is not mistaken for a real fault.
+The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used for Blobs auth) **expired on 24 July 2026** and was **regenerated on 30 July 2026**. The new value is set in Netlify (Site settings → Environment variables) and in the work machine's local `.env`; **the home machine's `.env` still needs the new value** (see [MACHINE_LAYOUT.md](MACHINE_LAYOUT.md) for the two-machine setup). The new token's expiry is not yet recorded: [Ben to confirm: expiry of the token created 30 July 2026 — Netlify → User settings → Applications → Personal access tokens; if it was created non-expiring, replace this reminder with a note saying so].
 
 **When it expires the site does NOT go down** — chat, Postgres bookings and Resend email all keep working (bookings moved to Supabase; Blobs now only holds the rate-limit windows + a few legacy test bookings). What breaks, quietly:
 
@@ -14,7 +14,7 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 - **Legacy test bookings drop off the admin list.** `bookings.js`'s dual-store read catches the Blobs error and still returns the live Postgres `jobs`, so real bookings are unaffected — only the old Blobs test rows disappear.
 - **`scripts/delete-booking.js`** (manual ops tool) stops authenticating.
 
-**The fix (~2 min):** generate a new token at Netlify → **User settings → Applications → Personal access tokens → New token**, paste it into **Site settings → Environment variables → `NETLIFY_TOKEN`**, then **trigger a redeploy** (Netlify functions pick up new env vars only on the next deploy, not the moment the var is saved). Also update the gitignored local `.env` on both machines ([MACHINE_LAYOUT.md](MACHINE_LAYOUT.md)). Consider setting a longer-lived or non-expiring token to avoid the annual repeat. See LESSONS_LEARNED **L-007**.
+**The fix (~2 min):** generate a new token at Netlify → **User settings → Applications → Personal access tokens → New token**, paste it into **Site settings → Environment variables → `NETLIFY_TOKEN`**, then **trigger a redeploy** (Netlify functions pick up new env vars only on the next deploy, not the moment the var is saved). Also update the gitignored local `.env` on both machines ([MACHINE_LAYOUT.md](MACHINE_LAYOUT.md)). Consider setting a longer-lived or non-expiring token to avoid the annual repeat. See LESSONS_LEARNED **L-007**. **Paste it carefully:** a leading space before the value (in `.env` or the Netlify UI field) produces 401s indistinguishable from an expired token — see L-007's 30 July 2026 addendum.
 
 ---
 
