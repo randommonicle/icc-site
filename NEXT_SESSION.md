@@ -12,6 +12,24 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session — 2026-08-18, invoicing direction reset: platform-owned on Stripe, FreeAgent dropped (D-026)
+
+**Start here if you are picking this up (either machine).** No product code changed this session — this is a **decision + plan** commit that resets the invoicing approach and sets up the next backend build. Nothing is in flight; branch merged to `main`.
+
+**What changed.** D-024 had ICC's invoicing going *through FreeAgent* (create draft → Mark reviews → one-click send). That is **dropped**. Two reasons surfaced: (1) Mark is souring on FreeAgent generally (deliverability + bulk-client friction on his Regency account), and (2) a second business needs a **second FreeAgent subscription** (~£19/mo, or free only via an eligible bank account) — cost + friction for a tool he wants to leave. Full reasoning + the alternatives weighed (Zoho, Invoice Ninja, Xero/QuickBooks) are in **[D-026](DECISIONS.md)**.
+
+**The new plan (D-026).** The **platform owns invoicing**, driven entirely from the admin, on **Stripe** (Stripe Invoicing) — no monthly SaaS fee, only ~1.5% + 20p per card payment, and it is the payment rail D-004 already defaults to. Accounting/MTD is a **separate, thin, swappable** layer (export/feed), not a marriage to any one tool. Stripe sits behind a provider adapter (like `smsProvider.js`) so the D-004 Stripe-vs-Revolut choice stays open. The existing `invoices` table already anticipates this, so the slice **extends** the schema, it does not rebuild.
+
+**MTD — treat as urgent (Ben's steer).** "Which MTD wave" = which HMRC Making Tax Digital start date binds Mark, set by his **combined** Regency + ICC (+ property) gross income — so ICC being new does not keep him out. Plain-English brief + the urgent action (ask his accountant which wave he is in) in **[docs/MTD_AND_ACCOUNTING.md](docs/MTD_AND_ACCOUNTING.md)**. It does **not** block the invoicing build.
+
+**Next task (the build — dormant behind `STRIPE_SECRET_KEY`).** The full slice plan (schema migration, adapter, admin-gated endpoint, review+send UI, signed webhook, export, tests, the Mark/out-of-repo gates) is the **Build notes** section of [D-026](DECISIONS.md). Build it the way the review-requests slice (D-025) was built: real code paths, injected fetch / fake Stripe in tests, dormant until Mark's Stripe keys are set. Gated on Mark creating a Stripe account he owns (D-009) + the D-004 processor confirmation.
+
+**Housekeeping this session.** `.claude/settings.local.json` is now gitignored (machine-specific); `.claude/launch.json` (the `npm --prefix site run preview` config, port 4321) is committed so home Claude gets the same preview. `shared/config/reviews.js` and CLAUDE.md's Stripe row updated to point at D-026 instead of the old FreeAgent plan. `node --test` and `npm run build --prefix site` green before merge.
+
+**Still open (unchanged, needs Ben/Mark — out of repo):** the **home-machine `.env`** still needs the regenerated non-expiring `NETLIFY_TOKEN` (see the standing token section above + [MACHINE_LAYOUT.md](MACHINE_LAYOUT.md)); the **Mark bundle** (confirm the 09:00–16:30 trading day, the "Established Trust…" tagline, About meta "a local team" → "local specialist", and the **phone-number decision that gates GBP**); the **MTD wave** question above; then the standing pre-launch queue (ICO registration → privacy `[to confirm]` details + DP review → GBP → review-request switch-on → domain cutover).
+
+---
+
 ## This session — 2026-07-30, ops: token regenerated, launch env vars live, domain parking killed (work machine, PR [#74](https://github.com/randommonicle/icc-site/pull/74))
 
 Ops session, no code change. Work executed via small Sonnet sub-agents on Ben's standing instruction (see the new CLAUDE.md sub-agents bullet), each result independently re-verified from the main thread.
