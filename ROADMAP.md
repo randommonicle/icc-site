@@ -65,7 +65,7 @@ Carry the Phase 0 hardening items above into this phase.
 - [x] Migrate bookings off Netlify Blobs into Postgres (Slice 5b, `BOOKINGS_STORE=postgres`, enabled 14 June 2026; fail-closed write, double-booking is a DB constraint).
 - [ ] Jobs dashboard: all jobs, filterable by status. **Partial** — bookings + handoffs are visible in the admin; status-filter / outstanding-vs-completed views are still to build.
 - [x] Job records: customer, address, carpet details, AI assessment, quote, slot, notes. (Photos are still emailed to Mark, not yet stored — `TODO(slice5x/photos)`.)
-- [ ] Basic invoice tracking (draft / sent / paid / overdue) against completed jobs.
+- [ ] Basic invoice tracking (draft / sent / paid / overdue) against completed jobs. **Now specced as the next backend slice (D-026): platform-owned invoicing on Stripe, review-then-send from the admin, dormant behind a credentials flag. This supersedes the D-024 "invoice via FreeAgent" plan.**
 - [x] Move model names + AI knowledge source server-side as a single source of truth (Slices 1 + 4a, `shared/config`; D-007, D-006).
 - [x] First test suite (real services, no mocks): `node --test` + guarded real-Supabase integration tests + pgTAP.
 

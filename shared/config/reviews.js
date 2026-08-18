@@ -3,7 +3,7 @@
 //
 // Dormant by default: with GOOGLE_REVIEW_URL unset the review endpoint marks the
 // job complete but sends nothing (the house env-flag pattern used for Supabase
-// and the FreeAgent wiring). Set the env vars in Netlify to switch it on with no
+// and the Stripe invoicing wiring, D-026). Set the env vars in Netlify to switch it on with no
 // code deploy. CommonJS to match shared/config and load under `node --test`.
 
 // The Google review deep-link — the one value that enables the customer-facing

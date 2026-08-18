@@ -71,7 +71,7 @@ The public marketing site and the operational platform are separated cleanly, sh
 | **Anthropic (Claude)** | AI assistant — chat + vision | Called server-side only |
 | **Resend** | Transactional email (confirmations) | Sandbox domain until a sending domain is verified |
 | **GitHub** | Source control | https://github.com/randommonicle/icc-site — **currently PUBLIC**. No secrets are exposed (`.env` is git-ignored and has never been committed), but the pricing logic, client contact details and decision records are all readable. Flip to private at the real launch (domain cutover + marketing); until then this is deliberate, not an oversight |
-| **Stripe** | Payments — deposits + balances | Phase 3 (D-004), not yet integrated |
+| **Stripe** | Payments — deposits + balances; **invoicing rail (D-026)** | Not yet integrated. Invoicing = platform-owned on Stripe (D-026, supersedes the D-024 FreeAgent plan); deposits/balances = D-004. Processor kept swappable (Stripe default / Revolut alt, D-004) |
 | **Supabase** | Relational backend + auth + storage | Stood up + live (D-009 addendum): hosted `icc-platform`, London. Carries escalation handoffs (5a) and **live bookings (5b, ENABLED 14 June)** in `jobs`/`customers`. Auth + photo Storage still to come (5d / photos) |
 | **The SMS Works** | Transactional SMS (review requests) | Post-job Google-review texts (D-025). Server-side only; provider-agnostic adapter (`smsProvider.js`) so the gateway is swappable. Dormant until `SMSWORKS_API_KEY` set; Mark-owned account (D-009) |
 

@@ -21,6 +21,8 @@ build/
 
 # Claude Code worktrees (large, never want these in git)
 .claude/worktrees/
+# Claude Code local settings (machine-specific permissions etc.)
+.claude/settings.local.json
 
 # Logs
 *.log
