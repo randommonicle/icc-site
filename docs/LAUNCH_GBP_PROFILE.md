@@ -31,12 +31,21 @@ Use the domain once it is pointed at Netlify. If the profile is created before t
 
 **Service areas (where you serve):**
 - Core (no travel charge): Cheltenham, Gloucester, Winchcombe, Bishop's Cleeve, Prestbury, Charlton Kings, Quedgeley, Churchdown, Brockworth.
-- Wider Gloucestershire (a flat £15 travel surcharge applies, per D-011): Tewkesbury, Stroud, Cirencester, Bourton-on-the-Water, Stow-on-the-Wold, Northleach.
+- Wider Gloucestershire (a travel surcharge applies): Tewkesbury, Stroud, Cirencester, Bourton-on-the-Water, Stow-on-the-Wold, Northleach.
 
-Google allows up to 20 service areas. The surcharge is never shown on Google; it is quoted in the chat and the on-site quote. Listing the wider towns simply tells Google that ICC serves them.
+Google allows up to 20 service areas. The surcharge is never shown on Google; it is quoted in the chat and the on-site quote. Listing the wider towns simply tells Google that ICC serves them, so the town list here is unaffected by the charge change below.
 
-**Hours:** Monday to Saturday, 09:00 to 16:30. Closed Sunday.
-Matches the booking system's trading hours. Confirm with Mark before publishing.
+> **Charge model changing (24 August 2026 Mark meeting).** The flat £15 out-of-area surcharge (D-011) is being replaced by a **tiered model centred on Mark's base address** (his GL3 home, held privately per D-016, used for the distance calc only): free within ~10 miles of the base, then **£5 / £10 / £15** by distance, with **Winchcombe moving from free to ~£5**. Exact bandings and the postcode boundary are still to be set before `serviceArea.js` and the on-site quote change. Only the internal quote wording is affected; the Google service-area list above stays.
+
+**Hours (updated at the 24 August 2026 Mark meeting; supersedes the old 09:00–16:30):** day-specific start windows with **1pm the last job start** (not the closing time), closed Sunday. Start windows:
+- Monday from 09:30
+- Tuesday from 10:30
+- Wednesday from 09:30
+- Thursday from 10:00 *(one recording said 10:10, confirm)*
+- Friday from 09:30
+- Saturday from 09:30 *(a weekend premium applies to the price, not shown on Google)*
+
+The last job may **start** at 1pm; the day finishes later, set by the job's length. Google's displayed opening hours should show the operating window (each day's first start to a close of the 1pm last start plus a typical job length), so set the displayed close when `shared/config/tradingHours.js` is reworked to per-day hours (see NEXT_SESSION.md, 25 Aug entry). Do not publish the GBP hours until the code hours agree, or the site will sell slots Google advertises differently. Confirm the Thursday start with Mark first.
 
 **Description (paste as-is, about 600 of the 750-character limit):**
 
@@ -85,7 +94,7 @@ Do not pad the profile with stock photos; honest, real images only, consistent w
 Mark has no separate landline, so ICC's number is a **virtual number that forwards to his mobile**. The one catch: **WhatsApp does not accept every virtual number.** WhatsApp Business wants a real mobile or landline number that can receive a verification code; pure app-only VoIP numbers often fail the SMS step, but the **"Call me" voice verification works on a proper UK number that forwards to Mark**. So choose a number that (a) is a real UK number able to receive an incoming voice call (and ideally SMS), forwarded to Mark, and (b) whose provider states WhatsApp Business is supported. Test WhatsApp verification on a trial before committing.
 
 Two viable shapes:
-- **Local 01452 (Gloucester) virtual landline - chosen (18 June 2026).** It matches Mark's Gloucester base (his GL3 address), and a local geographic number gives local trust and the strongest NAP signal. (Note: 01452 is Gloucester; 01242 is Cheltenham, the area of the current shared Regency number, so do not confuse the two.) Providers offering a UK virtual landline + forwarding + WhatsApp Business include Air Landline, Giant, Hoxton Mix, CircleLoop and bOnline. Roughly £5-15/month (some bill forwarding minutes separately).
+- **Local 01452 (Gloucester) virtual landline - chosen (18 June 2026, reconfirmed August 2026).** It matches Mark's Gloucester base (his GL3 address), and a local geographic number gives local trust and the strongest NAP signal. (Note: 01452 is Gloucester; 01242 is Cheltenham, the area of the current shared Regency number, so do not confuse the two.) Providers offering a UK virtual landline + forwarding + WhatsApp Business include Air Landline, Giant, Hoxton Mix, CircleLoop and bOnline. Roughly £5-15/month (some bill forwarding minutes separately). **Steer from the August meeting: start with the cheapest workable number to get rolling (~£1.99/month for the number, ~£5/month with call forwarding) and upgrade to a memorable premium number later if wanted.**
 - **Virtual 07 mobile number** - simplest WhatsApp compatibility, forwards to his phone (e.g. CloudTalk). Slightly less "local" but perfectly normal for a tradesperson.
 
 Avoid Google Voice (not available in the UK) and Skype Number (retired in 2025).

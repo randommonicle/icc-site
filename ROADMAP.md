@@ -4,7 +4,7 @@ The phased forward plan, derived from [docs/DESIGN.md](docs/DESIGN.md) §12 and 
 
 **Status key (RAG):** 🟢 done · 🟡 in progress · 🔴 not started · ⚪ deferred/optional
 
-**Last updated:** 16 June 2026
+**Last updated:** 25 August 2026 (new items from the August Mark meeting threaded into Phases 1–4 and the field-app track; see [NEXT_SESSION.md](NEXT_SESSION.md) 25 Aug entry and the minutes in the deliverables folder).
 
 ---
 
@@ -38,6 +38,8 @@ Front end and content:
 - [x] Area pages reflect the service-area model (D-011): Cheltenham, Gloucester and Winchcombe as core/no-surcharge pages, plus wider-Gloucestershire pages (Stroud, Tewkesbury, Cirencester) stating the **flat £15 out-of-area surcharge** (confirmed by Mark, June 2026). **Built** with a `tier` switch; the £15 figure is now encoded on the area pages, the services page, the home-page strip and the assistant prompt. Still to do: encode the precise postcode boundary and apply the surcharge in `validateBooking` server-side (Phase 2, pairs with D-007); add surrounding towns as wanted.
 - [x] Move the AI knowledge into a single maintainable source shared between site content and the assistant prompt (D-006) — `shared/config/knowledge.js` (Slice 4a).
 - [x] Expand the AI knowledge base (fibre science, stain chemistry, method justification, history).
+- [ ] **Add decontamination / fogging / ozone content** (Mark, Aug 2026), positioned as an available capability rather than an active operational service. Adds site content and future SEO surface; not pressure washing (declined). Mark has some kit; ozone units are hireable (~£30/day).
+- [ ] **Update brand copy** (Mark, Aug 2026): tagline to "Intelligence you can trust"; About "a local team" to "local specialist"; experience stated as **"over 15 years"** (Ben's decision; the true figure is 16, Mark asked for 18, so "over 15 years" is accurate and clears D-015 / L-009).
 
 Findability:
 - [x] Per-page unique title + meta description, one clear H1 per page.
@@ -69,6 +71,13 @@ Carry the Phase 0 hardening items above into this phase.
 - [x] Move model names + AI knowledge source server-side as a single source of truth (Slices 1 + 4a, `shared/config`; D-007, D-006).
 - [x] First test suite (real services, no mocks): `node --test` + guarded real-Supabase integration tests + pgTAP.
 
+**New from the August 2026 Mark meeting:**
+- [ ] **Rework trading hours to per-day** (Mark, Aug 2026): day-specific starts (Mon 09:30 / Tue 10:30 / Wed 09:30 / Thu 10:00 / Fri 09:30 / Sat 09:30) with **1pm as the last job start** (Ben confirmed: last start, not the hard finish, which follows from job length), Saturday at a weekend premium. `shared/config/tradingHours.js` is single-hours-for-all-days today, so this is structural: prompt + availability grid + `validateBooking` + `contact.astro` + JSON-LD. Confirm the Thursday 10:00/10:10 ambiguity first.
+- [ ] **Re-centre the travel charge on Mark's base address** (Mark + Ben, Aug 2026): free within ~10 miles of Mark's GL3 base (held privately per D-016, distance calc only), then **£5 / £10 / £15** tiers; Winchcombe moves from free to ~£5. Amends **D-011** (flat £15 + three-town core). Set exact bandings + postcode boundary before touching `serviceArea.js` and the area pages.
+- [ ] **One-week booking offset** (Mark, Aug 2026): never offer a slot in the enquiry's own week; an **urgent override** emails Mark for approval and, on approval, populates the calendar.
+- [ ] **Smart allocation by travel time** (Mark, Aug 2026): add 15–20 min between consecutive jobs so Mark can travel between them. Do not cluster jobs by area; take the booking and add the buffer.
+- [ ] **Complaints handling in the chat assistant** (Mark, Aug 2026): a customer supplies a **customer-reference number** and a complaint; the assistant handles it to a point (for a returned stain, ask for a photo and distinguish a new stain from the treated area) before escalating to Mark. Ties to job-record lookup + the existing escalation path (D-019/D-020).
+
 ---
 
 ## Phase 3 — Payments and calendar 🔴
@@ -76,7 +85,8 @@ Carry the Phase 0 hardening items above into this phase.
 **Outcome:** money and scheduling handled end to end.
 
 - [ ] Stripe: deposit at booking, balance on completion. No card data stored locally (D-004).
-- [ ] Calendar output: ICS feed + per-booking links first (universal), then Google Calendar API and Microsoft Graph sync (D-005). Confirm which calendar Mark uses day to day before prioritising (DESIGN §13).
+- [ ] Calendar output: ICS feed + per-booking links first (universal), then Google Calendar API and Microsoft Graph sync (D-005). **Which calendar resolved (Mark, Aug 2026):** Mark was on the Samsung calendar and is **moving to Google Calendar** (Ben installed it on his phone in the meeting).
+- [ ] **Cross-business calendar clash-check** (Mark, Aug 2026): the booking engine must read Mark's **full existing commitments across both businesses** (Regency jobs + personal, currently one diary) so an Intelligent slot never double-books him; Intelligent's own bookings write to a **dedicated Intelligent calendar**. Needs Mark on Google Calendar sharing the relevant link(s) (action A3). Pairs with the one-week offset and the travel buffer above.
 - [ ] Reconcile deposits/balances against invoices in the admin platform.
 
 ---
@@ -89,6 +99,7 @@ Carry the Phase 0 hardening items above into this phase.
 - [ ] Consent tracking (PECR soft opt-in) with automatic unsubscribe handling — hard gate, build before any campaign (D-008, DESIGN §11).
 - [ ] Client curation views: due-a-repeat, lapsed, high-value.
 - [ ] AI-assisted re-engagement and seasonal campaigns, segmented, with Mark approving before send.
+- [ ] **Cancellation-fill** (Mark, Aug 2026): when a booking cancels, email customers already booked the same day / next day offering the freed earlier slot; a click accepts and populates the calendar. Note the PECR/consent gate applies to any such outbound message.
 - [ ] Privacy/consent wording reviewed by a data-protection professional before go-live.
 
 ---
@@ -102,6 +113,14 @@ What this changes about the plan:
 - **One repo (D-014).** The app lives in `app/` in this monorepo and imports the shared contract from `shared/`, so it cannot drift from the website. No separate app repo, no separate backend.
 - The app's own build (scoping, UI, native shell) begins once the Phase 2 API exists to consume, and progresses in parallel with Phases 3–4 rather than after them.
 - Whatever the website does through the API (book, quote, view jobs, mark complete, invoice), the app can do through the same endpoints — no app-only backend.
+
+**Captured requirements (Mark, August 2026 meeting), recorded now so the Phase 2 API serves them:**
+- **Arrival sign-in:** the operator signs in on arrival so Mark knows they are on site.
+- **Job list on the app:** work through the job, add extras / additional charges as they arise.
+- **Method-statement compliance for liability cover:** at the relevant step the operator photographs the chemical being used; the photo is logged against the job as evidence the correct product was used (the enzyme-vs-alkaline pet-stain example). This is the app's core liability value.
+- **Sensitivity gating:** gates on the job card (which Mark sets) scale how strict the evidence requirement is to the customer/job (a high-sensitivity client requires the full photo record; a familiar repeat job does not).
+- **Completion + invoicing from the app**, replacing the interim email "is this job complete?" link.
+- Ben has the precedent (the ASH inspection app). Mark raised a possible reuse/commercial arrangement — for later discussion.
 
 When the app is scoped, give it its own roadmap section here.
 
@@ -117,12 +136,18 @@ When the app is scoped, give it its own roadmap section here.
 ## Open questions (from DESIGN §13)
 
 Resolved with Mark (June 2026):
-- ✅ **Service area:** Cheltenham + Gloucester + Winchcombe core (no surcharge); wider Gloucestershire (Stroud, Tewkesbury, Cirencester, surrounding GL towns) with a flat £15 out-of-area surcharge (D-011, figure confirmed June 2026).
+- 🔄 **Service area:** was Cheltenham + Gloucester + Winchcombe core (no surcharge) + flat £15 elsewhere (D-011). **Being revised (Mark, Aug 2026)** to a Gloucester-centred tiered model: free within ~10 miles of Gloucester, then £5/£10/£15; Winchcombe moves to ~£5. See the Phase 2 item and the pending D-011 amendment.
 - ✅ **Field app:** built concurrently with the website and fully integrated via the shared API, not deferred (D-012).
 - ⏸️ **Domain:** still to be chosen — parked, non-blocking for Phases 0–2 (D-013). Needed before Phase 1 go-live and `ALLOWED_ORIGINS` strict mode.
 
+Resolved with Mark (August 2026):
+- ✅ **Trading hours:** per-day starts with 1pm the last job start, Saturday premium (supersedes 09:00–16:30). See the Phase 2 rework item.
+- ✅ **Phone:** cheap virtual Gloucester 01452 landline with call forwarding, upgrade later. Procurement gates the GBP.
+- ✅ **Brand copy:** tagline "Intelligence you can trust"; About "local specialist"; experience "over 15 years" (Ben; true figure 16, D-015).
+- ✅ **Chat mascot:** not doing it; the single existing chat helper stays (a second persona would clash with the human-style assistant).
+
 Still to resolve before the phase that needs each:
-- ✅ Out-of-area surcharge figure resolved — flat £15 (D-011). Still to encode: the precise postcode boundary for "out of area" and server-side surcharge enforcement in `validateBooking` (Phase 2).
+- 🔄 Out-of-area surcharge: the flat £15 (D-011) is being replaced by Gloucester-centred £5/£10/£15 tiers (Mark, Aug 2026). Set the exact bandings, the postcode boundary and the weekend premium figure, then encode + enforce server-side in `validateBooking` (Phase 2).
 - Deposit policy — amount or percentage at booking (Phase 3).
-- Which calendar Mark actually uses day to day (Phase 3).
+- ✅ Which calendar Mark uses day to day: Google Calendar (moving off Samsung; Aug 2026). Still needs a shared dedicated Intelligent calendar link for the clash-check (A3).
 - Account ownership (domain, Stripe, Google Business Profile, database) sitting with Mark from the start (D-009).

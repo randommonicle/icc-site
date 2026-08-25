@@ -26,6 +26,10 @@ MTD for ITSA is being switched on in stages — "waves" — by income level. Whi
 
 Mark runs **Regency Cleaning and ICC as the same individual**. So his MTD wave is decided by **Regency + ICC (+ any property) combined**, not by ICC on its own. ICC being brand new does **not** automatically keep him out: if Regency already pushes his combined turnover over the relevant threshold, he is (or soon will be) in scope, and **ICC's records would then need to be in MTD-compatible software too**.
 
+## What Mark said at the August 2026 meeting (to confirm, not confirmed)
+
+Mark's **working assumption** is that he does **not** need to worry about MTD until **2027/28**. If right, that points to the **6 April 2027** wave (combined qualifying income in the £30,000–£50,000 band). It is unconfirmed and is exactly what action 1 below asks the accountant to settle. Two facts he gave that the accountant will need: Regency's **year end is February**, and his **VAT is quarterly**. Do not treat 2027/28 as settled until the accountant confirms it against his combined income.
+
 ## What we decided (D-026), and what it means here
 
 The ICC platform **does invoicing, not tax filing**. It creates, sends and tracks invoices (on Stripe) and holds the operational record. It does **not** file MTD updates and does not need to — MTD is Mark's duty across his whole income, handled **once** (by him or his accountant), not something ICC's invoicing must own. The platform will **export / feed** its invoice and payment data to whatever MTD tool he uses, kept deliberately swappable behind an adapter.

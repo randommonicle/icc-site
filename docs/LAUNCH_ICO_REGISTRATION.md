@@ -1,7 +1,9 @@
 # ICO Registration - pre-launch action
 
-**Status:** Action for Ben + Mark before go-live. Prepared 18 June 2026.
+**Status:** ✅ **REGISTERED (August 2026).** Set up on an **annual direct debit at ~£47/year**. The registration confirmation and number arrive by post/email; the only residual is dropping the number into the privacy notice (see "After registering"). Prepared 18 June 2026; registration confirmed at the August 2026 Mark meeting.
 **Why:** The public privacy notice needs the ICO registration number, and paying the data protection fee is a legal requirement before processing customer data at any scale. Feeds the `[to confirm: ICO registration number]` slot in `site/src/pages/privacy.astro`.
+
+> **Note on the fee.** The Tier 1 figure below was £40/£35 when this brief was written. The registration was actually set up at **~£47/year on annual direct debit**, consistent with an ICO fee change. Confirm the exact figure on the certificate.
 
 ## Does ICC need to register?
 

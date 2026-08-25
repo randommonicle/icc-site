@@ -12,6 +12,30 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session — 2026-08-25, Mark meeting reconciled: the launch bundle is largely resolved, new build backlog opened
+
+**No code changed this session.** This is a **planning + docs** pass reconciling a **24 August 2026** configuration/planning meeting with Mark (two audio transcripts + one auto-summary) into a single record. Full minutes, held **outside the public repo** (they carry Mark's tax position and internal pricing/brand notes): `C:\Users\bengr\Projects\ICC\deliverables\ICC-Meeting-Minutes-Mark-Aug2026.md` (and a premium branded `.docx` alongside it).
+
+**The long-standing "Mark bundle" is now mostly answered:**
+- **Tagline: RESOLVED.** "Established Trust, Superior Cleaning" becomes **"Intelligence you can trust"** (a new business has no established track record to claim; this also clears the D-015 concern the old line invited).
+- **About wording: RESOLVED.** "a local team" becomes **"local specialist"** (sole operator).
+- **Phone: RESOLVED (direction).** Provision a **cheap virtual Gloucester 01452 landline** with call-forwarding to Mark's mobile; upgrade to a memorable number later. This is the number question that has gated GBP since 18 June. Procurement is now the action (Ben), not an open decision. The 18 June GBP spec's 01452 plan stands.
+- **ICO: REGISTERED.** Done, on an **annual direct debit at ~£47/year** (the earlier £40/£35 Tier-1 estimate is superseded by the actual fee). The confirmation and registration number arrive by post/email; the residual is only pasting the number into `privacy.astro` (unchanged pre-launch item).
+
+**Two changes that are bigger than a config edit (NOT coded this session — they need proper commits + tests + your sign-off):**
+- **Trading hours change shape.** Day-specific starts with **1pm as the last job start** (Ben confirmed: 1pm is the last START, not the hard finish; the finish follows from job length). Starts: Mon 09:30 / Tue 10:30 / Wed 09:30 / Thu 10:00 / Fri 09:30 / Sat 09:30, Saturday at a **weekend premium**. The current `shared/config/tradingHours.js` is single-hours-for-all-days; this becomes **per-day** and ripples through the prompt, availability grid, `validateBooking`, `contact.astro` and the JSON-LD. This supersedes the "confirm 09:00–16:30" open item. (Thursday start is 10:00 in one recording, 10:10 in the other; confirm with Mark.)
+- **Travel-charge model re-centres on Mark's base address.** Free within ~**10 miles of Mark's GL3 base** (Ben confirmed: use his provided address as the centre, held privately per D-016, used for the distance calc only), then **£5 / £10 / £15** tiers by distance, replacing the flat £15 and the three-town core (D-011). **Winchcombe moves from free to ~£5.** Needs exact bandings + postcode boundary before touching `serviceArea.js` and the area pages.
+
+**New feature backlog from the meeting (added to [ROADMAP.md](ROADMAP.md)):** one-week booking offset with an urgent-override path; **cross-business calendar clash-check** (the engine must read Mark's full commitments across Regency + personal, currently one diary, so an Intelligent slot never double-books him; Intelligent's bookings write to a dedicated Intelligent calendar; Mark to move off Samsung to Google Calendar and share the link(s); Ben installed Google Calendar on his phone in the meeting); **smart allocation by travel time** (15–20 min buffer between consecutive jobs, no geo-clustering); cancellation-fill (offer a freed slot to same/next-day customers); complaints handling in the chat assistant with customer-reference lookup; decontamination/fogging/ozone **content** (not pressure washing; the auto-summary was wrong on that); and a set of **field-app** requirements (arrival sign-in, method-statement photo/chemical logging for liability cover, sensitivity gating, on-app extras + completion). Also decided: **no separate chat mascot** ("Clippy"/"Ruggy"); the single existing helper stays.
+
+**Experience claim: RESOLVED (Ben).** Mark asked the About page to say "18 years"; the true figure is 16. Decision: the site states **"over 15 years"** (accurate, avoids the inflated "18" that would cut against D-015 / L-009 and ASA/CAP). Mention to Mark. Do **not** put 18 on the site.
+
+**DECISIONS.md records to add (drafted for Ben, not yet written):** the per-day trading hours with a 1pm last start (supersedes the 09:00–16:30 assumption); the base-address-centred tiered travel charge (amends/supersedes **D-011**); the virtual-01452 phone confirmation; the "no mascot" call; and the tagline/About wording (incl. "over 15 years") under **D-015**. Left unwritten pending your go-ahead per the "prompt me to update DECISIONS.md" rule.
+
+**Still open (needs Ben/Mark, out of repo):** the **home-machine `.env`** still needs the regenerated non-expiring `NETLIFY_TOKEN`; **A1** (procure the 01452 number) now gates GBP; **A3** (share the Google Calendar); the **MTD wave** question for the accountant (Mark's working assumption is 2027/28, unconfirmed; Regency year-end February, quarterly VAT); Mark to register as a sole trader; settle ~£50 domain cost owed to Ben. Then the standing pre-launch queue (ICO number → privacy `[to confirm]` + DP review → GBP → review-request switch-on → domain cutover).
+
+---
+
 ## This session — 2026-08-18, invoicing direction reset: platform-owned on Stripe, FreeAgent dropped (D-026)
 
 **Start here if you are picking this up (either machine).** No product code changed this session — this is a **decision + plan** commit that resets the invoicing approach and sets up the next backend build. Nothing is in flight; branch merged to `main`.
