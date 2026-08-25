@@ -1,0 +1,74 @@
+# Google Calendar integration + Mark's sharing guide
+
+**Status:** Design note, 25 August 2026. Prepared after the 24 Aug Mark meeting (D-027, and the cross-business clash-check in the minutes §4.3). Relates to roadmap Phase 3 / D-005 (calendar). Not built yet; this is the how.
+**Why:** The booking engine must avoid double-booking Mark across both businesses. His existing commitments (Regency jobs and personal) live in one phone diary today; Intelligent's bookings need their own calendar. This note covers (A) the idiot-proof steps for Mark to share his calendar from his phone, and (B) how the booking bot connects to Google Calendar.
+
+---
+
+## Part A. For Mark: share your calendar (from your phone, 2 minutes)
+
+**The one thing that was going wrong:** the sharing settings do not appear when you open **calendar.google.com in the phone's web browser**. You have to use the **Google Calendar app** (the icon with the coloured "31"). Everything below is in the app.
+
+If you don't have the app yet, install "Google Calendar" from the Play Store first (Ben set this up on your phone at the meeting).
+
+**Steps:**
+
+1. Open the **Google Calendar app**.
+2. Tap the **three lines** (☰) in the top-left corner.
+3. Scroll down and tap **Settings**.
+4. Tap the name of **your calendar** (usually your name or your email address, the one your appointments are in).
+5. Tap **Add people or groups** (under the "Share with specific people" heading).
+6. Type in **ben@intelligentclean.co.uk** and tap it when it appears.
+7. Where it asks for permission, choose **"See only free/busy (hide details)"**.
+8. Tap **Save** (or **Send**) in the top corner.
+
+That's it. Ben gets an email, clicks one link, and it's done.
+
+**If you keep appointments in more than one calendar** (for example a separate personal one), do steps 4 to 8 again for each one.
+
+**What Ben can and cannot see:** because you chose "See only free/busy," the system sees **only that you are busy at a time**, never what the appointment is, who it is with, or any note. No personal detail leaves your phone. That is deliberate.
+
+**If step 5 has no "Add people" option:** that calendar is a work or school one that an administrator has locked. Tell Ben and he'll sort an alternative.
+
+---
+
+## Part B. For Ben: the technical integration
+
+**Is there an API?** Yes. The **Google Calendar API v3**. Two methods carry this:
+
+- **`freebusy.query`**: the availability/clash-check. One POST returns only the **busy intervals** for a set of calendars (up to 50 per query), never event details. This is the privacy-preserving way to see when Mark is busy without reading his appointments. ([reference](https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query))
+- **`events.insert`**: writes a confirmed Intelligent booking into the Intelligent calendar so it shows on Mark's phone.
+
+### How the pieces fit ICC (Netlify functions + Supabase)
+
+- **Supabase `jobs` stays the system of record.** Google Calendar is a *mirror* (so Mark/staff see bookings in their calendar) plus a *second clash source* (Mark's other commitments). It does not replace the existing availability logic; it layers on top of it.
+- **Create the "Intelligent Clean" calendar under the ICC Google account** (the Workspace login, Ben-controlled per D-009), so the bot can write to it reliably and it can be shared back to Mark's phone. Do **not** have Mark create it; keep ownership with ICC.
+- **Auth: a Google Cloud service account** (JSON key in a Netlify env var, server-side only, same secrets rule as everything else). Steps: create a GCP project, enable the Calendar API, create a service account, download its JSON key, store it in Netlify. Share the Intelligent calendar with the service account's email ("Make changes to events"). Mark shares **his** calendar with the same identity as "See only free/busy" (Part A).
+- **The one gotcha (verified Aug 2026):** `freebusy.query` run **as a service account** on calendars merely *shared* to it can be unreliable (it is designed around API-key/OAuth callers). Two robust ways round it:
+  1. **Fallback to `events.list`** on the shared calendars and compute busy intervals from the events. `events.list` works reliably for a service account on a shared calendar. (We only need busy times, so read minimal fields.)
+  2. **Or authenticate as the ICC Workspace account via OAuth** (a one-time consent, refresh token stored server-side). That identity *owns* the Intelligent calendar and has Mark's shared, so `freebusy` behaves.
+  **Recommendation:** try the service-account + `freebusy` path first (lowest maintenance, no token refresh). If it returns access errors in a spike, switch that one read to `events.list`, or fall back to OAuth-as-ICC-account. Prove which works with a throwaway read before building the slice (one-real-ride).
+- **Least-privilege scopes:** `calendar.readonly` (or `calendar.freebusy`) for reading Mark's side; `calendar.events` for writing the Intelligent calendar. Not full `calendar` unless needed.
+- **Node:** the `googleapis` library. Keep the service-account JSON out of git; inject via Netlify env (JSON string or base64), parse server-side.
+- **Cost:** the Calendar API is free at this volume.
+
+### Booking flow with the calendar wired in
+
+1. A booking request comes in. The function builds candidate start slots from the **new per-day hours (D-027, 1pm last start)**, the **one-week offset**, and the **15 to 20 minute travel buffer**.
+2. `freebusy.query` (or `events.list`) over **[the Intelligent calendar + Mark's shared calendar]** drops any candidate that clashes with an existing Regency job, personal commitment, or Intelligent booking.
+3. On confirm, `events.insert` writes the job to the Intelligent calendar, and the Supabase `jobs` row is written as today (the source of record).
+
+### How you (Ben) link Intelligent Clean's calendar, in order
+
+1. Create the "Intelligent Clean" calendar under the ICC Google account; note its **calendar ID** (Settings → the calendar → "Integrate calendar" → Calendar ID).
+2. GCP: new project → enable Calendar API → create a service account → download the JSON key.
+3. Share the Intelligent calendar with the service account email ("Make changes to events").
+4. Ask Mark to share his calendar with that same service account email as "See only free/busy" (Part A, swap Ben's email for the service-account email if you prefer the bot to read directly; sharing to Ben's account also works if you go the OAuth-as-ICC route).
+5. Put the calendar ID + the service-account JSON into Netlify env; reference the calendar ID for `events.insert` and both calendar IDs for the clash-check.
+6. Build the slice dormant behind the presence of the calendar env vars (the house pattern), redeploy to activate (L-018).
+
+### References
+
+- Share a calendar on Android: [Google Calendar Help](https://support.google.com/calendar/answer/37082?hl=en&co=GENIE.Platform%3DAndroid)
+- Free/busy query: [developers.google.com](https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query)
+- API reference (events.insert etc.): [developers.google.com](https://developers.google.com/workspace/calendar/api/v3/reference)

@@ -17,7 +17,7 @@
 Google requires the real-world name only. Do not add keywords such as "Cheltenham Carpet Cleaning"; that breaks Google's naming rules and risks suspension. The locality belongs in the service areas and the description, not the name.
 
 **Primary category:** Carpet cleaning service
-**Additional categories:** Upholstery cleaning service; Rug cleaning service
+**Additional categories:** Upholstery cleaning service; Rug cleaning service; **Pressure washing service** (Mark, Aug 2026, wants to offer pressure washing); optionally Sanitation service for the decontamination/ozone capability.
 (Add Commercial cleaning service only if Mark actively wants commercial enquiries through Google.)
 
 **Phone:** ICC needs its **own distinct number** for the profile (decision, 18 June 2026). Do **not** reuse 01242 279590 here: that number is already the primary number on Regency Cleaners' existing Google Business Profile, and reusing it on a second cleaning business risks verification friction and cross-wired ranking/review signals. Because ICC's address is hidden (D-016), the phone is ICC's main public identifier, so it must be ICC's own. A **call-forwarding / VoIP number that rings Mark's existing phone is fine**: Mark still answers one phone, but Google sees a number unique to ICC. Provision it before the profile goes live and set it as the profile's primary number.
@@ -41,7 +41,7 @@ Google allows up to 20 service areas. The surcharge is never shown on Google; it
 - Monday from 09:30
 - Tuesday from 10:30
 - Wednesday from 09:30
-- Thursday from 10:00 *(one recording said 10:10, confirm)*
+- Thursday from 10:00
 - Friday from 09:30
 - Saturday from 09:30 *(a weekend premium applies to the price, not shown on Google)*
 
@@ -98,6 +98,17 @@ Two viable shapes:
 - **Virtual 07 mobile number** - simplest WhatsApp compatibility, forwards to his phone (e.g. CloudTalk). Slightly less "local" but perfectly normal for a tradesperson.
 
 Avoid Google Voice (not available in the UK) and Skype Number (retired in 2025).
+
+**Number rental recommendation (investigated Aug 2026).** For a simple, idiot-proof start (rings Mark's existing mobile, no hardware, rolling monthly, cheap), the shortlist for an 01452 Gloucester number that diverts to mobile:
+
+| Provider | From | Notes |
+|----------|------|-------|
+| [Virtual Landline](https://www.virtuallandline.co.uk/) | £4.50/mo | Cheapest; unlimited inbound; divert to mobile; porting a one-off £20 + VAT. |
+| [ONSIM](https://onsim.uk/area-codes/01452/) | £5/mo | 01452 virtual number diverting to any phone; a Landline SIM alternative at £10/mo. |
+| [Everreach](https://everreach.co.uk/virtual-number/gloucester/) | £10 + VAT/mo | Rings the existing mobile; instant setup, no contract; more polished, pricier. |
+| [TheVoIPShop](https://www.thevoipshop.co.uk/uk-phone-numbers/01452-gloucester-area-code) | £12.95/mo | Full VoIP system; more than one diverting number needs. |
+
+**Recommendation:** start with **Virtual Landline (£4.50)** or **ONSIM (£5)** for the cheapest smooth divert-to-mobile, on a rolling monthly basis so the number can be changed. Confirm at sign-up: (1) it forwards to a UK mobile, (2) rolling / no contract, (3) if WhatsApp Business is wanted on the number, that the **"Call me" voice verification** works (test on a trial first, as pure VoIP numbers can fail WhatsApp's SMS step, see the WhatsApp note above). A memorable premium number can be ported or switched later.
 
 **WhatsApp Business setup:** install the free **WhatsApp Business app** on Mark's phone and register it with the ICC number using the "Call me" option (the call forwards to him; he enters the code). It runs alongside his personal WhatsApp because they use different numbers, which also keeps ICC's WhatsApp separate from Regency. Once live, we can add a WhatsApp click-to-chat link to the site and a WhatsApp button on the GBP.
 
