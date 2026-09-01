@@ -63,6 +63,7 @@ const { getSupabaseAdmin } = require("./supabaseClient.js");
 const { escalationToMessageDraft } = require("../../../shared/messages.js");
 // Slice 5b (D-021): the Postgres booking store (used only under BOOKINGS_STORE).
 const { insertBooking, setJobCalLink, availabilityFromJobs } = require("./bookingsStore.js");
+const crypto = require("crypto");
 
 // Slice 5b (D-021): the single switch for the bookings backend. When "postgres",
 // confirm_booking writes to the Supabase `jobs` table, availability derives from
@@ -957,6 +958,27 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   // rather than "undefined" when the assistant omits it.
   booking.deposit = depositLabel(booking.deposit);
 
+  // D-027 provisional decision. A booking whose FINISH is after the auto-confirm line
+  // (15:00) is TAKEN and holds the slot, but waits for Mark to accept/decline from his
+  // email. Only the Postgres store has the columns for this; the legacy Blobs path
+  // auto-confirms as before. The plaintext token goes ONLY in Mark's email link; the
+  // stored value is its SHA-256 hash (single-use + expiring), so a DB leak cannot forge
+  // a link. The confirmation_state + hash are passed to the insert so they persist
+  // atomically with the row (fail-closed, before any email).
+  const finishMinutes = tradingHours.clockToMinutes(booking.start_time) + Number(booking.slots_needed) * 60;
+  const provisional = usePostgres && finishMinutes > tradingHours.autoConfirmByMinutes();
+  let actionToken = null;
+  const insertOpts = { calLink: null };
+  if (provisional) {
+    actionToken = crypto.randomBytes(32).toString("hex");
+    insertOpts.confirmationState = "awaiting_operator";
+    insertOpts.actionTokenHash = crypto.createHash("sha256").update(actionToken).digest("hex");
+    // Valid through the whole booking day (Mark decides before the job); parse the date
+    // as explicit UTC components so the function's runtime cannot shift it.
+    const [ey, em, ed] = String(booking.date).split("-").map(Number);
+    insertOpts.actionTokenExpiresAt = new Date(Date.UTC(ey, em - 1, ed + 1, 0, 0, 0)).toISOString();
+  }
+
   // Persist the booking. The calLink is built after this block and stamped on the
   // stored record below (both stores), so null is passed here first.
   let currentBookingId = null;
@@ -968,7 +990,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
     // phone-number fallback). Double-booking is the DB exclusion constraint
     // (23P01 -> 409), not a read-then-write. No fallback to Blobs: that would
     // reintroduce the split-brain this slice removes.
-    const res = await insertBooking(supabase, booking, { calLink: null });
+    const res = await insertBooking(supabase, booking, insertOpts);
     if (!res.ok) {
       if (res.conflict) {
         return {
@@ -1068,7 +1090,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, message: "Booking recorded. Email sending not configured.", calLink })
+      body: JSON.stringify({ success: true, provisional, message: "Booking recorded. Email sending not configured.", calLink })
     };
   }
 
@@ -1095,15 +1117,37 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   const customerReplyTo = process.env.CUSTOMER_REPLY_TO || "hello@intelligentclean.co.uk";
   const customerPrivacyUrl = privacyNoticeUrl();
 
+  // D-027 operator accept/decline. The link goes to a READ-ONLY confirm page (Phase 4)
+  // with the token in the URL FRAGMENT, so it is never sent to the server or a referrer
+  // and a mail-scanner prefetch cannot act; the page's buttons POST it. Only a
+  // provisional booking has a token, so actionUrl (and the block/flags) are null/plain
+  // otherwise, leaving the ordinary confirmed operator email unchanged.
+  const actionUrl = provisional && actionToken && currentBookingId
+    ? `${PUBLIC_SITE_URL}/booking-action#job=${encodeURIComponent(currentBookingId)}&token=${actionToken}`
+    : null;
+  const operatorSubject = provisional
+    ? `ACTION NEEDED - Provisional booking - ${booking.name} - ${booking.date}`
+    : `New Booking - ${booking.name} - ${booking.date}`;
+  const operatorHeader = provisional ? "Provisional Booking — Approval Needed" : "New Booking Confirmed";
+  const operatorFooterNote = provisional
+    ? "This booking was taken via the ICC website AI assistant. It finishes after 3pm, so accept or decline it above before arranging the deposit."
+    : "This booking was taken via the ICC website AI assistant. Please contact the customer to arrange deposit payment.";
+  const operatorProvisionalBlock = actionUrl ? `
+          <div style="margin-top:16px;padding:16px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;">
+            <p style="margin:0 0 8px;font-size:14px;font-weight:bold;color:#9a3412;">This job finishes after 3pm — your approval is needed.</p>
+            <p style="margin:0 0 12px;font-size:13px;color:#7c2d12;">The slot is held for now and the customer has been told you will confirm. Review the booking, then accept or decline.</p>
+            <a href="${escHtml(actionUrl)}" style="display:inline-block;background:#c2410c;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;">Review &amp; respond</a>
+          </div>` : "";
+
   // Send email to Mark
   const markEmail = {
     from: operatorFrom,
     to: operatorEmail,
-    subject: `New Booking - ${booking.name} - ${booking.date}`,
+    subject: operatorSubject,
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
         <div style="background:#0d2236;padding:20px;border-radius:8px 8px 0 0;">
-          <h1 style="color:#2ab8a4;margin:0;font-size:20px;">New Booking Confirmed</h1>
+          <h1 style="color:#2ab8a4;margin:0;font-size:20px;">${operatorHeader}</h1>
           <p style="color:rgba(255,255,255,0.7);margin:5px 0 0;">Intelligent Carpet Cleaning</p>
         </div>
         <div style="background:#f7f8fa;padding:20px;border-radius:0 0 8px 8px;border:1px solid #e2e8f0;">
@@ -1125,10 +1169,11 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
             <tr style="background:#fff;"><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Estimated Price</strong></td><td style="padding:8px 0;font-size:14px;color:#1a8a7a;"><strong>${escHtml(booking.estimated_price)}</strong></td></tr>
             <tr style="background:#fff;"><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Deposit Due</strong></td><td style="padding:8px 0;font-size:14px;color:#1a8a7a;"><strong>${escHtml(booking.deposit)}</strong></td></tr>
           </table>
+          ${operatorProvisionalBlock}
           <div style="margin-top:20px;padding:15px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;text-align:center;">
             <a href="${escHtml(calLink)}" style="display:inline-block;background:#1a8a7a;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;">Add to Google Calendar</a>
           </div>
-          <p style="margin-top:15px;font-size:12px;color:#718096;">This booking was taken via the ICC website AI assistant. Please contact the customer to arrange deposit payment.</p>
+          <p style="margin-top:15px;font-size:12px;color:#718096;">${operatorFooterNote}</p>
           ${(booking.image && ["image/jpeg","image/png","image/gif","image/webp"].includes(booking.image.mediaType)) ? '<div style="margin-top:15px;"><p style="font-size:13px;font-weight:bold;color:#1a3a5c;margin-bottom:8px;">Carpet Photo (uploaded by customer):</p><img src="data:'+escHtml(booking.image.mediaType)+';base64,'+escHtml(booking.image.base64)+'" style="max-width:400px;border-radius:8px;border:1px solid #e2e8f0;" alt="Carpet photo"></div>' : '<p style="font-size:12px;color:#718096;margin-top:8px;">No carpet photo was uploaded.</p>'}
           <p style="margin-top:12px;font-size:12px;color:#718096;">The full job card PDF is attached to this email.</p>
         </div>
@@ -1207,7 +1252,8 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
       headers,
       body: JSON.stringify({
         success: true,
-        message: "Booking confirmed. Confirmation emails sent.",
+        provisional,
+        message: provisional ? "Booking held — Mark will confirm the time." : "Booking confirmed. Confirmation emails sent.",
         calLink,
         markEmail: markData,
         customerEmail: customerData
@@ -1217,7 +1263,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, message: "Booking recorded but email sending failed.", calLink, error: err.message })
+      body: JSON.stringify({ success: true, provisional, message: "Booking recorded but email sending failed.", calLink, error: err.message })
     };
   }
 }

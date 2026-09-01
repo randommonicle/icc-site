@@ -304,3 +304,57 @@ test("privacyNoticeUrl: default origin, and a trailing slash on an injected base
   assert.strictEqual(privacyNoticeUrl("https://example.test"), "https://example.test/privacy");
   assert.strictEqual(privacyNoticeUrl("https://example.test/"), "https://example.test/privacy");
 });
+
+// --- D-027: provisional booking (finish after the 15:00 auto-confirm line) ----
+// A late-finishing job is TAKEN and holds the slot, but is marked awaiting_operator
+// with a stored (hashed) single-use action token, and Mark's email carries the
+// accept/decline link. An on-time job auto-confirms exactly as before.
+
+async function runBooking(booking) {
+  const prevStore = process.env.BOOKINGS_STORE;
+  const prevFetch = global.fetch;
+  process.env.BOOKINGS_STORE = "postgres";
+  const sent = [];
+  global.fetch = async (url, opts) => { sent.push({ url, body: JSON.parse(opts.body) }); return { json: async () => ({ id: "fake" }) }; };
+  const sb = fakeSupabase({ jobsInsert: { data: { id: "job-77" }, error: null } });
+  let res;
+  try { res = await handleBooking(booking, "re_test", {}, sb); }
+  finally {
+    if (prevStore === undefined) delete process.env.BOOKINGS_STORE; else process.env.BOOKINGS_STORE = prevStore;
+    global.fetch = prevFetch;
+  }
+  const insert = sb.calls.find((c) => c.op === "insert");
+  return {
+    body: JSON.parse(res.body),
+    insertRow: insert && insert.row,
+    operator: sent.find((e) => e.body.to !== "jane@example.com"),
+    customer: sent.find((e) => e.body.to === "jane@example.com"),
+  };
+}
+
+test("a late-finish booking is provisional: awaiting_operator + hashed token, operator email links to the confirm page (D-027)", async () => {
+  const { body, insertRow, operator } = await runBooking(baseBooking({ start_time: "13:00", slots_needed: 3 })); // finish 16:00 > 15:00
+  assert.strictEqual(body.provisional, true);
+  assert.strictEqual(insertRow.confirmation_state, "awaiting_operator");
+  assert.strictEqual(insertRow.status, "booked", "a provisional booking still HOLDS the slot");
+  assert.match(insertRow.operator_action_token_hash, /^[0-9a-f]{64}$/, "the SHA-256 hash is stored, never the plaintext");
+  assert.ok(insertRow.operator_action_token_expires_at, "the token has an expiry");
+  assert.match(operator.body.subject, /Provisional/i);
+  assert.match(operator.body.html, /booking-action#job=job-77/, "the operator link points at the confirm page for this job");
+  assert.match(operator.body.html, /token=[0-9a-f]{64}/, "with the plaintext token in the URL fragment");
+});
+
+test("an on-time booking auto-confirms: auto_confirmed, no token, plain operator email (D-027)", async () => {
+  const { body, insertRow, operator } = await runBooking(baseBooking({ start_time: "12:00", slots_needed: 2 })); // finish 14:00 <= 15:00
+  assert.strictEqual(body.provisional, false);
+  assert.strictEqual(insertRow.confirmation_state, "auto_confirmed");
+  assert.strictEqual(insertRow.operator_action_token_hash, null);
+  assert.match(operator.body.subject, /New Booking/);
+  assert.ok(!/Approval Needed/i.test(operator.body.html), "no provisional approval block for an on-time booking");
+});
+
+test("a booking finishing EXACTLY at 15:00 auto-confirms — the boundary is inclusive (D-027)", async () => {
+  const { body, insertRow } = await runBooking(baseBooking({ start_time: "13:00", slots_needed: 2 })); // finish exactly 15:00
+  assert.strictEqual(body.provisional, false, "finish == 15:00 is at/before the line, so it auto-confirms");
+  assert.strictEqual(insertRow.confirmation_state, "auto_confirmed");
+});
