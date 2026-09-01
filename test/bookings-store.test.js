@@ -102,6 +102,26 @@ test("bookingToJobRow parses a half-hour start into start_hour + start_minute (D
   assert.strictEqual(bare.start_minute, 0);
 });
 
+test("bookingToJobRow defaults confirmation_state to auto_confirmed with null token fields (D-027)", () => {
+  const row = bookingToJobRow(SAMPLE, { calLink: "x" });
+  assert.strictEqual(row.confirmation_state, "auto_confirmed");
+  assert.strictEqual(row.operator_action_token_hash, null);
+  assert.strictEqual(row.operator_action_token_expires_at, null);
+});
+
+test("bookingToJobRow carries a provisional decision + token from opts, still status='booked' (D-027)", () => {
+  const row = bookingToJobRow(SAMPLE, {
+    confirmationState: "awaiting_operator",
+    actionTokenHash: "deadbeef",
+    actionTokenExpiresAt: "2026-07-11T00:00:00.000Z",
+  });
+  assert.strictEqual(row.confirmation_state, "awaiting_operator");
+  assert.strictEqual(row.operator_action_token_hash, "deadbeef");
+  assert.strictEqual(row.operator_action_token_expires_at, "2026-07-11T00:00:00.000Z");
+  // A provisional booking still HOLDS the slot, so its lifecycle status stays 'booked'.
+  assert.strictEqual(row.status, "booked");
+});
+
 test("bookingToJobRow keeps price_display verbatim and leaves ex-VAT/deposit numerics null", () => {
   const row = bookingToJobRow(SAMPLE, {});
   assert.strictEqual(row.price_display, "£475");
@@ -202,6 +222,16 @@ test("jobRowToAdminRecord renders a half-hour start as H:MM (D-027)", () => {
   // A pre-D-027 row (no start_minute selected) still renders on the hour.
   const legacy = jobRowToAdminRecord({ start_hour: 10, customers: {} });
   assert.strictEqual(legacy.start_time, "10:00");
+});
+
+test("jobRowToAdminRecord surfaces confirmation_state + operator_decided_at (D-027)", () => {
+  const r = jobRowToAdminRecord({ confirmation_state: "operator_confirmed", operator_decided_at: "2026-07-01T09:00:00Z", customers: {} });
+  assert.strictEqual(r.confirmation_state, "operator_confirmed");
+  assert.strictEqual(r.operator_decided_at, "2026-07-01T09:00:00Z");
+  // A row without the columns reads null, not undefined.
+  const legacy = jobRowToAdminRecord({ customers: {} });
+  assert.strictEqual(legacy.confirmation_state, null);
+  assert.strictEqual(legacy.operator_decided_at, null);
 });
 
 // --- Fake client: insertBooking -------------------------------------------
