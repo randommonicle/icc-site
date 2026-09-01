@@ -46,6 +46,16 @@ const earliest_start = {
 // the cadence generator and the acceptance gate cannot disagree about the last start.
 const last_start = "13:00";
 
+// The AUTO-CONFIRM line (D-027; Ben 2026-09-01). A booking whose FINISH (start +
+// slots*60) is at or before this time auto-confirms as today; a LATER finish is still
+// taken and holds the slot, but is held PROVISIONAL for Mark to accept (the provisional
+// slice). This is a FINISH time, distinct from last_start (a start time) and from
+// jsonld_close_job_hours (the advertised close). It is set to coincide with the
+// advertised close (both 3pm) so the site never advertises a slot it would not auto-take,
+// yet the two stay SEPARATE constants — a coherence test asserts auto_confirm_by sits
+// within [earliest finish from last_start, advertised close].
+const auto_confirm_by = "15:00";
+
 // Offered-slot cadence, encoded in ONE place so it is trivially changeable (a
 // main-session assumption under D-027): the day's earliest start, then hourly, and
 // ALWAYS 1pm as the final start. So Mon/Wed/Fri/Sat = 09:30, 10:30, 11:30, 12:30,
@@ -75,11 +85,12 @@ const max_slots = 7;
 const legacy_blobs = { latest_start_hour: 17, latest_end_hour: 18, max_slots: 9 };
 
 // The public/Google (JSON-LD) closing time is a MODELLING choice, not the soft
-// operational close (D-027 left the public close open): the 1pm last start plus a
-// typical job length. Three hours is the chosen typical job, giving a 16:00 close
-// (the old public close was 16:30 = 1pm + 3.5h). Public schedule only; confirm the
-// figure with Mark. Used only by openingHoursSpecification().
-const jsonld_close_job_hours = 3;
+// operational close (D-027): the 1pm last start plus a typical job length. Two hours
+// gives a 15:00 (3pm) advertised close (Ben 2026-09-01: "the site to say until 3"),
+// which deliberately coincides with auto_confirm_by so a job finishing past the
+// advertised close is exactly the one that needs Mark's accept. Public schedule only;
+// used by openingHoursSpecification().
+const jsonld_close_job_hours = 2;
 
 // "9am", "12pm", "4.30pm", "1pm" — the voice the assistant and the site both use.
 function formatHour(hour, minute) {
@@ -173,6 +184,13 @@ function weekendPremiumFor(dayName) {
     : null;
 }
 
+// The auto-confirm line in minutes since midnight (D-027): a booking whose finish is at
+// or before this auto-confirms; a later finish holds provisional for Mark. The booking
+// path computes finish = start_hour*60 + start_minute + slots_needed*60 and compares.
+function autoConfirmByMinutes() {
+  return clockToMinutes(auto_confirm_by);
+}
+
 // validateBooking options (chat.js). The per-day WINDOW is read from this module by
 // the gate itself (startWindowFor), so this carries only the payload slot cap and
 // re-hardcodes no hour. Passing it keeps the prompt and the gate reading the one
@@ -228,6 +246,7 @@ module.exports = {
   days,
   earliest_start,
   last_start,
+  auto_confirm_by,
   slot_step_minutes,
   weekend_premium,
   max_slots,
@@ -244,6 +263,7 @@ module.exports = {
   offeredStartTimes,
   startWindowFor,
   weekendPremiumFor,
+  autoConfirmByMinutes,
   bookingBounds,
   hoursBlock,
   hoursLines,

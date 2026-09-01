@@ -190,3 +190,17 @@ test("structured-data hours are per-day, well-formed, and match the config; Sund
   spec.push({ "@type": "OpeningHoursSpecification", dayOfWeek: ["Sunday"] });
   assert.ok(!tradingHours.days.includes("Sunday"), "openingHoursSpecification must not expose the live array");
 });
+
+test("auto_confirm_by is 15:00 and coheres with the advertised close (D-027)", () => {
+  assert.strictEqual(tradingHours.auto_confirm_by, "15:00");
+  assert.strictEqual(tradingHours.autoConfirmByMinutes(), 15 * 60);
+  // Coherence: the auto-confirm line sits within [earliest finish from the last start,
+  // the advertised close]. Ben set both the close and the line at 3pm (2026-09-01), so
+  // a job finishing past the advertised close is exactly the one that needs Mark.
+  const lastStartMin = tradingHours.clockToMinutes(tradingHours.last_start);
+  const earliestFinish = lastStartMin + 60; // the 1pm last start + the minimum 1-hour job
+  const advertisedClose = lastStartMin + tradingHours.jsonld_close_job_hours * 60;
+  assert.ok(tradingHours.autoConfirmByMinutes() >= earliestFinish, "auto-confirm line at/after the earliest possible finish");
+  assert.ok(tradingHours.autoConfirmByMinutes() <= advertisedClose, "auto-confirm line not past the advertised close");
+  assert.strictEqual(advertisedClose, 15 * 60, "advertised (JSON-LD) close is now 3pm");
+});
