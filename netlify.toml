@@ -89,9 +89,9 @@
 #      www.intelligentclean.co.uk, which today serves a 123 Reg parking page with
 #      third-party ads. The canonical cannot be honoured, so the signal is wasted
 #      at exactly the moment the brand's first crawl impressions form.
-#   2. The privacy notice still carries a live "[to confirm: ICO registration
-#      number]" placeholder (privacy.astro), which should not be the first
-#      version of that page Google sees.
+#   2. (Resolved 1 Sep 2026: the ICO registration number ZC230232 is now in
+#      privacy.astro.) A human data-protection review of the notice is still
+#      outstanding, so it should still not be the first version Google indexes.
 #   3. Anything indexed under the netlify.app name has to be cleaned up after the
 #      cutover rather than simply starting on the real domain.
 #
