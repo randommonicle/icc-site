@@ -12,6 +12,36 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session — 2026-09-01, D-027 per-day hours: DB migration applied and verified; app layer on a branch; brand copy + ICO number
+
+**Resuming? Start here.** All of this session is on the local branch **`feat/d027-per-day-hours`** (home machine, NOT pushed, NOT merged, NOT deployed). `main` is untouched and still deployable. Four commits: brand copy; ICO number + doc fixes; the D-027 app layer + migration (WIP); this handover.
+
+**DB migration APPLIED + VERIFIED on production Supabase (`icc-platform`).** `20260901133038_jobs_per_day_hours_minutes.sql`: adds `start_minute` (0/30), rebuilds `jobs_no_double_booking` on a minute-precise `span_minutes` range (drops the whole-hour `hours` column), drops the hard `jobs_trading_hours` finish-by-16:00 check (soft close). Verified from the live catalog: the guard rejects a :30 overlap (23P01), a 1pm-to-6pm job is accepted, 09:30 round-trips; the `jobs` table is empty so zero data risk. The `20260614110000` history drift was repaired in the same pass. Connection method is in auto-memory `icc-supabase-db-access` (aws-1-eu-west-2 session pooler; **Ben must run `supabase db push` / `migration repair` himself** — the auto-mode classifier blocks them even with allow rules).
+
+**Prod DB is ahead of deployed code, deliberately.** The live site is still the old app (compatible with the new schema), so nothing customer-facing changed. New hours go live only when the branch is finished, merged and deployed.
+
+**APP HALF NOT FINISHED — this is the deploy gate, do next:**
+1. `server/netlify/functions/bookingsStore.js` — the `TODO(D-027/start-minute)`: parse and persist `start_minute`, read it back in `jobRowToAdminRecord`, make `bookedHourSlots` minute-aware. Until then a 09:30 booking stores as 9:00. This is why the branch must not deploy yet.
+2. `server/netlify/functions/chat.js` — the **3pm auto-confirm** rule + lightweight override: a job finishing after 3pm (T=15:00) is still taken and holds the slot, marked provisional, the customer is told Mark will confirm, and Mark's notification email flags it; under 3pm auto-confirms as now. Steer big jobs to the earliest free start. No client-managed double slots. (Mark is happy with open-ended afternoons; the DB allows the late finish.)
+3. pgTAP — `supabase/tests/jobs_postcode_nullable_test.sql` asserts `jobs_trading_hours` (now dropped), so update it; add minute cases to `schema_test.sql`. These need the local Docker stack to run.
+4. Full `node --test` + `npm run build --prefix site`, merge to main, push (Netlify deploys), then one real booking each for a :30 slot and a 3-room 1pm job (the seam the skipped integration tests miss).
+
+**Decided this session (formalise as DECISIONS addenda next session):**
+- D-027: slot cadence = each day's earliest start, then hourly, always including 1pm as the last start; **auto-confirm finish T = 3pm**, later finishes route to Mark via the override; open-ended afternoons (no hard finish); JSON-LD public close modelled as 1pm + 3h = 16:00 (was 16:30) — confirm with Mark.
+- **Saturday weekend premium figure still unset** (Mark): hook in `tradingHours.js` (`weekend_premium`), apply point `TODO(D-027/saturday-premium)` in `bookingsStore.js`.
+- D-016 addendum: the ICO public register DOES display Mark's home address; decide accept vs asking the ICO to withhold (noted in `docs/LAUNCH_ICO_REGISTRATION.md`).
+- Base address corrected to **13 Horsbere Road, GL3 3PT** (was 11 / GL3 3BT); public repo copies reduced to the postcode, full address in the private minutes only.
+- LESSONS entry to add: an hours change must reach the store schema and every store gate, not just the app config (F2 extended to the DB layer).
+
+**Still open for Ben/Mark:**
+- **D-028 travel bands not coded or approved.** Proposed (centre GL3 3PT): free ≤~10 road miles (Gloucester + Cheltenham + rings), £5 ~10-15 (Winchcombe, Tewkesbury, Stroud), £10 ~15-22 (Cirencester, Tetbury, Forest of Dean), £15 >~22 (Moreton, Stow, Bourton, Chipping Campden). Recommend a postcode district/sector band table over a straight-line radius (the Cotswolds are close by crow, far by road). Its own slice after approval: `serviceArea.js`, `chat.js`, the six area pages, `/api/v1/quote`, and server-side surcharge enforcement in `validateBooking`.
+- Brand: the other "team" references (index hero, booking consent line, privacy notice) left as ordinary service voice — switch to sole-operator phrasing? And the site says "Cheltenham-based" throughout while D-028 records Intelligent as Gloucester-based (accuracy point, Mark to steer).
+- Home-machine `.env` NETLIFY_TOKEN updated this session (closed).
+
+**Green on the branch:** `node --test` 242 (239 pass / 3 skip), site builds 23 pages. The 3 skips are the real-Supabase integration tests (`ICC_SUPABASE_IT=1`); enabling one for a real :30 insert is part of step 4.
+
+---
+
 ## This session — 2026-08-25, Mark meeting reconciled: the launch bundle is largely resolved, new build backlog opened
 
 **No code changed this session.** This is a **planning + docs** pass reconciling a **24 August 2026** configuration/planning meeting with Mark (two audio transcripts + one auto-summary) into a single record. Full minutes, held **outside the public repo** (they carry Mark's tax position and internal pricing/brand notes): `C:\Users\bengr\Projects\ICC\deliverables\ICC-Meeting-Minutes-Mark-Aug2026.md` (and a premium branded `.docx` alongside it).
