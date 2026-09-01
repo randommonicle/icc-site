@@ -159,11 +159,20 @@ Ben between P2 and P3. Nothing merges to main until P6 is green and the real rid
 - **Phase 3a-i — DONE, green (249 tests).** `ef1bf24` — store layer: `bookingToJobRow` carries
   `confirmation_state` + token hash/expiry from opts; insert threads them; admin read-back surfaces
   them. Defaults keep everything `auto_confirmed`, so no behaviour change yet.
-- **Phase 3a-ii — NEXT:** `handleBooking` computes the provisional decision (finish > 15:00),
-  generates the action token (plaintext → email, hash → DB, expiry = end of the booking day), and
-  the OPERATOR email carries the accept/decline link. Adds `provisional` to the return payload.
-- **Phase 3b:** customer email wording (held vs confirmed), `book.astro` rendering, the PDF card.
-  ← wants Ben/Mark's steer on the customer-facing "provisional / not yet confirmed" copy.
+- **Phase 3a-ii — DONE, green (252 tests).** `1c9dd07` — `handleBooking` computes provisional
+  (finish > 15:00, Postgres only), generates the token (plaintext → Mark's email link, SHA-256
+  hash + end-of-booking-day expiry → DB), the OPERATOR email flags it + links to the confirm page
+  (token in the URL fragment), and the payload carries `provisional`. On-time bookings unchanged.
+- **Phase 3b — DONE, green (255 tests; builds 23 pages).** `64734bc` — customer email (Booking
+  Received / "Mark will confirm the time" for provisional; confirmed wording for on-time),
+  `book.astro` renders the held-not-confirmed outcome from `provisional` (parity-guarded), Mark's
+  PDF gets a PROVISIONAL banner. Copy approved by Ben. **Phase 3 complete.**
+- **Phase 4 — NEXT (security-critical, design-settled):** the `/api/booking-action` Netlify
+  function — GET returns the read-only confirm-page context; POST verifies the token
+  (constant-time via the `bookings.js:8` `safeEqual` pattern, unexpired, unused) and does the
+  compare-and-set transition (`UPDATE ... WHERE confirmation_state='awaiting_operator'`, 0 rows →
+  409); decline sets `job_status='cancelled'` + `operator_declined` and claims-then-sends the
+  customer email. Plus the read-only confirm page (Astro; token in the URL fragment; POST buttons).
 - **Phase 4:** `/api/booking-action` (GET confirm page, POST compare-and-set transition, constant-time
   token check, decline releases + notifies) + the read-only confirm page (token in URL fragment).
 - **Phase 5:** admin — display `confirmation_state` + fallback Accept/Decline/resend (`requireAdmin`).
