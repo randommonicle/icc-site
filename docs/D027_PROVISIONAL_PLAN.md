@@ -148,12 +148,23 @@ Ben between P2 and P3. Nothing merges to main until P6 is green and the real rid
   - `211461a` — `auto_confirm_by="15:00"` + `autoConfirmByMinutes()` + coherence test;
     `jsonld_close_job_hours` 3→2 (advertised JSON-LD close now 3pm). `contact.astro` states no
     close, so no copy change.
-- **Migration WRITTEN — apply pending (Ben):**
-  `supabase/migrations/20260901200000_jobs_confirmation_state.sql` — the `confirmation_state`
-  enum + column, `operator_decided_at`, three `operator_action_token_*` columns, two
-  `message_kind` values. Apply with `supabase db push`, then run the file's verification query.
-  **Phase 3 is blocked on this apply.**
+- **Migration APPLIED + VERIFIED (2026-09-01):**
+  `supabase/migrations/20260901200000_jobs_confirmation_state.sql`. Applied via the new
+  `scripts/db-push.sh` (session pooler; direct host is IPv6-only, project unlinked). Verified
+  from the live catalog: the 5 `jobs` columns present with the right types/defaults, the
+  `confirmation_state` enum's 4 labels, and both `provisional_*` `message_kind` values.
+  Phase 3 is unblocked.
 - **1pm rule — CONFIRMED (Ben, 2026-09-01):** finish-based. A job finishing at/before 15:00
   auto-confirms (so a 1pm 1–2h job auto-confirms); only a finish after 15:00 routes to Mark.
-- **Phase 3 — after the migration:** `bookingToJobRow`/`handleBooking` compute `confirmation_state`
-  + generate the token pre-insert; provisional branch across `book.astro`, both emails, PDF, payload.
+- **Phase 3a-i — DONE, green (249 tests).** `ef1bf24` — store layer: `bookingToJobRow` carries
+  `confirmation_state` + token hash/expiry from opts; insert threads them; admin read-back surfaces
+  them. Defaults keep everything `auto_confirmed`, so no behaviour change yet.
+- **Phase 3a-ii — NEXT:** `handleBooking` computes the provisional decision (finish > 15:00),
+  generates the action token (plaintext → email, hash → DB, expiry = end of the booking day), and
+  the OPERATOR email carries the accept/decline link. Adds `provisional` to the return payload.
+- **Phase 3b:** customer email wording (held vs confirmed), `book.astro` rendering, the PDF card.
+  ← wants Ben/Mark's steer on the customer-facing "provisional / not yet confirmed" copy.
+- **Phase 4:** `/api/booking-action` (GET confirm page, POST compare-and-set transition, constant-time
+  token check, decline releases + notifies) + the read-only confirm page (token in URL fragment).
+- **Phase 5:** admin — display `confirmation_state` + fallback Accept/Decline/resend (`requireAdmin`).
+- **Phase 6:** pgTAP, full suite + build, DECISIONS.md D-027 addendum, one-real-ride, then merge.
