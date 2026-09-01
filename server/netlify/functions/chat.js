@@ -737,8 +737,10 @@ async function checkAvailability(date, slotsNeeded, baseHeaders, supabase) {
   // reads — so a start the booking gate would reject is never offered (F2). This is
   // the offered grid for EVERY store; the store choice only affects where the booked
   // hours are read from (committed `jobs` rows under Postgres, the Blobs blob
-  // otherwise). Slot occupancy stays hour-quantised (the store keys integer hours),
-  // so a 09:30 start is checked against the 9 o'clock block, matching the write path.
+  // otherwise). Occupancy is judged MINUTE-precise: each committed job's
+  // [start, start+slots) minute span is overlapped against the offered start's span,
+  // mirroring the DB span_minutes exclusion, so the grid never offers a start the
+  // confirm would reject — a :30 job that overruns into the next hour is caught.
   const usePostgres = bookingsStoreIsPostgres() && !!supabase;
   if (bookingsStoreIsPostgres() && !supabase) {
     console.log("WARNING: BOOKINGS_STORE=postgres but no Supabase client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY unset) — availability is using Blobs.");
@@ -757,30 +759,42 @@ async function checkAvailability(date, slotsNeeded, baseHeaders, supabase) {
   const dayName = tradingHours.dayNameOf(new Date(dy, dm - 1, dd));
   const offered = tradingHours.offeredStartTimes(dayName); // [] on a closed day (e.g. Sunday)
   try {
-    let bookedSlots;
+    // Booked spans as MINUTE ranges [start, start+slots*60): committed jobs under
+    // Postgres, or the legacy whole-hour Blobs array widened to hour ranges.
+    let bookedRanges;
     if (usePostgres) {
-      bookedSlots = await availabilityFromJobs(supabase, date);
+      bookedRanges = await availabilityFromJobs(supabase, date);
     } else {
       const store = getBlobStore();
       const existing = await store.get(date);
-      bookedSlots = existing ? JSON.parse(existing) : [];
+      const hours = existing ? JSON.parse(existing) : [];
+      bookedRanges = hours.map((h) => ({ start: h * 60, end: h * 60 + 60 }));
     }
+    // Soft close (D-027): a job may run past 1pm, so there is no grid-end fit check.
+    // An offered start is dropped only when its own span [start, start+slots*60)
+    // overlaps a committed span — minute-precise, matching the DB span_minutes
+    // exclusion, so a :30 job that overruns the hour is caught (F2).
+    const overlaps = (aS, aE, bS, bE) => aS < bE && bS < aE;
     const available = [];
-    // Soft close (D-027): a job may run past 1pm, so there is no grid-end fit check —
-    // an offered start is dropped only when its hour blocks clash with a booking.
     for (const startTime of offered) {
-      const startHour = parseInt(startTime.split(":")[0], 10);
-      let conflict = false;
-      for (let k = 0; k < slots; k++) {
-        if (bookedSlots.includes(startHour + k)) { conflict = true; break; }
-      }
-      if (!conflict) available.push(startTime);
+      const s = tradingHours.clockToMinutes(startTime);
+      const e = s + slots * 60;
+      if (!bookedRanges.some((r) => overlaps(s, e, r.start, r.end))) available.push(startTime);
+    }
+    // `booked` keeps its backward-compatible shape: the whole-hour blocks each job
+    // spans (the clients' advisory re-check and older tests read a flat hour array).
+    // The authoritative guard is the DB exclusion at confirm, not this list.
+    const booked = [];
+    for (const r of bookedRanges) {
+      const sh = Math.floor(r.start / 60);
+      const n = Math.round((r.end - r.start) / 60);
+      for (let i = 0; i < n; i++) booked.push(sh + i);
     }
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ available, booked: bookedSlots })
+      body: JSON.stringify({ available, booked })
     };
   } catch (err) {
     // Fail open: offer the day's full grid rather than blocking a customer on a store

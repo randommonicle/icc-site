@@ -202,18 +202,36 @@ test("handleBooking (Postgres) rejects a 16:00 start as a clean 400 without touc
 
 // --- checkAvailability: Postgres grid + derivation -------------------------
 
-test("checkAvailability offers the per-day cadence and excludes booked hours", async () => {
+test("checkAvailability excludes every start whose span overlaps a committed job", async () => {
   await underPostgres(async () => {
-    // A Monday: offered starts are 09:30, 10:30, 11:30, 12:30, 1pm. A committed
-    // 10:00 job of 2 hours occupies the 10 and 11 o'clock blocks, so the 10:30 and
-    // 11:30 starts (which fall in those blocks) drop out; 09:30, 12:30 and 1pm stay.
+    // A Monday offers 09:30, 10:30, 11:30, 12:30, 1pm. A committed 10:00 two-hour job
+    // runs 10:00-12:00, so every offered 1-hour start whose span touches that window
+    // drops: 09:30 (ends 10:30, so it overruns INTO the job — the old hour-quantised
+    // check wrongly kept it), 10:30 and 11:30. Only 12:30 and 1pm are clear.
     const sb = fakeSupabase({ jobsSelect: { data: [{ start_hour: 10, slots_needed: 2 }], error: null } });
     const res = await checkAvailability(futureDow(MON), 1, {}, sb);
     assert.strictEqual(res.statusCode, 200);
     const body = JSON.parse(res.body);
-    assert.deepStrictEqual(body.available, ["09:30", "12:30", "13:00"]);
+    assert.deepStrictEqual(body.available, ["12:30", "13:00"]);
     assert.ok(!body.available.includes("16:00") && !body.available.includes("17:00"), "nothing after the 1pm last start");
     assert.deepStrictEqual(body.booked.slice().sort((a, b) => a - b), [10, 11]);
+  });
+});
+
+test("checkAvailability is minute-precise: a :30 job blocks the overrunning next start (F2)", async () => {
+  await underPostgres(async () => {
+    // GPT round 2's finding: a committed 12:30 one-hour job runs 12:30-13:30, so the
+    // 1pm last-start (13:00-14:00) OVERLAPS it and must drop out — the exact slot the
+    // old hour-quantised check offered, then the DB rejected at confirm. 11:30 ends
+    // exactly at 12:30 (adjacent, no overlap), so it stays.
+    const sb = fakeSupabase({ jobsSelect: { data: [{ start_hour: 12, start_minute: 30, slots_needed: 1 }], error: null } });
+    const res = await checkAvailability(futureDow(MON), 1, {}, sb);
+    assert.strictEqual(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    assert.ok(!body.available.includes("13:00"), "the 1pm start must not be offered over a 12:30 job");
+    assert.ok(body.available.includes("11:30"), "11:30 ends exactly at 12:30 (adjacent), so it stays");
+    assert.deepStrictEqual(body.available, ["09:30", "10:30", "11:30"]);
+    assert.deepStrictEqual(body.booked.slice().sort((a, b) => a - b), [12]);
   });
 });
 

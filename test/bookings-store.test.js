@@ -244,12 +244,14 @@ test("insertBooking fails without inserting a job when the customer upsert error
 
 // --- Fake client: availability + admin list --------------------------------
 
-test("availabilityFromJobs returns the union of booked hour-slots", async () => {
+test("availabilityFromJobs returns booked minute-ranges, minute-precise (D-027)", async () => {
   const sb = fakeSupabase({
-    jobsSelect: { data: [{ start_hour: 10, slots_needed: 2 }, { start_hour: 14, slots_needed: 1 }], error: null },
+    jobsSelect: { data: [{ start_hour: 10, slots_needed: 2 }, { start_hour: 12, start_minute: 30, slots_needed: 1 }], error: null },
   });
   const booked = await availabilityFromJobs(sb, "2026-07-10");
-  assert.deepStrictEqual(booked.sort((a, b) => a - b), [10, 11, 14]);
+  const sorted = booked.slice().sort((a, b) => a.start - b.start);
+  // 10:00 for 2h -> [600,720); 12:30 for 1h -> [750,810) (the :30 the old hour model dropped).
+  assert.deepStrictEqual(sorted, [{ start: 600, end: 720 }, { start: 750, end: 810 }]);
 });
 
 test("fetchBookingsFromJobs maps rows to admin records and returns [] when not configured", async () => {
@@ -330,7 +332,7 @@ test("[integration] insertBooking persists, blocks the slot, reads back, and rej
 
     // availability now reports the booked block [10,11]
     const booked = await availabilityFromJobs(sb, IT_DATE);
-    assert.deepStrictEqual(booked.slice().sort((a, b) => a - b), [10, 11]);
+    assert.deepStrictEqual(booked, [{ start: 600, end: 720 }]); // 10:00 for 2h
 
     // the admin list includes it in the flat record shape
     const admin = await fetchBookingsFromJobs(sb);

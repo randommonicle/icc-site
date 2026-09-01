@@ -86,8 +86,8 @@ function bookingToJobRow(booking, opts) {
   // occur in the offered cadence, and the DB checks start_minute IN (0,30) as the
   // backstop (validateBooking is the real gate). span_minutes is a generated column
   // that carries the minute-precise range for the double-booking guard, so it is not
-  // written here. Occupancy in availabilityFromJobs stays hour-quantised by design
-  // (chat.js checkAvailability): a 09:30 job claims the 9 o'clock block.
+  // written here. availabilityFromJobs derives the same minute-precise ranges from
+  // these fields, so the offered grid agrees with the DB (chat.js checkAvailability).
   const [rawHour, rawMinute] = String(b.start_time || "").split(":");
   const startHour = parseInt(rawHour, 10);
   const parsedMinute = parseInt(rawMinute, 10);
@@ -192,22 +192,23 @@ async function setJobCalLink(supabase, jobId, calLink) {
   return supabase.from("jobs").update({ cal_link: calLink }).eq("id", jobId);
 }
 
-// The booked hour-slots on a date: the union of [start_hour, start_hour+slots) for
-// COMMITTED jobs (booked/in_progress). The grid/window logic stays in
-// chat.js checkAvailability (shared with the Blobs path); this returns the
-// equivalent of the Blobs `bookedSlots` array.
+// The booked MINUTE ranges on a date: [start, start+slots*60) in minutes since
+// midnight for COMMITTED jobs (booked/in_progress), where start = start_hour*60 +
+// start_minute. Minute-precise so a :30 start that overruns the next hour is judged
+// correctly (D-027) — this mirrors the DB span_minutes exclusion (migration
+// 20260901133038). chat.js checkAvailability overlaps the offered grid against these.
+// start_minute defaults to 0 for legacy whole-hour rows.
 async function availabilityFromJobs(supabase, date) {
   const { data, error } = await supabase
     .from("jobs")
-    .select("start_hour,slots_needed")
+    .select("start_hour,start_minute,slots_needed")
     .eq("slot_date", date)
     .in("status", ["booked", "in_progress"]);
   if (error) throw new Error(error.message);
-  const booked = [];
-  for (const j of data || []) {
-    for (let h = j.start_hour; h < j.start_hour + j.slots_needed; h++) booked.push(h);
-  }
-  return booked;
+  return (data || []).map((j) => {
+    const start = j.start_hour * 60 + (j.start_minute || 0);
+    return { start, end: start + j.slots_needed * 60 };
+  });
 }
 
 // All bookings for the admin dashboard, newest first, mapped to the flat record
