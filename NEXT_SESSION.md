@@ -12,6 +12,54 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session — 2026-09-01 (continued): D-027 provisional-booking slice, Phases 1 to 3 built, migration applied and verified; Phases 4 to 6 remain
+
+*Diagnoses in this note are unverified unless marked.* **Context: Ben reported 64% (yellow band). `/context` is not invokable in this non-interactive session, so 64% is Ben's figure, not an independent read.**
+
+**Resuming? Start here.** Everything is on local branch **`feat/d027-per-day-hours`** (home machine; NOT pushed, NOT merged, NOT deployed). `main` is untouched and deployable. The full build plan plus a live checkpoint log is **[docs/D027_PROVISIONAL_PLAN.md](docs/D027_PROVISIONAL_PLAN.md)**. The design source, a converged cross-agent review with GPT and Gemini, is at **`C:\Users\bengr\agent-exchange\REVIEW_d027-3pm-provisional_2026-09-01.md`** (outside the repo). This entry SUPERSEDES the "APP HALF NOT FINISHED, do next" list in the older 2026-09-01 entry below.
+
+**Session goal.** Turn the 24 Aug D-027 decisions into the working provisional-booking feature: a job finishing after 3pm is held and routed to Mark to accept or decline from his email. The design was hardened by a cross-agent review before any code.
+
+**What landed (12 commits since `b1306f5`; all green: 255 tests, 252 pass / 3 skip, site builds 23 pages):**
+- `f7e2877` persist `start_minute` (0/30) and render half-hour starts. *verified (tests)*
+- `615ec7a` **minute-precise availability**, so the grid never offers a slot the engine then rejects (fixes the F2 gap a :30 start introduced). *verified (tests).* This also corrected my own earlier-session WRONG claim that occupancy could stay hour-quantised.
+- `211461a` `auto_confirm_by=15:00` plus `autoConfirmByMinutes()`; advertised JSON-LD close moved to 3pm (`jsonld_close_job_hours` 3 to 2). *verified (tests + build)*
+- `d01a9dd` migration `20260901200000_jobs_confirmation_state.sql`. *verified: APPLIED to prod and catalog-verified (below)*
+- `ef1bf24` store layer: `bookingToJobRow` / insert / admin-read carry `confirmation_state` plus token hash and expiry. *verified (tests)*
+- `1c9dd07` `handleBooking` provisional decision, token generation, operator accept-link email. *verified (tests)*
+- `64734bc` customer-facing provisional wording (email, `book.astro` screen, PDF banner). *verified (tests + build)*
+- plus `1430c68`, `5a231a9`, `5ae7b29` (plan and checkpoints), `a713050` (`scripts/db-push.sh`), `b96b2ff` (`.gitattributes`, `*.sh` pinned LF).
+
+**Migration APPLIED and VERIFIED on prod Supabase.** `20260901200000_jobs_confirmation_state.sql` is the SECOND D-027 migration (the first, `20260901133038`, added the hours last session). Applied via the new `bash scripts/db-push.sh` (session pooler; the direct host is IPv6-only and the working copy is not `supabase link`ed). Verified directly from the catalog with `supabase db query` through the pooler (*verified*): the `confirmation_state` enum's four labels (`auto_confirmed, awaiting_operator, operator_confirmed, operator_declined`), the five new `jobs` columns (`confirmation_state` NOT NULL default `auto_confirmed`; `operator_decided_at`; `operator_action_token_hash`, `_expires_at`, `_used_at`, all nullable), and the two `message_kind` values (`provisional_confirmed, provisional_declined`).
+
+**How it works now (Phases 1 to 3, committed).** A booking whose finish (`start + slots*60`) is after 15:00, Postgres store only, is persisted `status='booked'` (this holds the slot) plus `confirmation_state='awaiting_operator'`, with a random 32-byte action token whose SHA-256 hash and an expiry (end of the booking day) are stored. The plaintext token lives only in Mark's email. Mark's operator email is flagged and carries ONE link to `${PUBLIC_SITE_URL}/booking-action#job=<id>&token=<plaintext>`, with the token in the URL fragment so a mail-scanner prefetch cannot act. The customer sees "Booking received, provisionally held, Mark will confirm" on screen (`book.astro` reads `bookData.provisional`) and in their email; the PDF (Mark only) gets a PROVISIONAL banner. On-time bookings are unchanged.
+
+**In flight, NOT built (the deploy gate; nothing deploys until these land):**
+- **Phase 4.** `server/netlify/functions/bookingAction.js` plus a `/api/booking-action` redirect in `netlify.toml`, and the confirm page `site/src/pages/booking-action.astro`. The operator email link ALREADY points at `/booking-action` (`chat.js` near line 1096, the `actionUrl` const), which 404s until this exists (harmless while un-deployed).
+- **Phase 5.** `admin.html` `buildCard` (near line 481): show `confirmation_state` and `operator_decided_at`; add fallback Accept / Decline / resend controls gated by `requireAdmin` (`adminAuth.js:54`).
+- **Phase 6.** pgTAP (`supabase/tests/`: the stale `jobs_trading_hours` assertion from last session still needs dropping, plus minute and `confirmation_state` cases), full `node --test` and build, the DECISIONS.md D-027 addendum, a real end-to-end ride, and a second-pass review (property-reg-reviewer and code-reviewer) before merge.
+
+**Next actions (ordered, each a single first step):**
+1. Write `bookingAction.js`. POST `{job, token, action}` with action in `view` / `accept` / `decline`. Load the job by id; **constant-time** token check (hash the presented token, `crypto.timingSafeEqual` against the stored hash; reuse the `safeEqual` pattern at `server/netlify/functions/bookings.js:8-16`); reject expired or used. `accept` and `decline` do an atomic compare-and-set: `UPDATE jobs SET confirmation_state=?, operator_decided_at=now(), operator_action_token_used_at=now() [, status='cancelled' on decline] WHERE id=? AND confirmation_state='awaiting_operator' AND operator_action_token_used_at IS NULL`; 0 rows updated means already actioned, return 409. On `decline`, claim-then-send the customer decline email (NOT send-then-mark; the messages table plus `message_kind='provisional_declined'` gives the durable record). POST only, 405 otherwise.
+2. Add the `netlify.toml` redirect `/api/booking-action` to the function (pattern at `netlify.toml:27-48`).
+3. Write `site/src/pages/booking-action.astro`: read-only; JS reads `location.hash` for job and token; POSTs `view` to render the summary, then `accept` or `decline` on a button click; the token stays in the fragment and POST body, never a GET query.
+4. Then Phase 5 (admin), then Phase 6.
+
+**Blockers and open questions.** None block Phase 4 (design settled). The GPT (ChatGPT) seat hit usage limits mid-session; the review had already converged, so it is closed. Gemini remains available if a fresh review is ever wanted.
+
+**Owed, per Ben's rules (prompts outstanding):**
+- **DECISIONS.md D-027 addendum**, not yet written: Option A (hold provisionally, not escalate-as-lead); one-click email accept for Mark (not admin-only); `auto_confirm_by=15:00`, finish-based (a 1pm 1 to 2 hour job auto-confirms; only a finish after 15:00 routes to Mark); advertised close 3pm; token design (stored SHA-256 hash, single-use, expiring).
+- **LESSONS_LEARNED.md** candidate: an hours or cadence change must reach the availability COLLISION logic, not only the offered grid, because hour-quantised occupancy silently under-blocks :30 starts (this session's `615ec7a`; extends last session's "F2 to the DB layer" lesson).
+
+**Traps and working agreements (this session):**
+- Repo is at **`C:\Users\bengr\Projects\ICC\icc-site`** (the Desktop folder is an empty stub; auto-memory).
+- **Apply migrations with `bash scripts/db-push.sh`** in Git Bash. Ben runs schema writes himself (the classifier blocks them). Verify the catalog directly afterwards (`supabase db query --db-url <pooler>`), do not trust "done".
+- Long commands **paste-mangle in MINGW64** (bracketed-paste `^[[200~` leaks, only the tail runs); prefer a committed script plus a short invocation.
+- `book.astro` AND `index.html` (the retained rollback client) both read `availData.booked` as an hour array, so availability's `booked` response was deliberately kept hour-shaped for backward compatibility even though the collision check is now minute-precise.
+- Commits carry `[WIP]` / `[apply pending]` where apt; the branch must not deploy until Phase 6 is green and the real ride passes.
+
+---
+
 ## This session — 2026-09-01, D-027 per-day hours: DB migration applied and verified; app layer on a branch; brand copy + ICO number
 
 **Resuming? Start here.** All of this session is on the local branch **`feat/d027-per-day-hours`** (home machine, NOT pushed, NOT merged, NOT deployed). `main` is untouched and still deployable. Four commits: brand copy; ICO number + doc fixes; the D-027 app layer + migration (WIP); this handover.
@@ -20,7 +68,7 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 **Prod DB is ahead of deployed code, deliberately.** The live site is still the old app (compatible with the new schema), so nothing customer-facing changed. New hours go live only when the branch is finished, merged and deployed.
 
-**APP HALF NOT FINISHED — this is the deploy gate, do next:**
+**APP HALF NOT FINISHED — this is the deploy gate, do next:** *(SUPERSEDED 2026-09-01 continued: steps 1 and 2 are done and greatly expanded into a full provisional-booking slice; see the entry above and [docs/D027_PROVISIONAL_PLAN.md](docs/D027_PROVISIONAL_PLAN.md).)*
 1. `server/netlify/functions/bookingsStore.js` — the `TODO(D-027/start-minute)`: parse and persist `start_minute`, read it back in `jobRowToAdminRecord`, make `bookedHourSlots` minute-aware. Until then a 09:30 booking stores as 9:00. This is why the branch must not deploy yet.
 2. `server/netlify/functions/chat.js` — the **3pm auto-confirm** rule + lightweight override: a job finishing after 3pm (T=15:00) is still taken and holds the slot, marked provisional, the customer is told Mark will confirm, and Mark's notification email flags it; under 3pm auto-confirms as now. Steer big jobs to the earliest free start. No client-managed double slots. (Mark is happy with open-ended afternoons; the DB allows the late finish.)
 3. pgTAP — `supabase/tests/jobs_postcode_nullable_test.sql` asserts `jobs_trading_hours` (now dropped), so update it; add minute cases to `schema_test.sql`. These need the local Docker stack to run.
