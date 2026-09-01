@@ -358,3 +358,17 @@ test("a booking finishing EXACTLY at 15:00 auto-confirms — the boundary is inc
   assert.strictEqual(body.provisional, false, "finish == 15:00 is at/before the line, so it auto-confirms");
   assert.strictEqual(insertRow.confirmation_state, "auto_confirmed");
 });
+
+test("the CUSTOMER email says received / provisionally held, never confirmed, for a late-finish booking (D-027)", async () => {
+  const { customer } = await runBooking(baseBooking({ start_time: "13:00", slots_needed: 3 }));
+  assert.match(customer.body.subject, /booking request/i);
+  assert.match(customer.body.html, /Booking Received/);
+  assert.match(customer.body.html, /Mark will confirm the time/i);
+  assert.ok(!/Booking Confirmation<\/h1>/.test(customer.body.html), "a provisional booking must not head the customer email 'Booking Confirmation'");
+});
+
+test("the CUSTOMER email keeps the confirmed wording for an on-time booking (D-027)", async () => {
+  const { customer } = await runBooking(baseBooking({ start_time: "12:00", slots_needed: 2 }));
+  assert.match(customer.body.subject, /Booking Confirmation/);
+  assert.match(customer.body.html, /Booking Confirmation<\/h1>/);
+});

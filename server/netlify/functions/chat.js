@@ -1097,7 +1097,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   // Generate PDF job card
   let pdfBase64 = null;
   try {
-    const pdfBuffer = await generateJobCardPDF(booking, calLink, currentBookingId);
+    const pdfBuffer = await generateJobCardPDF(booking, calLink, currentBookingId, provisional);
     pdfBase64 = pdfBuffer.toString("base64");
   } catch(e) {
     console.log("PDF generation error:", e.message);
@@ -1181,21 +1181,30 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
     attachments: pdfBase64 ? [{ filename: pdfFilename, content: pdfBase64 }] : []
   };
 
-  // Send confirmation email to customer
+  // Send confirmation email to customer. D-027: a provisional (late-finish) booking must
+  // NOT tell the customer it is confirmed/secured — it is received and held pending Mark's
+  // accept (copy approved by Ben 2026-09-01). An on-time booking keeps the confirmed wording.
+  const customerSubject = provisional
+    ? "Your booking request - Intelligent Carpet Cleaning"
+    : "Your Booking Confirmation - Intelligent Carpet Cleaning";
+  const customerHeader = provisional ? "Booking Received" : "Booking Confirmation";
+  const customerOpener = provisional
+    ? "Thank you for your request. As your clean would finish later in the afternoon, Mark will confirm the time with you and be in touch shortly to arrange your deposit. Here's a summary of what you've asked for:"
+    : "Thank you for booking with Intelligent Carpet Cleaning. Here is a summary of your appointment:";
   const customerEmail = {
     from: customerFrom,
     reply_to: customerReplyTo,
     to: booking.email,
-    subject: `Your Booking Confirmation - Intelligent Carpet Cleaning`,
+    subject: customerSubject,
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
         <div style="background:#0d2236;padding:20px;border-radius:8px 8px 0 0;">
-          <h1 style="color:#2ab8a4;margin:0;font-size:20px;">Booking Confirmation</h1>
+          <h1 style="color:#2ab8a4;margin:0;font-size:20px;">${customerHeader}</h1>
           <p style="color:rgba(255,255,255,0.7);margin:5px 0 0;">Intelligent Carpet Cleaning</p>
         </div>
         <div style="background:#f7f8fa;padding:20px;border-radius:0 0 8px 8px;border:1px solid #e2e8f0;">
           <p style="font-size:15px;">Hi ${escHtml(booking.name.split(" ")[0])},</p>
-          <p style="font-size:14px;color:#4a5568;">Thank you for booking with Intelligent Carpet Cleaning. Here is a summary of your appointment:</p>
+          <p style="font-size:14px;color:#4a5568;">${customerOpener}</p>
           <table style="width:100%;border-collapse:collapse;margin:15px 0;">
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;width:40%"><strong>Date</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.date)}</td></tr>
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Start Time</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.start_time)}</td></tr>
@@ -1268,7 +1277,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   }
 }
 
-async function generateJobCardPDF(booking, calLink, bookingId) {
+async function generateJobCardPDF(booking, calLink, bookingId, provisional) {
   const PDFDocument = require("pdfkit");
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 40, size: "A4", info: { Title: `ICC Job Card - ${booking.name} - ${booking.date}`, Author: "Intelligent Carpet Cleaning" } });
@@ -1286,6 +1295,14 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
     doc.fontSize(9).fillColor("white").font("Helvetica").text("Intelligence you can trust", 40, 37);
     doc.fontSize(7.5).fillColor("rgba(255,255,255,0.5)").text(`Job Ref: ${bookingId || "N/A"}   |   Created: ${new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })}   |   01242 279590   |   hello@intelligentclean.co.uk`, 40, 54);
     doc.y = 88;
+
+    // D-027: a provisional (late-finish) job is flagged on Mark's card too.
+    if (provisional) {
+      const py = doc.y;
+      doc.rect(40, py, W, 22).fill("#c2410c");
+      doc.fontSize(9).fillColor("white").font("Helvetica-Bold").text("PROVISIONAL - finishes after 3pm; accept or decline before arranging the deposit.", 46, py + 6, { width: W - 12 });
+      doc.y = py + 30;
+    }
 
     function sectionHeader(title) {
       doc.moveDown(0.2);
