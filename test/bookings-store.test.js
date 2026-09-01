@@ -80,6 +80,7 @@ test("bookingToJobRow maps the core fields and stamps status 'booked'", () => {
   assert.strictEqual(row.address, SAMPLE.address);
   assert.strictEqual(row.slot_date, "2026-07-10");
   assert.strictEqual(row.start_hour, 10);
+  assert.strictEqual(row.start_minute, 0);
   assert.strictEqual(row.slots_needed, 3);
   assert.strictEqual(row.furniture_moving, true);
   assert.strictEqual(row.pets, false);
@@ -87,6 +88,18 @@ test("bookingToJobRow maps the core fields and stamps status 'booked'", () => {
   assert.strictEqual(row.legacy_blob_id, null);
   // customer_id is NOT set by the pure mapper (insertBooking attaches it).
   assert.ok(!("customer_id" in row));
+});
+
+test("bookingToJobRow parses a half-hour start into start_hour + start_minute (D-027)", () => {
+  const half = bookingToJobRow(Object.assign({}, SAMPLE, { start_time: "09:30" }), {});
+  assert.strictEqual(half.start_hour, 9);
+  assert.strictEqual(half.start_minute, 30);
+  const onHour = bookingToJobRow(Object.assign({}, SAMPLE, { start_time: "13:00" }), {});
+  assert.strictEqual(onHour.start_hour, 13);
+  assert.strictEqual(onHour.start_minute, 0);
+  // A missing/garbled minute falls back to 0 rather than NaN (column is NOT NULL).
+  const bare = bookingToJobRow(Object.assign({}, SAMPLE, { start_time: "11" }), {});
+  assert.strictEqual(bare.start_minute, 0);
 });
 
 test("bookingToJobRow keeps price_display verbatim and leaves ex-VAT/deposit numerics null", () => {
@@ -179,6 +192,16 @@ test("jobRowToAdminRecord maps a joined jobs row to the admin record shape", () 
   assert.strictEqual(adminRow.pets, true);
   // No photo in Postgres -> no image key (buildCard renders "No photo uploaded").
   assert.ok(!("image" in adminRow));
+});
+
+test("jobRowToAdminRecord renders a half-hour start as H:MM (D-027)", () => {
+  const half = jobRowToAdminRecord({ start_hour: 9, start_minute: 30, customers: {} });
+  assert.strictEqual(half.start_time, "9:30");
+  const onHour = jobRowToAdminRecord({ start_hour: 13, start_minute: 0, customers: {} });
+  assert.strictEqual(onHour.start_time, "13:00");
+  // A pre-D-027 row (no start_minute selected) still renders on the hour.
+  const legacy = jobRowToAdminRecord({ start_hour: 10, customers: {} });
+  assert.strictEqual(legacy.start_time, "10:00");
 });
 
 // --- Fake client: insertBooking -------------------------------------------

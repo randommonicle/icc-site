@@ -82,12 +82,16 @@ function bookingToJobRow(booking, opts) {
   const o = opts || {};
   const postcode = resolvePostcode(b);
   const outOfArea = serviceArea.isOutOfArea(postcode || "");
-  // TODO(D-027/start-minute): also parse and persist start_minute (b.start_time is
-  // "HH:MM"); until then a 09:30 booking stores as 9:00. Migration 20260901133038
-  // added the start_minute column and a minute-precise double-booking guard; wire it
-  // here, read it back in jobRowToAdminRecord, and make bookedHourSlots minute-aware
-  // BEFORE deploying the D-027 app layer.
-  const startHour = parseInt(String(b.start_time || "").split(":")[0], 10);
+  // D-027: persist the half-hour start. start_time is "HH:MM"; only :00 and :30
+  // occur in the offered cadence, and the DB checks start_minute IN (0,30) as the
+  // backstop (validateBooking is the real gate). span_minutes is a generated column
+  // that carries the minute-precise range for the double-booking guard, so it is not
+  // written here. Occupancy in availabilityFromJobs stays hour-quantised by design
+  // (chat.js checkAvailability): a 09:30 job claims the 9 o'clock block.
+  const [rawHour, rawMinute] = String(b.start_time || "").split(":");
+  const startHour = parseInt(rawHour, 10);
+  const parsedMinute = parseInt(rawMinute, 10);
+  const startMinute = Number.isFinite(parsedMinute) ? parsedMinute : 0;
   const method = mapRecommendedMethod(b.recommended_method);
   return {
     status: "booked",
@@ -96,6 +100,7 @@ function bookingToJobRow(booking, opts) {
     out_of_area: outOfArea,
     slot_date: b.date ?? null,
     start_hour: Number.isFinite(startHour) ? startHour : null,
+    start_minute: startMinute,
     slots_needed: Number(b.slots_needed),
     rooms: b.rooms ?? null,
     carpet_types: b.carpet_types ?? null,
@@ -137,7 +142,7 @@ function jobRowToAdminRecord(row) {
     address: r.address ?? null,
     postcode: r.postcode ?? null,
     date: r.slot_date ?? null,
-    start_time: r.start_hour != null ? `${r.start_hour}:00` : null,
+    start_time: r.start_hour != null ? `${r.start_hour}:${String(r.start_minute || 0).padStart(2, "0")}` : null,
     slots_needed: r.slots_needed ?? null,
     rooms: r.rooms ?? null,
     carpet_types: r.carpet_types ?? null,
@@ -213,7 +218,7 @@ async function fetchBookingsFromJobs(supabase, limit = 500) {
   const { data, error } = await supabase
     .from("jobs")
     .select(
-      "id,created_at,status,slot_date,start_hour,slots_needed,address,postcode,rooms,carpet_types,concerns,furniture_moving,pets,recommended_method,ai_assessment,price_display,notes,cal_link,customers(name,phone,email)"
+      "id,created_at,status,slot_date,start_hour,start_minute,slots_needed,address,postcode,rooms,carpet_types,concerns,furniture_moving,pets,recommended_method,ai_assessment,price_display,notes,cal_link,customers(name,phone,email)"
     )
     .order("created_at", { ascending: false })
     .limit(limit);
