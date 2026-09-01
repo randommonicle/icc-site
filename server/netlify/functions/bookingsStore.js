@@ -82,6 +82,11 @@ function bookingToJobRow(booking, opts) {
   const o = opts || {};
   const postcode = resolvePostcode(b);
   const outOfArea = serviceArea.isOutOfArea(postcode || "");
+  // TODO(D-027/start-minute): also parse and persist start_minute (b.start_time is
+  // "HH:MM"); until then a 09:30 booking stores as 9:00. Migration 20260901133038
+  // added the start_minute column and a minute-precise double-booking guard; wire it
+  // here, read it back in jobRowToAdminRecord, and make bookedHourSlots minute-aware
+  // BEFORE deploying the D-027 app layer.
   const startHour = parseInt(String(b.start_time || "").split(":")[0], 10);
   const method = mapRecommendedMethod(b.recommended_method);
   return {
@@ -103,6 +108,10 @@ function bookingToJobRow(booking, opts) {
     estimated_price_ex_vat: null,
     out_of_area_surcharge_ex_vat: outOfArea ? serviceArea.out_of_area_surcharge : 0, // legacy column name; flat surcharge, no VAT
     deposit_ex_vat: null,
+    // TODO(D-027/saturday-premium): when the booking date is a Saturday, apply the
+    // weekend premium (tradingHours.weekend_premium) to the customer price here once
+    // Mark sets the figure. Deferred by D-027 — the hook returns null today, so no
+    // price is changed; wiring the premium into quotes is explicitly out of scope.
     price_display: b.estimated_price ?? null,
     notes: buildNotes(b, method),
     cal_link: o.calLink ?? null,

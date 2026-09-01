@@ -9,17 +9,37 @@ const { test } = require("node:test");
 const assert = require("node:assert");
 
 const chat = require("../server/netlify/functions/chat.js");
+const tradingHours = require("../shared/config/tradingHours.js");
 const { validateBooking, handleBooking, checkAvailability } = chat;
 
-const PG = { latestStartHour: 15, latestEndHour: 16, maxSlots: 7 };
+// Per-day bounds (D-027): bookingBounds() carries the live slot cap; the trading
+// WINDOW itself is read from the shared source by validateBooking.
+const PG = tradingHours.bookingBounds();
+
+const SUN = 0, MON = 1, TUE = 2, THU = 4;
 
 // A future weekday (>= 7 days out, not Sunday) in local YYYY-MM-DD, so the date
-// passes validateBooking's window/Sunday checks regardless of when the test runs.
+// passes validateBooking's Sunday check regardless of when the test runs. Paired
+// with a start time valid on every trading day (>= 10:30, the latest earliest).
 function futureWeekday(daysOut) {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() + daysOut);
   if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// A future date (8..14 days out, so inside validateBooking's 6..90-day window) that
+// falls on a specific weekday, so the per-day trading window can be tested
+// deterministically. dow: 0 = Sunday .. 6 = Saturday.
+function futureDow(dow) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 8);
+  while (d.getDay() !== dow) d.setDate(d.getDate() + 1);
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -35,7 +55,7 @@ function baseBooking(over) {
       address: "12 High St, Cheltenham GL52 1AB",
       postcode: "GL52 1AB",
       date: futureWeekday(21),
-      start_time: "10:00",
+      start_time: "12:00",
       slots_needed: 2,
       rooms: "Lounge",
       carpet_types: "Wool",
@@ -97,26 +117,43 @@ async function underPostgres(fn) {
   }
 }
 
-// --- validateBooking bounds ------------------------------------------------
+// --- validateBooking: per-day window (D-027) -------------------------------
 
-test("validateBooking (Blobs defaults) accepts 16:00 / 17:00 starts and up to 9 slots", () => {
-  assert.strictEqual(validateBooking(baseBooking({ start_time: "16:00", slots_needed: 1 })), null);
-  assert.strictEqual(validateBooking(baseBooking({ start_time: "17:00", slots_needed: 1 })), null);
-  assert.strictEqual(validateBooking(baseBooking({ start_time: "9:00", slots_needed: 8 })), null);
+test("validateBooking accepts a start inside the day's window and rejects one after the 1pm last start", () => {
+  const mon = futureDow(MON); // earliest 09:30
+  assert.strictEqual(validateBooking(baseBooking({ date: mon, start_time: "09:30", slots_needed: 1 }), PG), null);
+  assert.strictEqual(validateBooking(baseBooking({ date: mon, start_time: "13:00", slots_needed: 1 }), PG), null, "1pm is bookable");
+  assert.match(validateBooking(baseBooking({ date: mon, start_time: "13:30", slots_needed: 1 }), PG) || "", /start_time/, "after the 1pm last start");
+  assert.match(validateBooking(baseBooking({ date: mon, start_time: "16:00", slots_needed: 1 }), PG) || "", /start_time/);
 });
 
-test("validateBooking (Postgres bounds) rejects a 16:00 start", () => {
-  assert.match(validateBooking(baseBooking({ start_time: "16:00", slots_needed: 1 }), PG) || "", /start_time/);
-  assert.strictEqual(validateBooking(baseBooking({ start_time: "15:00", slots_needed: 1 }), PG), null);
+test("validateBooking enforces each weekday's own earliest start", () => {
+  // 09:30 is fine on Monday but too early on Tuesday (opens 10:30) and Thursday (10:00).
+  assert.strictEqual(validateBooking(baseBooking({ date: futureDow(MON), start_time: "09:30", slots_needed: 1 }), PG), null);
+  assert.match(validateBooking(baseBooking({ date: futureDow(TUE), start_time: "09:30", slots_needed: 1 }), PG) || "", /start_time/);
+  assert.match(validateBooking(baseBooking({ date: futureDow(TUE), start_time: "10:00", slots_needed: 1 }), PG) || "", /start_time/);
+  assert.strictEqual(validateBooking(baseBooking({ date: futureDow(TUE), start_time: "10:30", slots_needed: 1 }), PG), null);
+  assert.match(validateBooking(baseBooking({ date: futureDow(THU), start_time: "09:30", slots_needed: 1 }), PG) || "", /start_time/);
+  assert.strictEqual(validateBooking(baseBooking({ date: futureDow(THU), start_time: "10:00", slots_needed: 1 }), PG), null);
 });
 
-test("validateBooking (Postgres bounds) rejects a slot run ending after 16:00", () => {
-  assert.match(validateBooking(baseBooking({ start_time: "15:00", slots_needed: 2 }), PG) || "", /trading hours/);
+test("validateBooking rejects a Sunday booking", () => {
+  assert.match(validateBooking(baseBooking({ date: futureDow(SUN), start_time: "12:00", slots_needed: 1 }), PG) || "", /Sunday/);
 });
 
-test("validateBooking (Postgres bounds) caps slots at 7", () => {
-  assert.match(validateBooking(baseBooking({ start_time: "9:00", slots_needed: 8 }), PG) || "", /slots_needed/);
-  assert.strictEqual(validateBooking(baseBooking({ start_time: "9:00", slots_needed: 7 }), PG), null);
+test("a job may start at 1pm regardless of length — the close is soft (D-027)", () => {
+  // No end-of-day overflow check any more: 1pm plus several hours is allowed.
+  assert.strictEqual(validateBooking(baseBooking({ date: futureDow(MON), start_time: "13:00", slots_needed: 4 }), PG), null);
+});
+
+test("validateBooking caps slots at the store's cap (Postgres 7, Blobs 9)", () => {
+  const mon = futureDow(MON);
+  assert.match(validateBooking(baseBooking({ date: mon, start_time: "12:00", slots_needed: 8 }), PG) || "", /slots_needed/);
+  assert.strictEqual(validateBooking(baseBooking({ date: mon, start_time: "12:00", slots_needed: 7 }), PG), null);
+  // No opts -> the Blobs default cap (9) still applies on the flag-off path, but the
+  // per-day window is enforced there too.
+  assert.strictEqual(validateBooking(baseBooking({ date: mon, start_time: "12:00", slots_needed: 8 })), null);
+  assert.match(validateBooking(baseBooking({ date: mon, start_time: "09:00", slots_needed: 1 })) || "", /start_time/, "09:00 is before every day's earliest");
 });
 
 // --- handleBooking: fail-closed Postgres write -----------------------------
@@ -165,15 +202,17 @@ test("handleBooking (Postgres) rejects a 16:00 start as a clean 400 without touc
 
 // --- checkAvailability: Postgres grid + derivation -------------------------
 
-test("checkAvailability (Postgres) uses the 9..15 grid and excludes committed hours", async () => {
+test("checkAvailability offers the per-day cadence and excludes booked hours", async () => {
   await underPostgres(async () => {
+    // A Monday: offered starts are 09:30, 10:30, 11:30, 12:30, 1pm. A committed
+    // 10:00 job of 2 hours occupies the 10 and 11 o'clock blocks, so the 10:30 and
+    // 11:30 starts (which fall in those blocks) drop out; 09:30, 12:30 and 1pm stay.
     const sb = fakeSupabase({ jobsSelect: { data: [{ start_hour: 10, slots_needed: 2 }], error: null } });
-    const res = await checkAvailability(futureWeekday(21), 1, {}, sb);
+    const res = await checkAvailability(futureDow(MON), 1, {}, sb);
     assert.strictEqual(res.statusCode, 200);
     const body = JSON.parse(res.body);
-    assert.ok(!body.available.includes("16:00") && !body.available.includes("17:00"), "grid capped at 15:00");
-    assert.ok(!body.available.includes("10:00") && !body.available.includes("11:00"), "booked hours excluded");
-    assert.ok(body.available.includes("9:00") && body.available.includes("12:00"));
+    assert.deepStrictEqual(body.available, ["09:30", "12:30", "13:00"]);
+    assert.ok(!body.available.includes("16:00") && !body.available.includes("17:00"), "nothing after the 1pm last start");
     assert.deepStrictEqual(body.booked.slice().sort((a, b) => a - b), [10, 11]);
   });
 });

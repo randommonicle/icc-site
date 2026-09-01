@@ -166,7 +166,7 @@ Collect in this order, one question at a time:
 8. Whether furniture needs moving
 9. Any pets
 10. Preferred date (must be from the AVAILABLE BOOKING DATES list in the PER-CONVERSATION CONTEXT block, Monday to Saturday only)
-11. Preferred start time (${tradingHours.formatHour(tradingHours.earliest_start_hour)} to ${tradingHours.formatHour(tradingHours.latest_start_hour)}, hourly slots)
+11. Preferred start time (choose one of the available start times for that day listed in the Hours section above; the last start on any day is ${tradingHours.formatClock(tradingHours.last_start)} and the earliest depends on the day)
 
 Once you have all details, calculate the total estimated time needed (minimum 1 hour per room, round up, add 1 hour buffer). Tell the customer the estimated duration, total price, and the 10% deposit amount. Then ask them to confirm they want to proceed.
 
@@ -732,25 +732,30 @@ function getBlobStore() {
 
 async function checkAvailability(date, slotsNeeded, baseHeaders, supabase) {
   const headers = Object.assign({}, baseHeaders || {}, { "Content-Type": "application/json" });
-  // Slice 5b (D-021): under the Postgres store, availability derives from the
-  // committed `jobs` rows and the grid is the hardened 09:00-16:30 day (start
-  // slots 9..15, up to 7 hours); the Blobs path keeps the Phase 0 09:00-17:00 grid
-  // (up to 9 hours). Gated by the same flag as the booking write so store + hours
-  // move together.
+  // D-027: the offered grid is the PER-DAY set of start times for the requested
+  // date's weekday (tradingHours.offeredStartTimes) — the SAME source validateBooking
+  // reads — so a start the booking gate would reject is never offered (F2). This is
+  // the offered grid for EVERY store; the store choice only affects where the booked
+  // hours are read from (committed `jobs` rows under Postgres, the Blobs blob
+  // otherwise). Slot occupancy stays hour-quantised (the store keys integer hours),
+  // so a 09:30 start is checked against the 9 o'clock block, matching the write path.
   const usePostgres = bookingsStoreIsPostgres() && !!supabase;
   if (bookingsStoreIsPostgres() && !supabase) {
     console.log("WARNING: BOOKINGS_STORE=postgres but no Supabase client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY unset) — availability is using Blobs.");
   }
-  const allSlots = usePostgres
-    ? tradingHours.startHours()
-    : [9,10,11,12,13,14,15,16,17];
+  // Cap matches the active store's slot cap so the endpoint agrees with the booking
+  // engine's payload bound (the trading WINDOW itself is now per-day for both).
   const maxSlots = usePostgres ? tradingHours.max_slots : tradingHours.legacy_blobs.max_slots;
   // Light input check — bookings.js does the full validate; this path is read-only.
-  // Cap matches the active store so the endpoint agrees with the booking engine.
   const slots = Number(slotsNeeded);
   if(typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isInteger(slots) || slots < 1 || slots > maxSlots){
     return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid availability query" }) };
   }
+  // The offered starts for this date's weekday. Parse the date as LOCAL components
+  // so the function's UTC runtime cannot shift the weekday (date-parse-utc-safe).
+  const [dy, dm, dd] = date.split("-").map(Number);
+  const dayName = tradingHours.dayNameOf(new Date(dy, dm - 1, dd));
+  const offered = tradingHours.offeredStartTimes(dayName); // [] on a closed day (e.g. Sunday)
   try {
     let bookedSlots;
     if (usePostgres) {
@@ -761,13 +766,15 @@ async function checkAvailability(date, slotsNeeded, baseHeaders, supabase) {
       bookedSlots = existing ? JSON.parse(existing) : [];
     }
     const available = [];
-
-    for (let i = 0; i <= allSlots.length - slots; i++) {
-      const block = allSlots.slice(i, i + slots);
-      const conflict = block.some(s => bookedSlots.includes(s));
-      if (!conflict) {
-        available.push(`${allSlots[i]}:00`);
+    // Soft close (D-027): a job may run past 1pm, so there is no grid-end fit check —
+    // an offered start is dropped only when its hour blocks clash with a booking.
+    for (const startTime of offered) {
+      const startHour = parseInt(startTime.split(":")[0], 10);
+      let conflict = false;
+      for (let k = 0; k < slots; k++) {
+        if (bookedSlots.includes(startHour + k)) { conflict = true; break; }
       }
+      if (!conflict) available.push(startTime);
     }
 
     return {
@@ -776,13 +783,13 @@ async function checkAvailability(date, slotsNeeded, baseHeaders, supabase) {
       body: JSON.stringify({ available, booked: bookedSlots })
     };
   } catch (err) {
-    // Fail open: offer the full grid rather than blocking a customer on a store
+    // Fail open: offer the day's full grid rather than blocking a customer on a store
     // hiccup; confirm_booking is the real guard (the Blobs conflict check, or the
     // DB exclusion constraint under Postgres).
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ available: allSlots.map(h => `${h}:00`), booked: [] })
+      body: JSON.stringify({ available: offered, booked: [] })
     };
   }
 }
@@ -797,16 +804,15 @@ function escHtml(s){
 function validateBooking(b, opts){
   if(!b || typeof b !== "object") return "Invalid booking payload";
 
-  // Trading-hours bounds depend on the active store (Slice 5b / D-021): the
-  // Postgres `jobs` table enforces the live day from shared/config/tradingHours.js
-  // (start 9..15, end <= 16, up to 7 slots), passed in by the caller; the Phase 0
-  // Blobs grid is the longer 09:00-17:00 day. The defaults reproduce the exact
-  // Blobs behaviour, so the flag-off path is byte-identical and the DB constraint
-  // is a backstop, not the gate (a too-late/too-long slot is a clean 400 here,
-  // never a 23514 at insert).
+  // Trading-hours gate (D-027): the window is PER-DAY and read from the shared
+  // source (tradingHours.startWindowFor), so it can never drift from what the
+  // assistant offers or the site advertises (F2). The window is the same for every
+  // store; `opts` carries only the payload slot cap — the default preserves the
+  // flag-off Blobs cap (9), and the Postgres/live caller passes bookingBounds() (7).
+  // There is no hard end-of-day clock: 1pm is the last START and the finish is soft
+  // (D-027), so a job that runs past the old close is allowed. Double-booking is the
+  // DB exclusion constraint / Blobs conflict check, not this gate.
   const o = opts || {};
-  const latestStartHour = o.latestStartHour || tradingHours.legacy_blobs.latest_start_hour;
-  const latestEndHour = o.latestEndHour || tradingHours.legacy_blobs.latest_end_hour;
   const maxSlots = o.maxSlots || tradingHours.legacy_blobs.max_slots;
 
   const required = ["name","phone","email","address","date","start_time","slots_needed"];
@@ -819,17 +825,9 @@ function validateBooking(b, opts){
   if(typeof b.email !== "string" || b.email.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.email)) return "Invalid email";
   if(typeof b.address !== "string" || b.address.length < 5 || b.address.length > 500) return "Invalid address";
   if(typeof b.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.date)) return "Invalid date format";
-  // On-the-hour 9..latestStartHour, no leading zero (the assistant emits
-  // "9:00".."17:00"); the allowed set narrows to 9..15 under the Postgres store.
-  const allowedStartHours = [];
-  for(let h = 9; h <= latestStartHour; h++) allowedStartHours.push(h);
-  const startTimeRe = new RegExp("^(" + allowedStartHours.join("|") + "):00$");
-  if(typeof b.start_time !== "string" || !startTimeRe.test(b.start_time)) return "Invalid start_time";
 
-  const slots = Number(b.slots_needed);
-  if(!Number.isInteger(slots) || slots < 1 || slots > maxSlots) return "Invalid slots_needed";
-
-  // Date must be in the bookable window and not a Sunday
+  // Date must be in the bookable window. Parse as LOCAL components so the function's
+  // UTC runtime cannot shift the weekday (date-parse-utc-safe).
   const today = new Date(); today.setHours(0,0,0,0);
   const [y,m,d] = b.date.split("-").map(Number);
   const bookingDate = new Date(y, m-1, d);
@@ -837,11 +835,20 @@ function validateBooking(b, opts){
   const daysOut = Math.floor((bookingDate - today) / (24*60*60*1000));
   if(daysOut < 6) return "Date too soon — minimum 7 days notice";
   if(daysOut > 90) return "Date too far ahead";
-  if(bookingDate.getDay() === 0) return "Sundays are not bookable";
 
-  // Slots fit within trading hours (last slot ends by latestEndHour)
-  const startHour = parseInt(b.start_time.split(":")[0], 10);
-  if(startHour + slots > latestEndHour) return "Slots overflow trading hours";
+  // Per-day window for this weekday. A closed day (Sunday) has no window.
+  const dayWindow = tradingHours.startWindowFor(tradingHours.dayNameOf(bookingDate));
+  if(!dayWindow) return "Sundays are not bookable";
+
+  // start_time is "HH:MM" (the assistant emits e.g. "9:30" / "13:00"; a leading zero
+  // is tolerated). It must be no earlier than this day's earliest start and no later
+  // than the 1pm last start. No end-of-day check — the finish is soft (D-027).
+  if(typeof b.start_time !== "string" || !/^\d{1,2}:\d{2}$/.test(b.start_time)) return "Invalid start_time";
+  const startMinutes = tradingHours.clockToMinutes(b.start_time);
+  if(startMinutes < dayWindow.earliestMinutes || startMinutes > dayWindow.lastStartMinutes) return "Invalid start_time";
+
+  const slots = Number(b.slots_needed);
+  if(!Number.isInteger(slots) || slots < 1 || slots > maxSlots) return "Invalid slots_needed";
 
   // Price floor — minimum call-out is £75. Anything under £30
   // is almost certainly a prompt-injection or tampered payload.
@@ -913,8 +920,11 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   }
 
   // Reject malformed/tampered payloads before touching the store, email, or PDF.
-  // Under the Postgres store the bounds match the 09:00-16:30 day, so a too-late or
-  // too-long slot is a clean 400 here, never a DB constraint error at insert
+  // The per-day trading window (D-027) is enforced for BOTH stores — validateBooking
+  // reads it from the shared source regardless of opts — so a Sunday, a start before
+  // the day's earliest, or a start after the 1pm last start is a clean 400 here,
+  // never a DB constraint error at insert. bookingBounds() supplies only the
+  // Postgres/live slot cap; the Blobs path keeps its own cap via the no-opts default
   // (Slice 5b / D-021).
   const validationError = usePostgres
     ? validateBooking(booking, tradingHours.bookingBounds())
@@ -1004,12 +1014,16 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
     }
   }
 
-  // Generate Google Calendar link for Mark
+  // Generate Google Calendar link for Mark. start_time carries minutes now (D-027,
+  // e.g. "09:30"), so the calendar times must too, or the event would show the wrong
+  // start. slots_needed is whole hours, so the end keeps the start's minutes.
   const dateStr = booking.date.replace(/-/g, "");
-  const startHour = parseInt(booking.start_time.split(":")[0]);
-  const endHour = startHour + booking.slots_needed;
-  const startStr = `${dateStr}T${String(startHour).padStart(2,"0")}0000`;
-  const endStr = `${dateStr}T${String(endHour).padStart(2,"0")}0000`;
+  const start = tradingHours.parseClock(booking.start_time);
+  const startMin = start.minute || 0;
+  const endHour = start.hour + booking.slots_needed;
+  const calClock = (h, mm) => `${String(h).padStart(2,"0")}${String(mm).padStart(2,"0")}00`;
+  const startStr = `${dateStr}T${calClock(start.hour, startMin)}`;
+  const endStr = `${dateStr}T${calClock(endHour, startMin)}`;
   const calTitle = encodeURIComponent(`ICC - ${booking.name} - ${booking.rooms}`);
   const calDetails = encodeURIComponent(`Customer: ${booking.name}\nPhone: ${booking.phone}\nEmail: ${booking.email}\nAddress: ${booking.address}\nRooms: ${booking.rooms}\nCarpet types: ${booking.carpet_types}\nConcerns: ${booking.concerns}\nMethod: ${booking.recommended_method}\nEstimated price: ${booking.estimated_price}\nDeposit due: ${booking.deposit}`);
   const calLocation = encodeURIComponent(booking.address);
@@ -1152,7 +1166,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
             <p style="margin:0;font-size:11px;color:#718096;line-height:1.6;">These terms do not affect your statutory rights.</p>
           </div>
           <p style="margin-top:15px;font-size:12px;color:#888;">How we handle your data: <a href="${escHtml(customerPrivacyUrl)}" style="color:#888;">our privacy notice</a>.</p>
-          <p style="margin-top:15px;font-size:12px;color:#a0aec0;">Established Trust, Superior Cleaning.</p>
+          <p style="margin-top:15px;font-size:12px;color:#a0aec0;">Intelligence you can trust.</p>
         </div>
       </div>`
   };
@@ -1209,7 +1223,7 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
     // Header
     doc.rect(0, 0, doc.page.width, 75).fill(navy);
     doc.fontSize(18).fillColor(tealLight).font("Helvetica-Bold").text("INTELLIGENT CARPET CLEANING", 40, 14, { width: W });
-    doc.fontSize(9).fillColor("white").font("Helvetica").text("Established Trust, Superior Cleaning", 40, 37);
+    doc.fontSize(9).fillColor("white").font("Helvetica").text("Intelligence you can trust", 40, 37);
     doc.fontSize(7.5).fillColor("rgba(255,255,255,0.5)").text(`Job Ref: ${bookingId || "N/A"}   |   Created: ${new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })}   |   01242 279590   |   hello@intelligentclean.co.uk`, 40, 54);
     doc.y = 88;
 
@@ -1331,7 +1345,7 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
     doc.rect(40, doc.y, W, 1).fill("#e2e8f0");
     doc.moveDown(0.5);
     doc.fontSize(7.5).fillColor(textMid).font("Helvetica")
-       .text("Intelligent Carpet Cleaning  |  01242 279590  |  hello@intelligentclean.co.uk  |  All GL Postcodes  |  Mon-Sat 8am-6pm", 40, doc.y, { align: "center", width: W });
+       .text(`Intelligent Carpet Cleaning  |  01242 279590  |  hello@intelligentclean.co.uk  |  All GL Postcodes  |  ${tradingHours.daysPhrase()}`, 40, doc.y, { align: "center", width: W });
     doc.moveDown(0.4);
     doc.fontSize(7).fillColor("#a0aec0")
        .text("This job card was generated automatically by the ICC AI booking system. Please verify all details with the customer before the appointment.", 40, doc.y, { align: "center", width: W });

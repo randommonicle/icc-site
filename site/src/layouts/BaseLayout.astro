@@ -63,6 +63,9 @@ const localBusiness = {
     'Cheltenham', 'Gloucester', 'Stroud', 'Tewkesbury', 'Cirencester',
     'Winchcombe', 'Bishops Cleeve', 'Charlton Kings', 'Prestbury', 'Gloucestershire',
   ],
+  // Per-day hours (D-027): one OpeningHoursSpecification entry per open day, Sunday
+  // absent. `closes` is a public-schedule modelling choice (the 1pm last start plus a
+  // typical job length), not the soft operational close — see tradingHours.js.
   openingHoursSpecification: tradingHours.openingHoursSpecification(),
   priceRange: '££',
 };
