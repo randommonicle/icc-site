@@ -265,14 +265,16 @@ test("an expired token cannot accept/decline (410) and does not transition", asy
 
 // --- claim-then-send failure modes -----------------------------------------
 
-test("no resendKey: the decision still applies, but nothing is emailed or logged", async () => {
+test("no resendKey: the decision still applies, and a 'failed' notice row is logged (visible + retryable)", async () => {
   const fake = makeSupabase({ job: baseJob() });
   const { res, body, d } = await run(fake, { job: "job-1", token: TOKEN, action: "decline" }, { resendKey: undefined });
   assert.equal(res.statusCode, 200);
   assert.equal(body.emailed, false);
   assert.equal(fake.state.job.status, "cancelled"); // transition still happened
-  assert.equal(d.sendEmailFn.calls.length, 0);
-  assert.equal(fake.inserts.length, 0);
+  assert.equal(d.sendEmailFn.calls.length, 0);       // nothing sent
+  assert.equal(fake.inserts.length, 1);              // but the outcome is durably recorded
+  assert.equal(fake.inserts[0].status, "failed");
+  assert.equal(fake.inserts[0].kind, "provisional_declined");
 });
 
 test("send failure is claimed-then-logged 'failed': the decision stands, no second message", async () => {

@@ -25,15 +25,13 @@ const crypto = require("crypto");
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const { getClientIP, tooManyResponse, enforceRateLimit } = require("./rateLimit.js");
 const {
-  privacyNoticeUrl,
   loadJob,
   bookingSummary,
   decideProvisional,
+  notifyCustomerOutcome,
   buildAcceptEmail,
   buildDeclineEmail,
-  sendCustomerEmail,
   messageRow,
-  logMessage,
 } = require("./bookingDecision.js");
 
 function json(statusCode, headers, obj) {
@@ -65,7 +63,6 @@ function tokenMatches(presentedToken, storedHashHex) {
 // sendEmailFn.
 async function handlePost(event, headers, deps) {
   const { supabase, resendKey } = deps;
-  const sendEmailFn = deps.sendEmailFn || sendCustomerEmail;
   // TODO(D-004/D-026 deposit-link): once Stripe is live and the deposit amount is
   // server-derived (never the AI's free-text figure), create a deposit Checkout Session
   // here (idempotent, stored on the job) and pass its URL so the accept email carries a
@@ -114,29 +111,24 @@ async function handlePost(event, headers, deps) {
     return json(410, headers, { error: "This action link has expired. Please action the booking from the admin dashboard.", state });
   }
 
-  const rows = await decideProvisional(supabase, id, action);
+  // Bind the CAS to the hash we verified, so a resend that rotated the token between the
+  // verify above and here makes this stale request lose (0 rows -> 409).
+  const rows = await decideProvisional(supabase, id, action, { expectedHash: job.operator_action_token_hash });
   if (rows === 0) {
-    // Lost the compare-and-set (a concurrent accept/decline won, or the token was
+    // Lost the compare-and-set (a concurrent accept/decline/resend won, or the token was
     // consumed between load and update): already actioned.
     return json(409, headers, { error: "This booking has already been actioned." });
   }
 
   const newState = action === "accept" ? "operator_confirmed" : "operator_declined";
 
-  // Claim-then-send: the winning CAS is the claim, so at most one email per decision.
-  let emailed = false;
-  if (summary.email && resendKey) {
-    const content = action === "accept" ? buildAcceptEmail(summary, privacyNoticeUrl(), depositPayUrl) : buildDeclineEmail(summary, privacyNoticeUrl());
-    const kind = action === "accept" ? "provisional_confirmed" : "provisional_declined";
-    try {
-      await sendEmailFn(summary.email, content, resendKey);
-      await logMessage(supabase, messageRow(job, kind, "sent", content));
-      emailed = true;
-    } catch (e) {
-      console.log(`booking-action ${action} email failed for job`, id, "-", e.message);
-      await logMessage(supabase, messageRow(job, kind, "failed", content));
-    }
-  }
+  // Claim-then-send lives in the shared core: the winning CAS above is the claim, so at
+  // most one notice per decision, and the core ALWAYS logs a row (visible + retryable).
+  const { emailed } = await notifyCustomerOutcome(supabase, job, action, {
+    resendKey,
+    sendEmailFn: deps.sendEmailFn,
+    depositPayUrl,
+  });
 
   return json(200, headers, { ok: true, state: newState, emailed });
 }

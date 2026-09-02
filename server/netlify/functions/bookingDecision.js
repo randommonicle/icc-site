@@ -94,19 +94,25 @@ function bookingSummary(job) {
 // of any racing/duplicate requests (email link vs admin, double-click) affects a row.
 // Returns the affected-row count; 0 means already actioned. Carries NO auth and NO
 // expiry check — the caller authorises (token or requireAdmin) first.
-async function decideProvisional(supabase, id, action) {
+//
+// opts.expectedHash (PUBLIC path only): bind the CAS to the token hash the caller
+// verified, so a resend that rotated the hash between verify and CAS makes the stale
+// request lose (0 rows -> 409). The ADMIN path passes no expectedHash — its authority
+// is requireAdmin, not a token (cross-agent review 2026-09-02, GPT finding 1).
+async function decideProvisional(supabase, id, action, opts = {}) {
   const nowIso = new Date().toISOString();
   const fields =
     action === "accept"
       ? { confirmation_state: "operator_confirmed", operator_decided_at: nowIso, operator_action_token_used_at: nowIso }
       : { confirmation_state: "operator_declined", operator_decided_at: nowIso, operator_action_token_used_at: nowIso, status: "cancelled" };
-  const { data, error } = await supabase
+  let q = supabase
     .from("jobs")
     .update(fields)
     .eq("id", id)
     .eq("confirmation_state", "awaiting_operator")
-    .is("operator_action_token_used_at", null)
-    .select("id");
+    .is("operator_action_token_used_at", null);
+  if (opts.expectedHash) q = q.eq("operator_action_token_hash", opts.expectedHash);
+  const { data, error } = await q.select("id");
   if (error) throw new Error(error.message);
   return (data || []).length;
 }
@@ -209,6 +215,40 @@ async function logMessage(supabase, row) {
   }
 }
 
+// Send the customer their outcome notice (confirmed / not accepted) and ALWAYS record a
+// `messages` row for it — 'sent' on success, 'failed' otherwise, including when there is
+// no email address or no RESEND_API_KEY. A resolved booking must never leave NO row, so
+// a missing or failed notice is always visible and retryable in the admin (cross-agent
+// review 2026-09-02, finding 5). The kind is derived from `action`, so a confirmed
+// booking can never emit a decline notice. Best-effort: never throws (the decision has
+// already committed). Returns { emailed, status, reason? }.
+async function notifyCustomerOutcome(supabase, job, action, opts = {}) {
+  const { resendKey, sendEmailFn = sendCustomerEmail, depositPayUrl = null } = opts;
+  const summary = bookingSummary(job);
+  const kind = action === "accept" ? "provisional_confirmed" : "provisional_declined";
+  const content =
+    action === "accept"
+      ? buildAcceptEmail(summary, privacyNoticeUrl(), depositPayUrl)
+      : buildDeclineEmail(summary, privacyNoticeUrl());
+  if (!summary.email) {
+    await logMessage(supabase, messageRow(job, kind, "failed", content));
+    return { emailed: false, status: "failed", reason: "no email on file" };
+  }
+  if (!resendKey) {
+    await logMessage(supabase, messageRow(job, kind, "failed", content));
+    return { emailed: false, status: "failed", reason: "email not configured" };
+  }
+  try {
+    await sendEmailFn(summary.email, content, resendKey);
+    await logMessage(supabase, messageRow(job, kind, "sent", content));
+    return { emailed: true, status: "sent" };
+  } catch (e) {
+    console.log(`booking notify ${action} failed for job`, job.id, "-", e.message);
+    await logMessage(supabase, messageRow(job, kind, "failed", content));
+    return { emailed: false, status: "failed", reason: "send failed" };
+  }
+}
+
 module.exports = {
   PUBLIC_SITE_URL,
   privacyNoticeUrl,
@@ -225,4 +265,5 @@ module.exports = {
   sendCustomerEmail,
   messageRow,
   logMessage,
+  notifyCustomerOutcome,
 };
