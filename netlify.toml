@@ -56,6 +56,13 @@
   to = "/.netlify/functions/bookingAction"
   status = 200
 
+# D-027 Phase 5 — admin fallback for a provisional booking (accept/decline/resend/retry),
+# for when Mark's one-click email link is lost. Admin-gated (requireAdmin); no token.
+[[redirects]]
+  from = "/api/booking-admin"
+  to = "/.netlify/functions/bookingAdmin"
+  status = 200
+
 # Phase 2, Slice 3 — versioned API (/api/v1/*). Stateless server-side quote;
 # runs alongside the live /api/chat flow (D-003/D-011/D-012).
 [[redirects]]

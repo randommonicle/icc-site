@@ -117,6 +117,40 @@ async function decideProvisional(supabase, id, action, opts = {}) {
   return (data || []).length;
 }
 
+// Resend (admin): mint a fresh token for an awaiting booking. The plaintext of the old
+// token is gone (only its hash was stored), so a resend must ROTATE to a new one, which
+// invalidates the previous email link (its plaintext no longer hashes to the stored
+// value). The CAS binds to the OLD hash and requires `awaiting_operator` + unused, so
+// concurrent resends are single-winner and a resend cannot rotate an already-decided job
+// (cross-agent review 2026-09-02, GPT finding 1). Returns the affected-row count.
+async function rotateActionToken(supabase, id, opts) {
+  const { oldHash, newHash, newExpiry } = opts;
+  const { data, error } = await supabase
+    .from("jobs")
+    .update({ operator_action_token_hash: newHash, operator_action_token_expires_at: newExpiry })
+    .eq("id", id)
+    .eq("confirmation_state", "awaiting_operator")
+    .is("operator_action_token_used_at", null)
+    .eq("operator_action_token_hash", oldHash)
+    .select("id");
+  if (error) throw new Error(error.message);
+  return (data || []).length;
+}
+
+// Has this job already had a customer outcome notice successfully SENT? Used for the
+// admin retry idempotency (read-then-send) and the admin display annotation.
+async function hasSentProvisionalNotice(supabase, jobId) {
+  const { data, error } = await supabase
+    .from("messages")
+    .select("id")
+    .eq("job_id", jobId)
+    .in("kind", ["provisional_confirmed", "provisional_declined"])
+    .eq("status", "sent")
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return (data || []).length > 0;
+}
+
 // --- Customer notification emails (copy approved by Ben, 2026-09-02) ---------
 // Accept: the held request is now confirmed. Decline: not accepted, slot released,
 // ordinary rebooking route, NEVER a promise of the same time (converged review §3).
@@ -259,6 +293,8 @@ module.exports = {
   loadJob,
   bookingSummary,
   decideProvisional,
+  rotateActionToken,
+  hasSentProvisionalNotice,
   emailShell,
   buildAcceptEmail,
   buildDeclineEmail,
