@@ -47,6 +47,15 @@
   to = "/.netlify/functions/reviewRequest"
   status = 200
 
+# D-027 — provisional-booking accept/decline. Mark actions a late-finish booking
+# from the one-click link in his notification email; the link opens the read-only
+# /booking-action page, which POSTs {job, token, action} here. Token-authorised
+# (single-use SHA-256), POST-only (a mutating GET would be scanner-prefetched).
+[[redirects]]
+  from = "/api/booking-action"
+  to = "/.netlify/functions/bookingAction"
+  status = 200
+
 # Phase 2, Slice 3 — versioned API (/api/v1/*). Stateless server-side quote;
 # runs alongside the live /api/chat flow (D-003/D-011/D-012).
 [[redirects]]
