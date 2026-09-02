@@ -62,9 +62,11 @@ const knowledge = require("../../../shared/config/knowledge.js");
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const { escalationToMessageDraft } = require("../../../shared/messages.js");
 const { depositPayButtonHtml } = require("../../../shared/emailSnippets.js");
+// D-027: the shared provisional-decision core supplies the action-token mint + expiry
+// so handleBooking, bookingAction and bookingAdmin all compute them identically.
+const { mintActionToken, actionTokenExpiry } = require("./bookingDecision.js");
 // Slice 5b (D-021): the Postgres booking store (used only under BOOKINGS_STORE).
 const { insertBooking, setJobCalLink, availabilityFromJobs } = require("./bookingsStore.js");
-const crypto = require("crypto");
 // Shared Netlify Blobs store + per-IP rate limiter (extracted from this file so
 // bookingAction.js reuses the same limiter, not a divergent copy). rateLimit is
 // re-exported below for test/hardening.test.js.
@@ -923,13 +925,12 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   let actionToken = null;
   const insertOpts = { calLink: null };
   if (provisional) {
-    actionToken = crypto.randomBytes(32).toString("hex");
+    const minted = mintActionToken();
+    actionToken = minted.plaintext; // plaintext only in Mark's email link
     insertOpts.confirmationState = "awaiting_operator";
-    insertOpts.actionTokenHash = crypto.createHash("sha256").update(actionToken).digest("hex");
-    // Valid through the whole booking day (Mark decides before the job); parse the date
-    // as explicit UTC components so the function's runtime cannot shift it.
-    const [ey, em, ed] = String(booking.date).split("-").map(Number);
-    insertOpts.actionTokenExpiresAt = new Date(Date.UTC(ey, em - 1, ed + 1, 0, 0, 0)).toISOString();
+    insertOpts.actionTokenHash = minted.hash; // only the hash is stored
+    // Valid through the whole booking day (Mark decides before the job).
+    insertOpts.actionTokenExpiresAt = actionTokenExpiry(booking.date);
   }
 
   // Persist the booking. The calLink is built after this block and stamped on the
