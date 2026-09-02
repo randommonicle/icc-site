@@ -12,7 +12,52 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
-## This session — 2026-09-01 (continued): D-027 provisional-booking slice, Phases 1 to 3 built, migration applied and verified; Phases 4 to 6 remain
+## This session — 2026-09-02: D-027 Phases 4 and 5 built (public accept/decline + admin fallback), two cross-agent reviews; Phase 6 remains
+
+*Diagnoses in this note are unverified unless marked.* **Context: `/context` is not invokable in this non-interactive session; Ben reported 63% (yellow band). Not an independent read.**
+
+**This SUPERSEDES the "Phases 4 to 6 remain" status in the 2026-09-01 (continued) entry below** — Phases 4 and 5 are now built; only Phase 6 remains.
+
+**Session goal.** Build D-027 Phase 4 (the public token accept/decline endpoint + read-only confirm page) and Phase 5 (the admin fallback), each shaped by a cross-agent review (Claude hub + GPT + Gemini) before/around coding.
+
+**Branch and worktree.** All on **`feat/d027-per-day-hours`** (home machine, standard checkout). Pushed to `origin/feat/d027-per-day-hours` this session. NOT merged to `main`; `main` is untouched and deployable. Branch is ~31 commits ahead of `main`.
+
+**What landed (all green: 311 tests, 308 pass / 3 skip; site builds 24 pages — *verified* tests + build):**
+- Phase 4 (public path): `00c5989` extract the per-IP limiter → `rateLimit.js`/`blobStore.js`; `cfacb49` `/api/booking-action` endpoint (POST view/accept/decline, constant-time token, CAS, claim-then-send) + tests; `b0a90d6` read-only confirm page `site/src/pages/booking-action.astro` (noindex, no-referrer, token in URL fragment) + sitemap filter; `2feef46` cap 20→60/hr; `a7ce978` dormant deposit pay-link hook; `5ef5ca5` D-004 addendum; `7246e61` copy sign-off.
+- Phase 5 (admin fallback, expanded by the 2026-09-02 review): `962d476` extract `bookingDecision.js` shared core (behaviour-preserving); `d31c700` hash-bind the decision CAS (rotation revokes an in-flight old link) + `notifyCustomerOutcome` ALWAYS logs the notice; `2613dff` `/api/booking-admin` (requireAdmin) accept/decline/resend/retry_customer_notice + tests; `ed6081f` `admin.html` provisional status + controls, `bookings.js` `notice_sent` annotation; `c416792`/`24812a7` checkpoint + DECISIONS D-027 addendum + LESSONS L-025/L-026.
+
+**In flight — Phase 6 (the deploy gate; nothing merges to `main` until green):**
+- pgTAP (`supabase/tests/`): DROP the stale `jobs_trading_hours` assertion (still in `jobs_postcode_nullable_test.sql`); add `confirmation_state` + minute-precision cases to `schema_test.sql`; enable one real `:30` integration insert.
+- One REAL end-to-end ride (the seam the unit tests mock): a provisional booking → the actual operator email → click the real link → the page → accept; a decline → customer email + slot freed; plus an admin-fallback accept/decline/resend/notify from `admin.html`.
+- Full `node --test` + `npm run build --prefix site` (green now), then merge to `main` (deploys).
+
+**Deferred items (flagged):**
+- **Strict single-winner retry** (Gemini findings 1+2): needs ONE migration — a `sending` value in `message_status` + a partial UNIQUE `(job_id, kind)` for provisional_* — plus `logMessage` → `.upsert` (else the index breaks insert logging, Gemini 1) + a retry claim-CAS. Default ships read-then-send + button-disable + per-(admin,job) cap; residual is a low-harm duplicate non-contradictory email. Ben's call. Anchor: the "FLAGGED for Ben" note in `docs/D027_PROVISIONAL_PLAN.md` + L-026.
+- Deposit pay-link dormant until Stripe live + server-derived deposit amount. Anchor: `TODO(D-004/D-026 deposit-link)` in `bookingAction.js` + `chat.js`.
+- Saturday weekend premium figure unset. Anchor: `TODO(D-027/saturday-premium)` in `bookingsStore.js`.
+
+**Verification still outstanding:** all of Phase 6 (pgTAP + the one real ride). No migration was applied this session (the two D-027 migrations are already applied + catalog-verified from prior sessions; the flagged strict-retry migration is NOT written).
+
+**Blockers and open questions:** none block Phase 6. Ben to decide the strict-retry migration. The exchange `agent-exchange/REVIEW_phase5-admin-fallback_2026-09-02.md` sits at CLAUDE round 3 / NEXT: GEMINI; GPT is out of credits (thread closed at round 1); Gemini may add a round 2 (the review monitor dies with the session — re-arm on resume if the exchange is still open).
+
+**Next actions (ordered, each a single first step):**
+1. In `supabase/tests/jobs_postcode_nullable_test.sql`, drop the stale `jobs_trading_hours` assertion.
+2. Add `confirmation_state` + minute pgTAP cases to `schema_test.sql`.
+3. Do the one real end-to-end ride (real provisional booking + operator email link + the admin fallback controls in `admin.html`).
+4. Ben decides the strict-retry migration; if yes, write it + the upsert + retry claim-CAS.
+5. Full suite + build, then merge `feat/d027-per-day-hours` to `main`.
+
+**Traps and working agreements (this session):**
+- Repo is at `C:\Users\bengr\Projects\ICC\icc-site` (Desktop is an empty stub; auto-memory).
+- The branch must NOT deploy until Phase 6 is green + the real ride passes; the `[WIP]` tags are deliberate.
+- The admin path deliberately has NO token/expiry gate — `requireAdmin` is the authority (L-025 for the public hash-binding it does NOT share).
+- The customer notice is now ALWAYS logged; the admin surfaces "customer NOT notified" + a retry (L-026).
+- Confirm-before-push: this session's push to `origin/feat/...` was on Ben's explicit "push everything" (branch only, not `main`).
+- `.js` commits show a benign LF→CRLF warning (Windows autocrlf); the committed blob is LF.
+
+---
+
+## This session — 2026-09-01 (continued) — *(status SUPERSEDED 2026-09-02: Phases 4 and 5 now built; see the 2026-09-02 entry above)*: D-027 provisional-booking slice, Phases 1 to 3 built, migration applied and verified; Phases 4 to 6 remain
 
 *Diagnoses in this note are unverified unless marked.* **Context: Ben reported 64% (yellow band). `/context` is not invokable in this non-interactive session, so 64% is Ben's figure, not an independent read.**
 
