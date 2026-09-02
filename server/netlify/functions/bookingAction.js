@@ -122,7 +122,7 @@ async function transition(supabase, id, action) {
   return (data || []).length;
 }
 
-// --- Customer notification emails (COPY PENDING BEN'S SIGN-OFF, like Phase 3b) ----
+// --- Customer notification emails (copy approved by Ben, 2026-09-02) --------------
 // Accept: the held request is now confirmed. Decline: not accepted, slot released,
 // ordinary rebooking route, NEVER a promise of the same time (converged review §3).
 

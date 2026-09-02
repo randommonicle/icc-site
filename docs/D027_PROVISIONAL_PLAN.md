@@ -190,8 +190,7 @@ Ben between P2 and P3. Nothing merges to main until P6 is green and the real rid
     `rateLimit` (test/hardening.test.js unchanged, still green). The endpoint gets a per-IP cap
     (`rl:bookaction`, 60/hr, matching the availability cap) as defence-in-depth; the single-use
     token is the PRIMARY control (Ben's call, 2026-09-02).
-  - OPEN: the accept/decline customer email COPY is flagged pending Ben's sign-off (comment in
-    bookingAction.js), mirroring the Phase 3b copy approval.
+  - Accept/decline customer email COPY approved by Ben (2026-09-02).
   - Deposit pay-link hook (D-004/D-026, Ben 2026-09-02): the accept email and the chat.js
     confirmation email now take an optional deposit pay URL and render a "Pay your deposit
     securely" button via `shared/emailSnippets.js`; null until Stripe is live, so the wording is
