@@ -195,8 +195,29 @@ Ben between P2 and P3. Nothing merges to main until P6 is green and the real rid
     confirmation email now take an optional deposit pay URL and render a "Pay your deposit
     securely" button via `shared/emailSnippets.js`; null until Stripe is live, so the wording is
     unchanged today and the link drops in with no rewrite. See the D-004 addendum.
-- **Phase 5 — NEXT:** admin (`admin.html buildCard`) — display `confirmation_state` + `operator_decided_at`;
-  fallback Accept/Decline/resend for `awaiting_operator` jobs, gated by `requireAdmin`.
-- **Phase 6:** pgTAP (drop the stale `jobs_trading_hours` assertion; add confirmation_state + minute
-  cases; enable one real `:30` insert), full suite + build, one-real-ride, then merge. (The DECISIONS.md
-  D-027 addendum + LESSONS L-024 already landed — commit 5b0fe9f.)
+- **Phase 5 — DONE, green (311 tests, 308 pass / 3 skip; site builds 24 pages). NOT yet committed to main.**
+  Design put through a second cross-agent review (Claude + GPT + Gemini, converged record
+  `agent-exchange/REVIEW_phase5-admin-fallback_2026-09-02.md`), which expanded the slice. Four commits:
+  - **G1 (962d476)** extract `bookingDecision.js` — the shared decision core (loadJob, bookingSummary,
+    decideProvisional, the email builders + send, messageRow/logMessage, token mint/expiry helpers), so the
+    public and admin paths share ONE source. Behaviour-preserving.
+  - **G2 (d31c700)** harden the public path: `decideProvisional` takes an optional `expectedHash` (the public
+    path binds the CAS to the token hash it verified, so a resend rotation mid-flight → 0 rows → 409 — GPT
+    finding 1); `notifyCustomerOutcome` ALWAYS logs a `messages` row (sent/failed), even with no key/email, so
+    a missing/failed customer notice is visible + retryable (finding 5). New `test/booking-decision.test.js`.
+  - **G3 (2613dff)** `bookingAdmin.js` → `/api/booking-admin` (requireAdmin). accept/decline reuse the CAS with
+    NO expectedHash and NO expiry gate (the admin resolves a stale expired booking — Gemini finding 3); resend
+    rotates via an old-hash CAS + re-emails Mark (refuses no-key / past-day); `retry_customer_notice` re-sends
+    the customer outcome for a resolved booking (read-then-send); resend+retry capped per (admin,job).
+  - **G4 (ed6081f)** `admin.html` buildCard: state + decided-at + notice status, Accept/Decline/Resend for
+    awaiting and Notify-customer for resolved-but-unsent (button-disable until settled); `bookings.js` annotates
+    `notice_sent`.
+  - FLAGGED for Ben (optional, Gemini findings 1+2): a single migration (`sending` message_status + partial
+    UNIQUE `(job_id,kind)`) + `logMessage` upsert + a retry claim-CAS would make the retry a strict single-winner.
+    Default ships read-then-send + button-disable + rate-cap; residual is a low-harm duplicate non-contradictory
+    email under a concurrent retry.
+- **Phase 6 — NEXT:** pgTAP (drop the stale `jobs_trading_hours` assertion; add confirmation_state + minute
+  cases; enable one real `:30` insert), full suite + build, one-real-ride, then merge. Owed: a DECISIONS.md
+  D-027 admin-fallback addendum + LESSONS entries (token rotation must bind the CAS; send-then-log ≠
+  claim-then-send on a path with no CAS). (The earlier D-027 provisional addendum + LESSONS L-024 already
+  landed — commit 5b0fe9f.)
