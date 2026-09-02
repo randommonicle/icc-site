@@ -167,13 +167,32 @@ Ben between P2 and P3. Nothing merges to main until P6 is green and the real rid
   Received / "Mark will confirm the time" for provisional; confirmed wording for on-time),
   `book.astro` renders the held-not-confirmed outcome from `provisional` (parity-guarded), Mark's
   PDF gets a PROVISIONAL banner. Copy approved by Ben. **Phase 3 complete.**
-- **Phase 4 — NEXT (security-critical, design-settled):** the `/api/booking-action` Netlify
-  function — GET returns the read-only confirm-page context; POST verifies the token
-  (constant-time via the `bookings.js:8` `safeEqual` pattern, unexpired, unused) and does the
-  compare-and-set transition (`UPDATE ... WHERE confirmation_state='awaiting_operator'`, 0 rows →
-  409); decline sets `job_status='cancelled'` + `operator_declined` and claims-then-sends the
-  customer email. Plus the read-only confirm page (Astro; token in the URL fragment; POST buttons).
-- **Phase 4:** `/api/booking-action` (GET confirm page, POST compare-and-set transition, constant-time
-  token check, decline releases + notifies) + the read-only confirm page (token in URL fragment).
-- **Phase 5:** admin — display `confirmation_state` + fallback Accept/Decline/resend (`requireAdmin`).
-- **Phase 6:** pgTAP, full suite + build, DECISIONS.md D-027 addendum, one-real-ride, then merge.
+- **Phase 4 — DONE, green (274 tests, 271 pass / 3 skip; site builds 24 pages). NOT yet committed.**
+  - `server/netlify/functions/bookingAction.js` — `/api/booking-action`, POST-only (405 otherwise).
+    Actions `view`/`accept`/`decline`. Token auth is CONSTANT-TIME (`tokenMatches`: SHA-256 +
+    `crypto.timingSafeEqual` against the stored hash); a job UUID alone gets 404 with no PII. Accept →
+    `operator_confirmed` (slot kept); decline → `operator_declined` + `status='cancelled'` (hold
+    released). Idempotent + monotonic via an atomic CAS (`WHERE confirmation_state='awaiting_operator'
+    AND token unused`; 0 rows → 409), so double-accept and accept-then-decline change nothing. Claim-
+    then-send: the winning CAS is the claim, so the customer is emailed at most once; a send failure
+    logs a `messages` row `status='failed'` (admin-resend recovery, Phase 5), never a second message.
+    `view` returns the summary only after the token verifies.
+  - `netlify.toml` — `/api/booking-action` → the function.
+  - `site/src/pages/booking-action.astro` — standalone read-only page (NOT BaseLayout), noindex +
+    no-referrer, token read from the URL FRAGMENT and sent only in the POST body; static structure
+    filled via textContent (injection-safe). Excluded from the sitemap (`site/astro.config.mjs` filter;
+    verified: 23 locs, booking-action absent).
+  - `test/booking-action.test.js` — 19 tests: token auth (wrong/short/non-hex/expired/used → reject),
+    the CAS (double-accept → 409; accept-then-decline → 409, monotonic), decline releases + notifies,
+    claim-then-send failure logs 'failed' while the decision stands, `view` gates PII, GET → 405.
+  - Refactor (P4a, behaviour-preserving): the per-IP limiter moved to `rateLimit.js` (+ `blobStore.js`)
+    so this endpoint shares ONE limiter, not a divergent copy; `chat.js` imports them and re-exports
+    `rateLimit` (test/hardening.test.js unchanged, still green). The endpoint gets a per-IP cap
+    (`rl:bookaction`, 20/hr) as defence-in-depth; the single-use token is the PRIMARY control.
+  - OPEN: the accept/decline customer email COPY is flagged pending Ben's sign-off (comment in
+    bookingAction.js), mirroring the Phase 3b copy approval.
+- **Phase 5 — NEXT:** admin (`admin.html buildCard`) — display `confirmation_state` + `operator_decided_at`;
+  fallback Accept/Decline/resend for `awaiting_operator` jobs, gated by `requireAdmin`.
+- **Phase 6:** pgTAP (drop the stale `jobs_trading_hours` assertion; add confirmation_state + minute
+  cases; enable one real `:30` insert), full suite + build, one-real-ride, then merge. (The DECISIONS.md
+  D-027 addendum + LESSONS L-024 already landed — commit 5b0fe9f.)

@@ -7,7 +7,9 @@ import sitemap from '@astrojs/sitemap';
 // update it the moment the real domain is registered.
 export default defineConfig({
   site: 'https://www.intelligentclean.co.uk',
-  integrations: [sitemap()],
+  // /booking-action is a token-authorised operator utility page (D-027), not public
+  // content — keep it out of the sitemap (it is also noindex/no-referrer in its head).
+  integrations: [sitemap({ filter: (page) => !page.includes('/booking-action') })],
   vite: {
     // shared/config/*.js are CommonJS (module.exports), consumed by the CJS
     // Netlify functions and the plain-Node test runner (D-006/D-007). Rollup
