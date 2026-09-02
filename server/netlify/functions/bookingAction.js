@@ -32,6 +32,7 @@ const crypto = require("crypto");
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const { getClientIP, tooManyResponse, enforceRateLimit } = require("./rateLimit.js");
 const tradingHours = require("../../../shared/config/tradingHours.js");
+const { depositPayButtonHtml, depositPayTextLine } = require("../../../shared/emailSnippets.js");
 
 // Public site origin for the privacy-notice link (env-overridable so it tracks the
 // domain at cutover; mirrors reviewRequest.js / chat.js).
@@ -141,8 +142,16 @@ function emailShell(header, innerHtml, privacyUrl) {
       </div>`;
 }
 
-function buildAcceptEmail(summary, privacyUrl) {
+function buildAcceptEmail(summary, privacyUrl, depositPayUrl) {
   const firstName = (summary.name || "there").split(" ")[0];
+  // Dormant until D-004/D-026 is live and the deposit amount is server-derived: both
+  // return "" for a null/invalid URL, so today the email keeps the "Mark will be in
+  // touch" wording and shows no button.
+  const payButton = depositPayButtonHtml(depositPayUrl);
+  const payTextLine = depositPayTextLine(depositPayUrl);
+  const depositLine = payButton
+    ? "Please pay your deposit using the secure link below to confirm your appointment."
+    : "Mark will be in touch shortly to arrange your deposit and secure the slot.";
   const inner = `
           <p style="font-size:15px;">Hi ${escHtml(firstName)},</p>
           <p style="font-size:14px;color:#4a5568;">Good news. Mark has confirmed your carpet cleaning appointment. Here are the details:</p>
@@ -151,8 +160,8 @@ function buildAcceptEmail(summary, privacyUrl) {
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Start time</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(summary.time)}</td></tr>
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Estimated duration</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(summary.hours)} hour(s)</td></tr>
           </table>
-          <p style="font-size:14px;color:#4a5568;">Mark will be in touch shortly to arrange your deposit and secure the slot.</p>`;
-  const text = `Hi ${firstName},\n\nGood news. Mark has confirmed your carpet cleaning appointment for ${summary.date} at ${summary.time} (estimated ${summary.hours} hour(s)). Mark will be in touch shortly to arrange your deposit and secure the slot.\n\nQuestions? Call 01242 279590 or email hello@intelligentclean.co.uk.\n\nIntelligent Carpet Cleaning`;
+          <p style="font-size:14px;color:#4a5568;">${depositLine}</p>${payButton}`;
+  const text = `Hi ${firstName},\n\nGood news. Mark has confirmed your carpet cleaning appointment for ${summary.date} at ${summary.time} (estimated ${summary.hours} hour(s)). ${payButton ? "Please pay your deposit to confirm your appointment." : "Mark will be in touch shortly to arrange your deposit and secure the slot."}${payTextLine ? "\n\n" + payTextLine : ""}\n\nQuestions? Call 01242 279590 or email hello@intelligentclean.co.uk.\n\nIntelligent Carpet Cleaning`;
   return { subject: "Your booking is confirmed - Intelligent Carpet Cleaning", html: emailShell("Booking Confirmed", inner, privacyUrl), text };
 }
 
@@ -216,6 +225,12 @@ async function logMessage(supabase, row) {
 async function handlePost(event, headers, deps) {
   const { supabase, resendKey } = deps;
   const sendEmailFn = deps.sendEmailFn || sendCustomerEmail;
+  // TODO(D-004/D-026 deposit-link): once Stripe is live and the deposit amount is
+  // server-derived (never the AI's free-text figure), create a deposit Checkout Session
+  // here (idempotent, stored on the job) and pass its URL so the accept email carries a
+  // one-click pay link. Null today, so the accept email keeps the "Mark will be in
+  // touch" wording (dormant-until-configured, D-004 addendum).
+  const depositPayUrl = deps.depositPayUrl || null;
 
   if (!supabase) return json(503, headers, { error: "Supabase not configured" });
 
@@ -272,7 +287,7 @@ async function handlePost(event, headers, deps) {
   // Claim-then-send: the winning CAS is the claim, so at most one email per decision.
   let emailed = false;
   if (summary.email && resendKey) {
-    const content = action === "accept" ? buildAcceptEmail(summary, privacyNoticeUrl()) : buildDeclineEmail(summary, privacyNoticeUrl());
+    const content = action === "accept" ? buildAcceptEmail(summary, privacyNoticeUrl(), depositPayUrl) : buildDeclineEmail(summary, privacyNoticeUrl());
     const kind = action === "accept" ? "provisional_confirmed" : "provisional_declined";
     try {
       await sendEmailFn(summary.email, content, resendKey);

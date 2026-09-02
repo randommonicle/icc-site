@@ -192,6 +192,10 @@ Ben between P2 and P3. Nothing merges to main until P6 is green and the real rid
     token is the PRIMARY control (Ben's call, 2026-09-02).
   - OPEN: the accept/decline customer email COPY is flagged pending Ben's sign-off (comment in
     bookingAction.js), mirroring the Phase 3b copy approval.
+  - Deposit pay-link hook (D-004/D-026, Ben 2026-09-02): the accept email and the chat.js
+    confirmation email now take an optional deposit pay URL and render a "Pay your deposit
+    securely" button via `shared/emailSnippets.js`; null until Stripe is live, so the wording is
+    unchanged today and the link drops in with no rewrite. See the D-004 addendum.
 - **Phase 5 — NEXT:** admin (`admin.html buildCard`) — display `confirmation_state` + `operator_decided_at`;
   fallback Accept/Decline/resend for `awaiting_operator` jobs, gated by `requireAdmin`.
 - **Phase 6:** pgTAP (drop the stale `jobs_trading_hours` assertion; add confirmation_state + minute

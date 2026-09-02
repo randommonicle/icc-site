@@ -308,6 +308,28 @@ test("decline email never promises the same slot; accept email confirms it", () 
   assert.doesNotMatch(decline.text, /secured|is confirmed/i);
 });
 
+// --- deposit pay-link hook (D-004/D-026, dormant until Stripe is live) -------
+
+test("accept email carries a deposit pay link only when a URL is supplied", () => {
+  const summary = { name: "Sarah Jenkins", email: "s@x.com", date: "2026-09-10", time: "1pm", hours: 3 };
+  const without = buildAcceptEmail(summary, "https://x/privacy");
+  assert.doesNotMatch(without.html, /Pay your deposit/);
+  assert.match(without.text, /Mark will be in touch/);
+  const withLink = buildAcceptEmail(summary, "https://x/privacy", "https://pay.example/deposit/1");
+  assert.match(withLink.html, /Pay your deposit securely/);
+  assert.match(withLink.html, /href="https:\/\/pay\.example\/deposit\/1"/);
+  assert.match(withLink.text, /https:\/\/pay\.example\/deposit\/1/);
+  assert.doesNotMatch(withLink.text, /Mark will be in touch/);
+});
+
+test("handlePost threads the deposit pay URL into the sent accept email", async () => {
+  const fake = makeSupabase({ job: baseJob() });
+  const { d } = await run(fake, { job: "job-1", token: TOKEN, action: "accept" }, { depositPayUrl: "https://pay.example/deposit/1" });
+  const content = d.sendEmailFn.calls[0][1];
+  assert.match(content.html, /Pay your deposit securely/);
+  assert.match(content.html, /href="https:\/\/pay\.example\/deposit\/1"/);
+});
+
 // --- handler method discipline ---------------------------------------------
 
 test("handler: GET is 405, OPTIONS is 200 (POST-only mutation surface)", async () => {

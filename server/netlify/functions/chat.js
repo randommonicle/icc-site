@@ -61,6 +61,7 @@ const knowledge = require("../../../shared/config/knowledge.js");
 // Slice 5a (D-020): the operational-backend client + the pure handoff-row builder.
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const { escalationToMessageDraft } = require("../../../shared/messages.js");
+const { depositPayButtonHtml } = require("../../../shared/emailSnippets.js");
 // Slice 5b (D-021): the Postgres booking store (used only under BOOKINGS_STORE).
 const { insertBooking, setJobCalLink, availabilityFromJobs } = require("./bookingsStore.js");
 const crypto = require("crypto");
@@ -1143,6 +1144,12 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   const customerOpener = provisional
     ? "Thank you for your request. As your clean would finish later in the afternoon, Mark will confirm the time with you and be in touch shortly to arrange your deposit. Here's a summary of what you've asked for:"
     : "Thank you for booking with Intelligent Carpet Cleaning. Here is a summary of your appointment:";
+  // TODO(D-004/D-026 deposit-link): for an AUTO-CONFIRMED booking only (a provisional
+  // booking gets its pay link in the accept email after Mark accepts, bookingAction.js),
+  // set this to a server-created Stripe deposit Checkout Session URL once the deposit
+  // amount is server-derived. Null today, so the email shows no button and keeps the
+  // "Mark will be in touch" wording (dormant-until-configured, D-004 addendum).
+  const customerDepositPayUrl = null;
   const customerEmail = {
     from: customerFrom,
     reply_to: customerReplyTo,
@@ -1173,7 +1180,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
               <li>Keep pets away from the work area during the clean and until carpets are dry</li>
               <li>Mark will be in touch to arrange your deposit payment to confirm the slot</li>
             </ul>
-          </div>
+          </div>${depositPayButtonHtml(customerDepositPayUrl)}
           <div style="margin-top:15px;text-align:center;">
             <a href="${escHtml(calLink)}" style="display:inline-block;background:#1a8a7a;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;">Add to My Calendar</a>
           </div>
