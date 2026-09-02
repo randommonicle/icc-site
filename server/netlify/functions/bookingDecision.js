@@ -138,7 +138,7 @@ async function rotateActionToken(supabase, id, opts) {
 }
 
 // Has this job already had a customer outcome notice successfully SENT? Used for the
-// admin retry idempotency (read-then-send) and the admin display annotation.
+// admin retry idempotency (read-then-send).
 async function hasSentProvisionalNotice(supabase, jobId) {
   const { data, error } = await supabase
     .from("messages")
@@ -149,6 +149,18 @@ async function hasSentProvisionalNotice(supabase, jobId) {
     .limit(1);
   if (error) throw new Error(error.message);
   return (data || []).length > 0;
+}
+
+// The set of job ids that already have a SENT provisional outcome notice, for the admin
+// dashboard to annotate each card (mirrors the review_sent annotation in bookings.js).
+async function sentProvisionalNoticeJobIds(supabase) {
+  const { data, error } = await supabase
+    .from("messages")
+    .select("job_id")
+    .in("kind", ["provisional_confirmed", "provisional_declined"])
+    .eq("status", "sent");
+  if (error) throw new Error(error.message);
+  return new Set((data || []).map((r) => r.job_id).filter(Boolean));
 }
 
 // --- Customer notification emails (copy approved by Ben, 2026-09-02) ---------
@@ -295,6 +307,7 @@ module.exports = {
   decideProvisional,
   rotateActionToken,
   hasSentProvisionalNotice,
+  sentProvisionalNoticeJobIds,
   emailShell,
   buildAcceptEmail,
   buildDeclineEmail,

@@ -92,6 +92,15 @@
   .handoff-msg{font-size:0.8rem;margin-top:0.5rem;min-height:1rem;}
   .review-note{font-size:0.82rem;color:var(--teal);font-weight:700;align-self:center;}
   .review-msg{font-size:0.8rem;margin-top:0.5rem;min-height:1rem;width:100%;}
+  /* D-027 Phase 5 — provisional-booking status + admin fallback controls */
+  .prov-box{border-radius:8px;padding:0.75rem 0.9rem;margin:0.75rem 0;font-size:0.82rem;}
+  .prov-box.awaiting{background:#fff7ed;border:1px solid #fdba74;}
+  .prov-box.ok{background:#eef6f4;border:1px solid #bfe0d8;}
+  .prov-box.declined{background:#fdecec;border:1px solid #f5b5b5;}
+  .prov-title{font-weight:700;color:#1a3a5c;margin-bottom:0.5rem;}
+  .prov-actions{display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;}
+  .prov-note{color:var(--text-mid);}
+  .prov-warn{color:#9b1c1c;font-weight:700;margin-right:0.25rem;}
 
   @media(max-width:768px){
     .stats-row{grid-template-columns:repeat(2,1fr);}
@@ -439,6 +448,46 @@ async function completeAndRequestReview(id){
   if(rec){ rec.job_status = "completed"; if(anySent) rec.review_sent = true; }
 }
 
+// D-027 Phase 5 — admin fallback for a provisional booking. POSTs job_id + action to
+// /api/booking-admin with the admin Bearer (requireAdmin verifies it; the server
+// enforces every gate regardless of the UI). The clicked action's buttons are disabled
+// until the request settles so a double-click cannot double-send, and are re-enabled
+// only on a recoverable failure.
+async function provisionalAction(id, action, btn){
+  var labels = { accept:"Accept this booking", decline:"Decline this booking", resend:"Resend Mark's link", retry_customer_notice:"Re-send the customer notice" };
+  if(!confirm((labels[action]||action)+"?")) return;
+  var msgEl = document.getElementById("prov-msg-"+id);
+  var group = (btn && btn.parentNode) ? btn.parentNode.querySelectorAll("button") : [];
+  group.forEach(function(b){ b.disabled = true; });
+  if(msgEl){ msgEl.textContent = "Working…"; msgEl.style.color = "var(--teal)"; }
+  var res, data = {};
+  try{
+    res = await fetch("/api/booking-admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + adminToken },
+      body: JSON.stringify({ job_id: id, action: action })
+    });
+    data = await res.json().catch(function(){ return {}; });
+  } catch(e){
+    if(msgEl){ msgEl.textContent = "Could not reach the server."; msgEl.style.color = "#e53e3e"; }
+    group.forEach(function(b){ b.disabled = false; });
+    return;
+  }
+  if(!res.ok){
+    if(msgEl){ msgEl.textContent = (data && data.error) || "Action failed."; msgEl.style.color = "#e53e3e"; }
+    group.forEach(function(b){ b.disabled = false; }); // recoverable: let Mark try again
+    return;
+  }
+  // Success. Leave the buttons disabled (the action is done); report and reflect state.
+  var okMsg;
+  if(action === "resend") okMsg = "Fresh link sent to Mark.";
+  else if(action === "retry_customer_notice") okMsg = data.emailed ? "Customer notified." : ("Not sent" + (data.reason ? " (" + data.reason + ")" : "") + ".");
+  else okMsg = "Booking " + (data.state === "operator_confirmed" ? "accepted" : "declined") + (data.emailed ? ", customer notified." : ", customer NOT emailed — contact them.");
+  if(msgEl){ msgEl.textContent = okMsg; msgEl.style.color = "var(--teal)"; }
+  var rec = allBookings.find(function(b){ return String(b.id) === String(id); });
+  if(rec){ if(data.state) rec.confirmation_state = data.state; if(data.emailed) rec.notice_sent = true; }
+}
+
 function updateStats(bookings){
   const today = new Date().toISOString().split("T")[0];
   const weekEnd = new Date(Date.now() + 7*24*60*60*1000).toISOString().split("T")[0];
@@ -512,6 +561,40 @@ function buildCard(b, i){
           '<button class="action-btn" onclick="completeAndRequestReview(\''+esc(b.id)+'\')">Retry unsent</button>'
         : '<button class="action-btn primary" onclick="completeAndRequestReview(\''+esc(b.id)+'\')">Mark complete &amp; request review</button>');
 
+  // D-027 Phase 5 — provisional status + admin fallback. Only jobs that went through the
+  // provisional flow (awaiting/confirmed/declined) show this; auto_confirmed and legacy
+  // Blobs bookings do not. The buttons call /api/booking-admin (requireAdmin-gated).
+  const cs = b.confirmation_state;
+  const isProvisional = isJob && (cs === "awaiting_operator" || cs === "operator_confirmed" || cs === "operator_declined");
+  let provisionalSection = "";
+  if(isProvisional){
+    const decidedAt = b.operator_decided_at ? new Date(b.operator_decided_at).toLocaleString("en-GB") : "";
+    if(cs === "awaiting_operator"){
+      provisionalSection =
+        '<div class="prov-box awaiting">'+
+          '<div class="prov-title">&#9888; Provisional &mdash; awaiting your decision</div>'+
+          '<div class="prov-actions">'+
+            '<button class="action-btn primary" onclick="provisionalAction(\''+esc(b.id)+'\',\'accept\',this)">Accept</button>'+
+            '<button class="action-btn" onclick="provisionalAction(\''+esc(b.id)+'\',\'decline\',this)">Decline</button>'+
+            '<button class="action-btn" onclick="provisionalAction(\''+esc(b.id)+'\',\'resend\',this)">Resend link</button>'+
+          '</div>'+
+        '</div>';
+    } else {
+      const confirmed = cs === "operator_confirmed";
+      const label = confirmed ? "Confirmed by you" : "Declined by you";
+      const noticeLine = b.notice_sent
+        ? '<div class="prov-note">&#10003; Customer notified.</div>'
+        : '<div class="prov-actions"><span class="prov-warn">Customer NOT notified.</span>'+
+          '<button class="action-btn" onclick="provisionalAction(\''+esc(b.id)+'\',\'retry_customer_notice\',this)">Notify customer</button></div>';
+      provisionalSection =
+        '<div class="prov-box '+(confirmed?"ok":"declined")+'">'+
+          '<div class="prov-title">'+esc(label)+(decidedAt?' &middot; '+esc(decidedAt):'')+'</div>'+
+          noticeLine+
+        '</div>';
+    }
+    provisionalSection += '<div class="review-msg" id="prov-msg-'+esc(b.id)+'"></div>';
+  }
+
   return '<div class="booking-card">'+
     '<div class="booking-card-header" onclick="toggleCard('+i+')">'+
       '<div class="booking-card-header-left">'+
@@ -524,6 +607,7 @@ function buildCard(b, i){
       '<span class="booking-status status-'+status+'">'+statusLabel+'</span>'+
     '</div>'+
     '<div class="booking-card-body" id="card-'+i+'">'+
+      provisionalSection+
       '<div class="detail-grid">'+
         '<div class="detail-item"><label>Customer</label><p>'+esc(b.name||"-")+'</p></div>'+
         '<div class="detail-item"><label>Phone</label><p>'+esc(b.phone||"-")+'</p></div>'+

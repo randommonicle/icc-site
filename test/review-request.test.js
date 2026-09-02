@@ -7,7 +7,7 @@ const { test } = require("node:test");
 const assert = require("node:assert");
 
 const { handlePost } = require("../server/netlify/functions/reviewRequest.js");
-const { annotateReviewSent } = require("../server/netlify/functions/bookings.js");
+const { annotateReviewSent, annotateNoticeSent } = require("../server/netlify/functions/bookings.js");
 
 const headers = { "Content-Type": "application/json" };
 const URL = "https://g.page/r/exampleplaceid/review";
@@ -215,4 +215,19 @@ test("annotateReviewSent flags only records whose id is in the sent set", () => 
 test("annotateReviewSent is a no-op on empty input", () => {
   assert.deepEqual(annotateReviewSent([], new Set(["x"])), []);
   assert.deepEqual(annotateReviewSent(null, new Set()), []);
+});
+
+// --- provisional notice_sent annotation (D-027) -----------------------------
+
+test("annotateNoticeSent flags only records whose id has a sent provisional notice", () => {
+  const recs = [{ id: "a" }, { id: "b" }, { id: "c" }];
+  const out = annotateNoticeSent(recs, new Set(["c"]));
+  assert.equal(out[0].notice_sent, undefined);
+  assert.equal(out[1].notice_sent, undefined);
+  assert.equal(out[2].notice_sent, true);
+});
+
+test("annotateNoticeSent is a no-op on empty input", () => {
+  assert.deepEqual(annotateNoticeSent([], new Set(["x"])), []);
+  assert.deepEqual(annotateNoticeSent(null, new Set()), []);
 });

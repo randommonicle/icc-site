@@ -3,6 +3,7 @@ const crypto = require("crypto");
 // stay visible during the transition. supabase === null -> Blobs-only (unchanged).
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const { fetchBookingsFromJobs } = require("./bookingsStore.js");
+const { sentProvisionalNoticeJobIds } = require("./bookingDecision.js");
 const { requireAdmin } = require("./adminAuth.js");
 
 // Constant-time bearer-token comparison. Both sides are hashed to a fixed 32-byte
@@ -81,6 +82,14 @@ exports.handler = async function(event) {
       } catch(e){
         console.log("review-sent annotation skipped:", e.message);
       }
+      // D-027: annotate whether each provisional booking's customer outcome notice was
+      // sent, so the admin can flag "customer NOT notified" and offer a retry. Best-effort.
+      try {
+        const noticeSent = await sentProvisionalNoticeJobIds(supabase);
+        pgBookings = annotateNoticeSent(pgBookings, noticeSent);
+      } catch(e){
+        console.log("notice-sent annotation skipped:", e.message);
+      }
     } catch(e){
       pgError = e;
       console.log("Postgres bookings read failed:", e.message);
@@ -129,9 +138,17 @@ function annotateReviewSent(records, reviewedIds){
   return (records || []).map(r => (r && set.has(r.id)) ? { ...r, review_sent: true } : r);
 }
 
+// Set notice_sent on each record whose id is in the "already had a provisional outcome
+// notice sent" set (D-027). Pure, so it is unit-tested directly. Mirrors annotateReviewSent.
+function annotateNoticeSent(records, noticeSentIds){
+  const set = noticeSentIds instanceof Set ? noticeSentIds : new Set(noticeSentIds || []);
+  return (records || []).map(r => (r && set.has(r.id)) ? { ...r, notice_sent: true } : r);
+}
+
 // safeEqual is retained as a tested constant-time-compare utility
 // (test/hardening.test.js); since Slice 5d it is no longer the admin gate — that
 // moved to adminAuth.requireAdmin (Supabase Auth).
 exports.safeEqual = safeEqual;
 exports.mergeBookings = mergeBookings;
 exports.annotateReviewSent = annotateReviewSent;
+exports.annotateNoticeSent = annotateNoticeSent;
