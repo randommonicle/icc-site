@@ -292,12 +292,13 @@ exports.handler = async function (event) {
   if (event.httpMethod === "OPTIONS") return { statusCode: 200, headers, body: "" };
   if (event.httpMethod !== "POST") return { statusCode: 405, headers, body: "Method Not Allowed" };
 
-  // Per-IP cap: defence-in-depth. The single-use token is the PRIMARY control (no
-  // valid token, no state change and no email), and a valid token lives only in
-  // Mark's inbox. The cap throttles anonymous probing of the endpoint; it fails open
-  // on a limiter outage so a real operator is never blocked (L-001).
+  // Per-IP cap: defence-in-depth, matching the availability cap (60/hr). The single-use
+  // token is the PRIMARY control (no valid token, no state change and no email), and a
+  // valid token lives only in Mark's inbox; 60/hr sits comfortably above one operator's
+  // realistic use (a review is ~2 requests) while still bounding an anonymous flood. It
+  // fails open on a limiter outage so a real operator is never blocked (L-001).
   const ip = getClientIP(event);
-  const rl = await enforceRateLimit(ip, "rl:bookaction", 20);
+  const rl = await enforceRateLimit(ip, "rl:bookaction", 60);
   if (!rl.ok) return tooManyResponse(headers, rl.retryAfter);
 
   const supabase = getSupabaseAdmin();

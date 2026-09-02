@@ -188,7 +188,8 @@ Ben between P2 and P3. Nothing merges to main until P6 is green and the real rid
   - Refactor (P4a, behaviour-preserving): the per-IP limiter moved to `rateLimit.js` (+ `blobStore.js`)
     so this endpoint shares ONE limiter, not a divergent copy; `chat.js` imports them and re-exports
     `rateLimit` (test/hardening.test.js unchanged, still green). The endpoint gets a per-IP cap
-    (`rl:bookaction`, 20/hr) as defence-in-depth; the single-use token is the PRIMARY control.
+    (`rl:bookaction`, 60/hr, matching the availability cap) as defence-in-depth; the single-use
+    token is the PRIMARY control (Ben's call, 2026-09-02).
   - OPEN: the accept/decline customer email COPY is flagged pending Ben's sign-off (comment in
     bookingAction.js), mirroring the Phase 3b copy approval.
 - **Phase 5 — NEXT:** admin (`admin.html buildCard`) — display `confirmation_state` + `operator_decided_at`;
