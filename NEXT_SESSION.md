@@ -12,6 +12,129 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session — 2026-09-02: D-027 Phases 4 and 5 built (public accept/decline + admin fallback), two cross-agent reviews; Phase 6 remains
+
+*Diagnoses in this note are unverified unless marked.* **Context: `/context` is not invokable in this non-interactive session; Ben reported 63% (yellow band). Not an independent read.**
+
+**This SUPERSEDES the "Phases 4 to 6 remain" status in the 2026-09-01 (continued) entry below** — Phases 4 and 5 are now built; only Phase 6 remains.
+
+**Session goal.** Build D-027 Phase 4 (the public token accept/decline endpoint + read-only confirm page) and Phase 5 (the admin fallback), each shaped by a cross-agent review (Claude hub + GPT + Gemini) before/around coding.
+
+**Branch and worktree.** All on **`feat/d027-per-day-hours`** (home machine, standard checkout). Pushed to `origin/feat/d027-per-day-hours` this session. NOT merged to `main`; `main` is untouched and deployable. Branch is ~31 commits ahead of `main`.
+
+**What landed (all green: 311 tests, 308 pass / 3 skip; site builds 24 pages — *verified* tests + build):**
+- Phase 4 (public path): `00c5989` extract the per-IP limiter → `rateLimit.js`/`blobStore.js`; `cfacb49` `/api/booking-action` endpoint (POST view/accept/decline, constant-time token, CAS, claim-then-send) + tests; `b0a90d6` read-only confirm page `site/src/pages/booking-action.astro` (noindex, no-referrer, token in URL fragment) + sitemap filter; `2feef46` cap 20→60/hr; `a7ce978` dormant deposit pay-link hook; `5ef5ca5` D-004 addendum; `7246e61` copy sign-off.
+- Phase 5 (admin fallback, expanded by the 2026-09-02 review): `962d476` extract `bookingDecision.js` shared core (behaviour-preserving); `d31c700` hash-bind the decision CAS (rotation revokes an in-flight old link) + `notifyCustomerOutcome` ALWAYS logs the notice; `2613dff` `/api/booking-admin` (requireAdmin) accept/decline/resend/retry_customer_notice + tests; `ed6081f` `admin.html` provisional status + controls, `bookings.js` `notice_sent` annotation; `c416792`/`24812a7` checkpoint + DECISIONS D-027 addendum + LESSONS L-025/L-026.
+
+**In flight — Phase 6 (the deploy gate; nothing merges to `main` until green):**
+- pgTAP (`supabase/tests/`): DROP the stale `jobs_trading_hours` assertion (still in `jobs_postcode_nullable_test.sql`); add `confirmation_state` + minute-precision cases to `schema_test.sql`; enable one real `:30` integration insert.
+- One REAL end-to-end ride (the seam the unit tests mock): a provisional booking → the actual operator email → click the real link → the page → accept; a decline → customer email + slot freed; plus an admin-fallback accept/decline/resend/notify from `admin.html`.
+- Full `node --test` + `npm run build --prefix site` (green now), then merge to `main` (deploys).
+
+**Deferred items (flagged):**
+- **Strict single-winner retry** (Gemini findings 1+2): needs ONE migration — a `sending` value in `message_status` + a partial UNIQUE `(job_id, kind)` for provisional_* — plus `logMessage` → `.upsert` (else the index breaks insert logging, Gemini 1) + a retry claim-CAS. Default ships read-then-send + button-disable + per-(admin,job) cap; residual is a low-harm duplicate non-contradictory email. Ben's call. Anchor: the "FLAGGED for Ben" note in `docs/D027_PROVISIONAL_PLAN.md` + L-026.
+- Deposit pay-link dormant until Stripe live + server-derived deposit amount. Anchor: `TODO(D-004/D-026 deposit-link)` in `bookingAction.js` + `chat.js`.
+- Saturday weekend premium figure unset. Anchor: `TODO(D-027/saturday-premium)` in `bookingsStore.js`.
+
+**Verification still outstanding:** all of Phase 6 (pgTAP + the one real ride). No migration was applied this session (the two D-027 migrations are already applied + catalog-verified from prior sessions; the flagged strict-retry migration is NOT written).
+
+**Blockers and open questions:** none block Phase 6. Ben to decide the strict-retry migration. The exchange `agent-exchange/REVIEW_phase5-admin-fallback_2026-09-02.md` sits at CLAUDE round 3 / NEXT: GEMINI; GPT is out of credits (thread closed at round 1); Gemini may add a round 2 (the review monitor dies with the session — re-arm on resume if the exchange is still open).
+
+**Next actions (ordered, each a single first step):**
+1. In `supabase/tests/jobs_postcode_nullable_test.sql`, drop the stale `jobs_trading_hours` assertion.
+2. Add `confirmation_state` + minute pgTAP cases to `schema_test.sql`.
+3. Do the one real end-to-end ride (real provisional booking + operator email link + the admin fallback controls in `admin.html`).
+4. Ben decides the strict-retry migration; if yes, write it + the upsert + retry claim-CAS.
+5. Full suite + build, then merge `feat/d027-per-day-hours` to `main`.
+
+**Traps and working agreements (this session):**
+- Repo is at `C:\Users\bengr\Projects\ICC\icc-site` (Desktop is an empty stub; auto-memory).
+- The branch must NOT deploy until Phase 6 is green + the real ride passes; the `[WIP]` tags are deliberate.
+- The admin path deliberately has NO token/expiry gate — `requireAdmin` is the authority (L-025 for the public hash-binding it does NOT share).
+- The customer notice is now ALWAYS logged; the admin surfaces "customer NOT notified" + a retry (L-026).
+- Confirm-before-push: this session's push to `origin/feat/...` was on Ben's explicit "push everything" (branch only, not `main`).
+- `.js` commits show a benign LF→CRLF warning (Windows autocrlf); the committed blob is LF.
+
+---
+
+## This session — 2026-09-01 (continued) — *(status SUPERSEDED 2026-09-02: Phases 4 and 5 now built; see the 2026-09-02 entry above)*: D-027 provisional-booking slice, Phases 1 to 3 built, migration applied and verified; Phases 4 to 6 remain
+
+*Diagnoses in this note are unverified unless marked.* **Context: Ben reported 64% (yellow band). `/context` is not invokable in this non-interactive session, so 64% is Ben's figure, not an independent read.**
+
+**Resuming? Start here.** Everything is on local branch **`feat/d027-per-day-hours`** (home machine; NOT pushed, NOT merged, NOT deployed). `main` is untouched and deployable. The full build plan plus a live checkpoint log is **[docs/D027_PROVISIONAL_PLAN.md](docs/D027_PROVISIONAL_PLAN.md)**. The design source, a converged cross-agent review with GPT and Gemini, is at **`C:\Users\bengr\agent-exchange\REVIEW_d027-3pm-provisional_2026-09-01.md`** (outside the repo). This entry SUPERSEDES the "APP HALF NOT FINISHED, do next" list in the older 2026-09-01 entry below.
+
+**Session goal.** Turn the 24 Aug D-027 decisions into the working provisional-booking feature: a job finishing after 3pm is held and routed to Mark to accept or decline from his email. The design was hardened by a cross-agent review before any code.
+
+**What landed (12 commits since `b1306f5`; all green: 255 tests, 252 pass / 3 skip, site builds 23 pages):**
+- `f7e2877` persist `start_minute` (0/30) and render half-hour starts. *verified (tests)*
+- `615ec7a` **minute-precise availability**, so the grid never offers a slot the engine then rejects (fixes the F2 gap a :30 start introduced). *verified (tests).* This also corrected my own earlier-session WRONG claim that occupancy could stay hour-quantised.
+- `211461a` `auto_confirm_by=15:00` plus `autoConfirmByMinutes()`; advertised JSON-LD close moved to 3pm (`jsonld_close_job_hours` 3 to 2). *verified (tests + build)*
+- `d01a9dd` migration `20260901200000_jobs_confirmation_state.sql`. *verified: APPLIED to prod and catalog-verified (below)*
+- `ef1bf24` store layer: `bookingToJobRow` / insert / admin-read carry `confirmation_state` plus token hash and expiry. *verified (tests)*
+- `1c9dd07` `handleBooking` provisional decision, token generation, operator accept-link email. *verified (tests)*
+- `64734bc` customer-facing provisional wording (email, `book.astro` screen, PDF banner). *verified (tests + build)*
+- plus `1430c68`, `5a231a9`, `5ae7b29` (plan and checkpoints), `a713050` (`scripts/db-push.sh`), `b96b2ff` (`.gitattributes`, `*.sh` pinned LF).
+
+**Migration APPLIED and VERIFIED on prod Supabase.** `20260901200000_jobs_confirmation_state.sql` is the SECOND D-027 migration (the first, `20260901133038`, added the hours last session). Applied via the new `bash scripts/db-push.sh` (session pooler; the direct host is IPv6-only and the working copy is not `supabase link`ed). Verified directly from the catalog with `supabase db query` through the pooler (*verified*): the `confirmation_state` enum's four labels (`auto_confirmed, awaiting_operator, operator_confirmed, operator_declined`), the five new `jobs` columns (`confirmation_state` NOT NULL default `auto_confirmed`; `operator_decided_at`; `operator_action_token_hash`, `_expires_at`, `_used_at`, all nullable), and the two `message_kind` values (`provisional_confirmed, provisional_declined`).
+
+**How it works now (Phases 1 to 3, committed).** A booking whose finish (`start + slots*60`) is after 15:00, Postgres store only, is persisted `status='booked'` (this holds the slot) plus `confirmation_state='awaiting_operator'`, with a random 32-byte action token whose SHA-256 hash and an expiry (end of the booking day) are stored. The plaintext token lives only in Mark's email. Mark's operator email is flagged and carries ONE link to `${PUBLIC_SITE_URL}/booking-action#job=<id>&token=<plaintext>`, with the token in the URL fragment so a mail-scanner prefetch cannot act. The customer sees "Booking received, provisionally held, Mark will confirm" on screen (`book.astro` reads `bookData.provisional`) and in their email; the PDF (Mark only) gets a PROVISIONAL banner. On-time bookings are unchanged.
+
+**In flight, NOT built (the deploy gate; nothing deploys until these land):**
+- **Phase 4.** `server/netlify/functions/bookingAction.js` plus a `/api/booking-action` redirect in `netlify.toml`, and the confirm page `site/src/pages/booking-action.astro`. The operator email link ALREADY points at `/booking-action` (`chat.js` near line 1096, the `actionUrl` const), which 404s until this exists (harmless while un-deployed).
+- **Phase 5.** `admin.html` `buildCard` (near line 481): show `confirmation_state` and `operator_decided_at`; add fallback Accept / Decline / resend controls gated by `requireAdmin` (`adminAuth.js:54`).
+- **Phase 6.** pgTAP (`supabase/tests/`: the stale `jobs_trading_hours` assertion from last session still needs dropping, plus minute and `confirmation_state` cases), full `node --test` and build, the DECISIONS.md D-027 addendum, a real end-to-end ride, and a second-pass review (property-reg-reviewer and code-reviewer) before merge.
+
+**Next actions (ordered, each a single first step):**
+1. Write `bookingAction.js`. POST `{job, token, action}` with action in `view` / `accept` / `decline`. Load the job by id; **constant-time** token check (hash the presented token, `crypto.timingSafeEqual` against the stored hash; reuse the `safeEqual` pattern at `server/netlify/functions/bookings.js:8-16`); reject expired or used. `accept` and `decline` do an atomic compare-and-set: `UPDATE jobs SET confirmation_state=?, operator_decided_at=now(), operator_action_token_used_at=now() [, status='cancelled' on decline] WHERE id=? AND confirmation_state='awaiting_operator' AND operator_action_token_used_at IS NULL`; 0 rows updated means already actioned, return 409. On `decline`, claim-then-send the customer decline email (NOT send-then-mark; the messages table plus `message_kind='provisional_declined'` gives the durable record). POST only, 405 otherwise.
+2. Add the `netlify.toml` redirect `/api/booking-action` to the function (pattern at `netlify.toml:27-48`).
+3. Write `site/src/pages/booking-action.astro`: read-only; JS reads `location.hash` for job and token; POSTs `view` to render the summary, then `accept` or `decline` on a button click; the token stays in the fragment and POST body, never a GET query.
+4. Then Phase 5 (admin), then Phase 6.
+
+**Blockers and open questions.** None block Phase 4 (design settled). The GPT (ChatGPT) seat hit usage limits mid-session; the review had already converged, so it is closed. Gemini remains available if a fresh review is ever wanted.
+
+**Owed, per Ben's rules (prompts outstanding):**
+- **DECISIONS.md D-027 addendum**, not yet written: Option A (hold provisionally, not escalate-as-lead); one-click email accept for Mark (not admin-only); `auto_confirm_by=15:00`, finish-based (a 1pm 1 to 2 hour job auto-confirms; only a finish after 15:00 routes to Mark); advertised close 3pm; token design (stored SHA-256 hash, single-use, expiring).
+- **LESSONS_LEARNED.md** candidate: an hours or cadence change must reach the availability COLLISION logic, not only the offered grid, because hour-quantised occupancy silently under-blocks :30 starts (this session's `615ec7a`; extends last session's "F2 to the DB layer" lesson).
+
+**Traps and working agreements (this session):**
+- Repo is at **`C:\Users\bengr\Projects\ICC\icc-site`** (the Desktop folder is an empty stub; auto-memory).
+- **Apply migrations with `bash scripts/db-push.sh`** in Git Bash. Ben runs schema writes himself (the classifier blocks them). Verify the catalog directly afterwards (`supabase db query --db-url <pooler>`), do not trust "done".
+- Long commands **paste-mangle in MINGW64** (bracketed-paste `^[[200~` leaks, only the tail runs); prefer a committed script plus a short invocation.
+- `book.astro` AND `index.html` (the retained rollback client) both read `availData.booked` as an hour array, so availability's `booked` response was deliberately kept hour-shaped for backward compatibility even though the collision check is now minute-precise.
+- Commits carry `[WIP]` / `[apply pending]` where apt; the branch must not deploy until Phase 6 is green and the real ride passes.
+
+---
+
+## This session — 2026-09-01, D-027 per-day hours: DB migration applied and verified; app layer on a branch; brand copy + ICO number
+
+**Resuming? Start here.** All of this session is on the local branch **`feat/d027-per-day-hours`** (home machine, NOT pushed, NOT merged, NOT deployed). `main` is untouched and still deployable. Four commits: brand copy; ICO number + doc fixes; the D-027 app layer + migration (WIP); this handover.
+
+**DB migration APPLIED + VERIFIED on production Supabase (`icc-platform`).** `20260901133038_jobs_per_day_hours_minutes.sql`: adds `start_minute` (0/30), rebuilds `jobs_no_double_booking` on a minute-precise `span_minutes` range (drops the whole-hour `hours` column), drops the hard `jobs_trading_hours` finish-by-16:00 check (soft close). Verified from the live catalog: the guard rejects a :30 overlap (23P01), a 1pm-to-6pm job is accepted, 09:30 round-trips; the `jobs` table is empty so zero data risk. The `20260614110000` history drift was repaired in the same pass. Connection method is in auto-memory `icc-supabase-db-access` (aws-1-eu-west-2 session pooler; **Ben must run `supabase db push` / `migration repair` himself** — the auto-mode classifier blocks them even with allow rules).
+
+**Prod DB is ahead of deployed code, deliberately.** The live site is still the old app (compatible with the new schema), so nothing customer-facing changed. New hours go live only when the branch is finished, merged and deployed.
+
+**APP HALF NOT FINISHED — this is the deploy gate, do next:** *(SUPERSEDED 2026-09-01 continued: steps 1 and 2 are done and greatly expanded into a full provisional-booking slice; see the entry above and [docs/D027_PROVISIONAL_PLAN.md](docs/D027_PROVISIONAL_PLAN.md).)*
+1. `server/netlify/functions/bookingsStore.js` — the `TODO(D-027/start-minute)`: parse and persist `start_minute`, read it back in `jobRowToAdminRecord`, make `bookedHourSlots` minute-aware. Until then a 09:30 booking stores as 9:00. This is why the branch must not deploy yet.
+2. `server/netlify/functions/chat.js` — the **3pm auto-confirm** rule + lightweight override: a job finishing after 3pm (T=15:00) is still taken and holds the slot, marked provisional, the customer is told Mark will confirm, and Mark's notification email flags it; under 3pm auto-confirms as now. Steer big jobs to the earliest free start. No client-managed double slots. (Mark is happy with open-ended afternoons; the DB allows the late finish.)
+3. pgTAP — `supabase/tests/jobs_postcode_nullable_test.sql` asserts `jobs_trading_hours` (now dropped), so update it; add minute cases to `schema_test.sql`. These need the local Docker stack to run.
+4. Full `node --test` + `npm run build --prefix site`, merge to main, push (Netlify deploys), then one real booking each for a :30 slot and a 3-room 1pm job (the seam the skipped integration tests miss).
+
+**Decided this session (formalise as DECISIONS addenda next session):**
+- D-027: slot cadence = each day's earliest start, then hourly, always including 1pm as the last start; **auto-confirm finish T = 3pm**, later finishes route to Mark via the override; open-ended afternoons (no hard finish); JSON-LD public close modelled as 1pm + 3h = 16:00 (was 16:30) — confirm with Mark.
+- **Saturday weekend premium figure still unset** (Mark): hook in `tradingHours.js` (`weekend_premium`), apply point `TODO(D-027/saturday-premium)` in `bookingsStore.js`.
+- D-016 addendum: the ICO public register DOES display Mark's home address; decide accept vs asking the ICO to withhold (noted in `docs/LAUNCH_ICO_REGISTRATION.md`).
+- Base address corrected to **13 Horsbere Road, GL3 3PT** (was 11 / GL3 3BT); public repo copies reduced to the postcode, full address in the private minutes only.
+- LESSONS entry to add: an hours change must reach the store schema and every store gate, not just the app config (F2 extended to the DB layer).
+
+**Still open for Ben/Mark:**
+- **D-028 travel bands not coded or approved.** Proposed (centre GL3 3PT): free ≤~10 road miles (Gloucester + Cheltenham + rings), £5 ~10-15 (Winchcombe, Tewkesbury, Stroud), £10 ~15-22 (Cirencester, Tetbury, Forest of Dean), £15 >~22 (Moreton, Stow, Bourton, Chipping Campden). Recommend a postcode district/sector band table over a straight-line radius (the Cotswolds are close by crow, far by road). Its own slice after approval: `serviceArea.js`, `chat.js`, the six area pages, `/api/v1/quote`, and server-side surcharge enforcement in `validateBooking`.
+- Brand: the other "team" references (index hero, booking consent line, privacy notice) left as ordinary service voice — switch to sole-operator phrasing? And the site says "Cheltenham-based" throughout while D-028 records Intelligent as Gloucester-based (accuracy point, Mark to steer).
+- Home-machine `.env` NETLIFY_TOKEN updated this session (closed).
+
+**Green on the branch:** `node --test` 242 (239 pass / 3 skip), site builds 23 pages. The 3 skips are the real-Supabase integration tests (`ICC_SUPABASE_IT=1`); enabling one for a real :30 insert is part of step 4.
+
+---
+
 ## This session — 2026-08-25, Mark meeting reconciled: the launch bundle is largely resolved, new build backlog opened
 
 **No code changed this session.** This is a **planning + docs** pass reconciling a **24 August 2026** configuration/planning meeting with Mark (two audio transcripts + one auto-summary) into a single record. Full minutes, held **outside the public repo** (they carry Mark's tax position and internal pricing/brand notes): `C:\Users\bengr\Projects\ICC\deliverables\ICC-Meeting-Minutes-Mark-Aug2026.md` (and a premium branded `.docx` alongside it).

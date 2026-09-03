@@ -1,0 +1,4 @@
+# Shell scripts must stay LF. Under bash on Windows a CRLF checkout appends \r to every
+# line, which breaks the shebang ("bad interpreter") and trailing values (e.g. a URL
+# gains a stray \r). Pin regardless of the machine's core.autocrlf setting.
+*.sh text eol=lf

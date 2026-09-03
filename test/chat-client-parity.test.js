@@ -70,6 +70,14 @@ test("book.astro reads the citations payload the server attaches", () => {
   );
 });
 
+test("book.astro renders the provisional outcome the server sends (D-027)", () => {
+  // The server flags a held (late-finish) booking with provisional:true; the client must
+  // read it and NOT tell the customer the slot is confirmed/secured (the F1 class of bug).
+  assert.match(chatFn, /provisional,/, "chat.js must send the provisional flag in the booking response");
+  assert.match(bookAstro, /bookData\.provisional/, "book.astro must read bookData.provisional");
+  assert.match(bookAstro, /provisionally held/, "the held-booking copy must be present");
+});
+
 test("citations render as DOM nodes, never innerHTML (L-003)", () => {
   const start = bookAstro.indexOf("function renderCitations(");
   assert.ok(start > -1, "renderCitations must exist");

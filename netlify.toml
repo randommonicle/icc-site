@@ -47,6 +47,22 @@
   to = "/.netlify/functions/reviewRequest"
   status = 200
 
+# D-027 — provisional-booking accept/decline. Mark actions a late-finish booking
+# from the one-click link in his notification email; the link opens the read-only
+# /booking-action page, which POSTs {job, token, action} here. Token-authorised
+# (single-use SHA-256), POST-only (a mutating GET would be scanner-prefetched).
+[[redirects]]
+  from = "/api/booking-action"
+  to = "/.netlify/functions/bookingAction"
+  status = 200
+
+# D-027 Phase 5 — admin fallback for a provisional booking (accept/decline/resend/retry),
+# for when Mark's one-click email link is lost. Admin-gated (requireAdmin); no token.
+[[redirects]]
+  from = "/api/booking-admin"
+  to = "/.netlify/functions/bookingAdmin"
+  status = 200
+
 # Phase 2, Slice 3 — versioned API (/api/v1/*). Stateless server-side quote;
 # runs alongside the live /api/chat flow (D-003/D-011/D-012).
 [[redirects]]
@@ -89,9 +105,9 @@
 #      www.intelligentclean.co.uk, which today serves a 123 Reg parking page with
 #      third-party ads. The canonical cannot be honoured, so the signal is wasted
 #      at exactly the moment the brand's first crawl impressions form.
-#   2. The privacy notice still carries a live "[to confirm: ICO registration
-#      number]" placeholder (privacy.astro), which should not be the first
-#      version of that page Google sees.
+#   2. (Resolved 1 Sep 2026: the ICO registration number ZC230232 is now in
+#      privacy.astro.) A human data-protection review of the notice is still
+#      outstanding, so it should still not be the first version Google indexes.
 #   3. Anything indexed under the netlify.app name has to be cleaned up after the
 #      cutover rather than simply starting on the real domain.
 #

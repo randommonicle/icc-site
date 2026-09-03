@@ -9,17 +9,37 @@ const { test } = require("node:test");
 const assert = require("node:assert");
 
 const chat = require("../server/netlify/functions/chat.js");
+const tradingHours = require("../shared/config/tradingHours.js");
 const { validateBooking, handleBooking, checkAvailability } = chat;
 
-const PG = { latestStartHour: 15, latestEndHour: 16, maxSlots: 7 };
+// Per-day bounds (D-027): bookingBounds() carries the live slot cap; the trading
+// WINDOW itself is read from the shared source by validateBooking.
+const PG = tradingHours.bookingBounds();
+
+const SUN = 0, MON = 1, TUE = 2, THU = 4;
 
 // A future weekday (>= 7 days out, not Sunday) in local YYYY-MM-DD, so the date
-// passes validateBooking's window/Sunday checks regardless of when the test runs.
+// passes validateBooking's Sunday check regardless of when the test runs. Paired
+// with a start time valid on every trading day (>= 10:30, the latest earliest).
 function futureWeekday(daysOut) {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() + daysOut);
   if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// A future date (8..14 days out, so inside validateBooking's 6..90-day window) that
+// falls on a specific weekday, so the per-day trading window can be tested
+// deterministically. dow: 0 = Sunday .. 6 = Saturday.
+function futureDow(dow) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 8);
+  while (d.getDay() !== dow) d.setDate(d.getDate() + 1);
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -35,7 +55,7 @@ function baseBooking(over) {
       address: "12 High St, Cheltenham GL52 1AB",
       postcode: "GL52 1AB",
       date: futureWeekday(21),
-      start_time: "10:00",
+      start_time: "12:00",
       slots_needed: 2,
       rooms: "Lounge",
       carpet_types: "Wool",
@@ -97,26 +117,43 @@ async function underPostgres(fn) {
   }
 }
 
-// --- validateBooking bounds ------------------------------------------------
+// --- validateBooking: per-day window (D-027) -------------------------------
 
-test("validateBooking (Blobs defaults) accepts 16:00 / 17:00 starts and up to 9 slots", () => {
-  assert.strictEqual(validateBooking(baseBooking({ start_time: "16:00", slots_needed: 1 })), null);
-  assert.strictEqual(validateBooking(baseBooking({ start_time: "17:00", slots_needed: 1 })), null);
-  assert.strictEqual(validateBooking(baseBooking({ start_time: "9:00", slots_needed: 8 })), null);
+test("validateBooking accepts a start inside the day's window and rejects one after the 1pm last start", () => {
+  const mon = futureDow(MON); // earliest 09:30
+  assert.strictEqual(validateBooking(baseBooking({ date: mon, start_time: "09:30", slots_needed: 1 }), PG), null);
+  assert.strictEqual(validateBooking(baseBooking({ date: mon, start_time: "13:00", slots_needed: 1 }), PG), null, "1pm is bookable");
+  assert.match(validateBooking(baseBooking({ date: mon, start_time: "13:30", slots_needed: 1 }), PG) || "", /start_time/, "after the 1pm last start");
+  assert.match(validateBooking(baseBooking({ date: mon, start_time: "16:00", slots_needed: 1 }), PG) || "", /start_time/);
 });
 
-test("validateBooking (Postgres bounds) rejects a 16:00 start", () => {
-  assert.match(validateBooking(baseBooking({ start_time: "16:00", slots_needed: 1 }), PG) || "", /start_time/);
-  assert.strictEqual(validateBooking(baseBooking({ start_time: "15:00", slots_needed: 1 }), PG), null);
+test("validateBooking enforces each weekday's own earliest start", () => {
+  // 09:30 is fine on Monday but too early on Tuesday (opens 10:30) and Thursday (10:00).
+  assert.strictEqual(validateBooking(baseBooking({ date: futureDow(MON), start_time: "09:30", slots_needed: 1 }), PG), null);
+  assert.match(validateBooking(baseBooking({ date: futureDow(TUE), start_time: "09:30", slots_needed: 1 }), PG) || "", /start_time/);
+  assert.match(validateBooking(baseBooking({ date: futureDow(TUE), start_time: "10:00", slots_needed: 1 }), PG) || "", /start_time/);
+  assert.strictEqual(validateBooking(baseBooking({ date: futureDow(TUE), start_time: "10:30", slots_needed: 1 }), PG), null);
+  assert.match(validateBooking(baseBooking({ date: futureDow(THU), start_time: "09:30", slots_needed: 1 }), PG) || "", /start_time/);
+  assert.strictEqual(validateBooking(baseBooking({ date: futureDow(THU), start_time: "10:00", slots_needed: 1 }), PG), null);
 });
 
-test("validateBooking (Postgres bounds) rejects a slot run ending after 16:00", () => {
-  assert.match(validateBooking(baseBooking({ start_time: "15:00", slots_needed: 2 }), PG) || "", /trading hours/);
+test("validateBooking rejects a Sunday booking", () => {
+  assert.match(validateBooking(baseBooking({ date: futureDow(SUN), start_time: "12:00", slots_needed: 1 }), PG) || "", /Sunday/);
 });
 
-test("validateBooking (Postgres bounds) caps slots at 7", () => {
-  assert.match(validateBooking(baseBooking({ start_time: "9:00", slots_needed: 8 }), PG) || "", /slots_needed/);
-  assert.strictEqual(validateBooking(baseBooking({ start_time: "9:00", slots_needed: 7 }), PG), null);
+test("a job may start at 1pm regardless of length — the close is soft (D-027)", () => {
+  // No end-of-day overflow check any more: 1pm plus several hours is allowed.
+  assert.strictEqual(validateBooking(baseBooking({ date: futureDow(MON), start_time: "13:00", slots_needed: 4 }), PG), null);
+});
+
+test("validateBooking caps slots at the store's cap (Postgres 7, Blobs 9)", () => {
+  const mon = futureDow(MON);
+  assert.match(validateBooking(baseBooking({ date: mon, start_time: "12:00", slots_needed: 8 }), PG) || "", /slots_needed/);
+  assert.strictEqual(validateBooking(baseBooking({ date: mon, start_time: "12:00", slots_needed: 7 }), PG), null);
+  // No opts -> the Blobs default cap (9) still applies on the flag-off path, but the
+  // per-day window is enforced there too.
+  assert.strictEqual(validateBooking(baseBooking({ date: mon, start_time: "12:00", slots_needed: 8 })), null);
+  assert.match(validateBooking(baseBooking({ date: mon, start_time: "09:00", slots_needed: 1 })) || "", /start_time/, "09:00 is before every day's earliest");
 });
 
 // --- handleBooking: fail-closed Postgres write -----------------------------
@@ -165,16 +202,36 @@ test("handleBooking (Postgres) rejects a 16:00 start as a clean 400 without touc
 
 // --- checkAvailability: Postgres grid + derivation -------------------------
 
-test("checkAvailability (Postgres) uses the 9..15 grid and excludes committed hours", async () => {
+test("checkAvailability excludes every start whose span overlaps a committed job", async () => {
   await underPostgres(async () => {
+    // A Monday offers 09:30, 10:30, 11:30, 12:30, 1pm. A committed 10:00 two-hour job
+    // runs 10:00-12:00, so every offered 1-hour start whose span touches that window
+    // drops: 09:30 (ends 10:30, so it overruns INTO the job — the old hour-quantised
+    // check wrongly kept it), 10:30 and 11:30. Only 12:30 and 1pm are clear.
     const sb = fakeSupabase({ jobsSelect: { data: [{ start_hour: 10, slots_needed: 2 }], error: null } });
-    const res = await checkAvailability(futureWeekday(21), 1, {}, sb);
+    const res = await checkAvailability(futureDow(MON), 1, {}, sb);
     assert.strictEqual(res.statusCode, 200);
     const body = JSON.parse(res.body);
-    assert.ok(!body.available.includes("16:00") && !body.available.includes("17:00"), "grid capped at 15:00");
-    assert.ok(!body.available.includes("10:00") && !body.available.includes("11:00"), "booked hours excluded");
-    assert.ok(body.available.includes("9:00") && body.available.includes("12:00"));
+    assert.deepStrictEqual(body.available, ["12:30", "13:00"]);
+    assert.ok(!body.available.includes("16:00") && !body.available.includes("17:00"), "nothing after the 1pm last start");
     assert.deepStrictEqual(body.booked.slice().sort((a, b) => a - b), [10, 11]);
+  });
+});
+
+test("checkAvailability is minute-precise: a :30 job blocks the overrunning next start (F2)", async () => {
+  await underPostgres(async () => {
+    // GPT round 2's finding: a committed 12:30 one-hour job runs 12:30-13:30, so the
+    // 1pm last-start (13:00-14:00) OVERLAPS it and must drop out — the exact slot the
+    // old hour-quantised check offered, then the DB rejected at confirm. 11:30 ends
+    // exactly at 12:30 (adjacent, no overlap), so it stays.
+    const sb = fakeSupabase({ jobsSelect: { data: [{ start_hour: 12, start_minute: 30, slots_needed: 1 }], error: null } });
+    const res = await checkAvailability(futureDow(MON), 1, {}, sb);
+    assert.strictEqual(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    assert.ok(!body.available.includes("13:00"), "the 1pm start must not be offered over a 12:30 job");
+    assert.ok(body.available.includes("11:30"), "11:30 ends exactly at 12:30 (adjacent), so it stays");
+    assert.deepStrictEqual(body.available, ["09:30", "10:30", "11:30"]);
+    assert.deepStrictEqual(body.booked.slice().sort((a, b) => a - b), [12]);
   });
 });
 
@@ -246,4 +303,72 @@ test("privacyNoticeUrl: default origin, and a trailing slash on an injected base
   assert.match(privacyNoticeUrl(), /^https:\/\/www\.intelligentclean\.co\.uk\/privacy$/);
   assert.strictEqual(privacyNoticeUrl("https://example.test"), "https://example.test/privacy");
   assert.strictEqual(privacyNoticeUrl("https://example.test/"), "https://example.test/privacy");
+});
+
+// --- D-027: provisional booking (finish after the 15:00 auto-confirm line) ----
+// A late-finishing job is TAKEN and holds the slot, but is marked awaiting_operator
+// with a stored (hashed) single-use action token, and Mark's email carries the
+// accept/decline link. An on-time job auto-confirms exactly as before.
+
+async function runBooking(booking) {
+  const prevStore = process.env.BOOKINGS_STORE;
+  const prevFetch = global.fetch;
+  process.env.BOOKINGS_STORE = "postgres";
+  const sent = [];
+  global.fetch = async (url, opts) => { sent.push({ url, body: JSON.parse(opts.body) }); return { json: async () => ({ id: "fake" }) }; };
+  const sb = fakeSupabase({ jobsInsert: { data: { id: "job-77" }, error: null } });
+  let res;
+  try { res = await handleBooking(booking, "re_test", {}, sb); }
+  finally {
+    if (prevStore === undefined) delete process.env.BOOKINGS_STORE; else process.env.BOOKINGS_STORE = prevStore;
+    global.fetch = prevFetch;
+  }
+  const insert = sb.calls.find((c) => c.op === "insert");
+  return {
+    body: JSON.parse(res.body),
+    insertRow: insert && insert.row,
+    operator: sent.find((e) => e.body.to !== "jane@example.com"),
+    customer: sent.find((e) => e.body.to === "jane@example.com"),
+  };
+}
+
+test("a late-finish booking is provisional: awaiting_operator + hashed token, operator email links to the confirm page (D-027)", async () => {
+  const { body, insertRow, operator } = await runBooking(baseBooking({ start_time: "13:00", slots_needed: 3 })); // finish 16:00 > 15:00
+  assert.strictEqual(body.provisional, true);
+  assert.strictEqual(insertRow.confirmation_state, "awaiting_operator");
+  assert.strictEqual(insertRow.status, "booked", "a provisional booking still HOLDS the slot");
+  assert.match(insertRow.operator_action_token_hash, /^[0-9a-f]{64}$/, "the SHA-256 hash is stored, never the plaintext");
+  assert.ok(insertRow.operator_action_token_expires_at, "the token has an expiry");
+  assert.match(operator.body.subject, /Provisional/i);
+  assert.match(operator.body.html, /booking-action#job=job-77/, "the operator link points at the confirm page for this job");
+  assert.match(operator.body.html, /token=[0-9a-f]{64}/, "with the plaintext token in the URL fragment");
+});
+
+test("an on-time booking auto-confirms: auto_confirmed, no token, plain operator email (D-027)", async () => {
+  const { body, insertRow, operator } = await runBooking(baseBooking({ start_time: "12:00", slots_needed: 2 })); // finish 14:00 <= 15:00
+  assert.strictEqual(body.provisional, false);
+  assert.strictEqual(insertRow.confirmation_state, "auto_confirmed");
+  assert.strictEqual(insertRow.operator_action_token_hash, null);
+  assert.match(operator.body.subject, /New Booking/);
+  assert.ok(!/Approval Needed/i.test(operator.body.html), "no provisional approval block for an on-time booking");
+});
+
+test("a booking finishing EXACTLY at 15:00 auto-confirms — the boundary is inclusive (D-027)", async () => {
+  const { body, insertRow } = await runBooking(baseBooking({ start_time: "13:00", slots_needed: 2 })); // finish exactly 15:00
+  assert.strictEqual(body.provisional, false, "finish == 15:00 is at/before the line, so it auto-confirms");
+  assert.strictEqual(insertRow.confirmation_state, "auto_confirmed");
+});
+
+test("the CUSTOMER email says received / provisionally held, never confirmed, for a late-finish booking (D-027)", async () => {
+  const { customer } = await runBooking(baseBooking({ start_time: "13:00", slots_needed: 3 }));
+  assert.match(customer.body.subject, /booking request/i);
+  assert.match(customer.body.html, /Booking Received/);
+  assert.match(customer.body.html, /Mark will confirm the time/i);
+  assert.ok(!/Booking Confirmation<\/h1>/.test(customer.body.html), "a provisional booking must not head the customer email 'Booking Confirmation'");
+});
+
+test("the CUSTOMER email keeps the confirmed wording for an on-time booking (D-027)", async () => {
+  const { customer } = await runBooking(baseBooking({ start_time: "12:00", slots_needed: 2 }));
+  assert.match(customer.body.subject, /Booking Confirmation/);
+  assert.match(customer.body.html, /Booking Confirmation<\/h1>/);
 });

@@ -1,0 +1,218 @@
+---
+// D-027 operator confirm page (/booking-action). Mark reaches this from the one-click
+// link in his provisional-booking notification email. It is deliberately NOT the
+// marketing BaseLayout: no nav, footer, SEO or chat — just a standalone, no-index,
+// no-referrer utility page for the operator.
+//
+// Security shape (converged cross-agent review, 2026-09-01):
+//   - The action token rides in the URL FRAGMENT (#job=...&token=...), so it is never
+//     sent to the server in a request line or a Referer header, and a mail-scanner
+//     prefetch of the link cannot act. The script reads it client-side and sends it
+//     only in the POST body.
+//   - No customer PII is in the static HTML. The booking summary is fetched via a POST
+//     `view` that the server returns ONLY when the token verifies (server-side auth).
+//   - Nothing here mutates state: Accept/Decline are explicit POSTs (bookingAction.js
+//     is POST-only). The page just renders and dispatches.
+//   - Rendering is injection-safe: the structure is static and the script fills it with
+//     textContent, never innerHTML of server data (mirrors book.astro's discipline).
+---
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Review provisional booking | Intelligent Carpet Cleaning</title>
+    <style>
+      :root { --navy:#0d2236; --teal:#1a8a7a; --teal-light:#2ab8a4; --ink:#1a1a2e; --mid:#4a5568; --line:#e2e8f0; --bg:#f7f8fa; }
+      * { box-sizing: border-box; }
+      body { margin:0; background:var(--bg); color:var(--ink); font-family:Arial,Helvetica,sans-serif; line-height:1.5; }
+      .wrap { max-width:600px; margin:0 auto; padding:24px 16px 48px; }
+      .card { background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+      .card-head { background:var(--navy); padding:20px; }
+      .card-head h1 { color:var(--teal-light); margin:0; font-size:20px; }
+      .card-head p { color:rgba(255,255,255,0.7); margin:5px 0 0; font-size:13px; }
+      .card-body { padding:20px; }
+      .muted { color:var(--mid); font-size:14px; }
+      table { width:100%; border-collapse:collapse; margin:8px 0 4px; }
+      td { padding:8px 0; font-size:14px; vertical-align:top; }
+      td.k { color:var(--mid); width:40%; font-weight:bold; }
+      .actions { display:flex; gap:12px; margin-top:20px; flex-wrap:wrap; }
+      button { flex:1 1 160px; padding:14px 18px; border:none; border-radius:8px; font-size:15px; font-weight:bold; cursor:pointer; color:#fff; }
+      button:disabled { opacity:0.5; cursor:not-allowed; }
+      .accept { background:var(--teal); }
+      .decline { background:#c2410c; }
+      .banner { padding:14px 16px; border-radius:8px; font-size:14px; margin-top:4px; }
+      .banner.info { background:#eef6f4; border:1px solid #bfe0d8; color:#155e52; }
+      .banner.warn { background:#fff7ed; border:1px solid #fdba74; color:#9a3412; }
+      .banner.error { background:#fdecec; border:1px solid #f5b5b5; color:#9b1c1c; }
+      .foot { margin-top:18px; font-size:12px; color:#94a3b8; }
+      [hidden] { display:none !important; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="card-head">
+          <h1>Review provisional booking</h1>
+          <p>Intelligent Carpet Cleaning (operator only)</p>
+        </div>
+        <div class="card-body">
+          <p id="status" class="muted">Loading the booking…</p>
+
+          <div id="summary" hidden>
+            <table>
+              <tr><td class="k">Customer</td><td id="f-name"></td></tr>
+              <tr><td class="k">Date</td><td id="f-date"></td></tr>
+              <tr><td class="k">Start time</td><td id="f-time"></td></tr>
+              <tr><td class="k">Duration</td><td id="f-hours"></td></tr>
+              <tr><td class="k">Rooms</td><td id="f-rooms"></td></tr>
+              <tr><td class="k">Address</td><td id="f-address"></td></tr>
+              <tr><td class="k">Estimated price</td><td id="f-price"></td></tr>
+              <tr><td class="k">Contact</td><td id="f-email"></td></tr>
+            </table>
+          </div>
+
+          <div id="state-banner" class="banner info" hidden></div>
+
+          <div id="actions" class="actions" hidden>
+            <button id="btn-accept" class="accept" type="button">Accept booking</button>
+            <button id="btn-decline" class="decline" type="button">Decline booking</button>
+          </div>
+
+          <p class="foot">Accepting confirms the appointment and notifies the customer. Declining releases the slot and lets the customer know it could not be accommodated.</p>
+        </div>
+      </div>
+    </div>
+
+    <script is:inline>
+      (function () {
+        var API = "/api/booking-action";
+        var statusEl = document.getElementById("status");
+        var summaryEl = document.getElementById("summary");
+        var bannerEl = document.getElementById("state-banner");
+        var actionsEl = document.getElementById("actions");
+        var acceptBtn = document.getElementById("btn-accept");
+        var declineBtn = document.getElementById("btn-decline");
+
+        function setText(id, value) {
+          document.getElementById(id).textContent = (value === null || value === undefined || value === "") ? "—" : String(value);
+        }
+        function showBanner(kind, msg) {
+          bannerEl.className = "banner " + kind;
+          bannerEl.textContent = msg;
+          bannerEl.hidden = false;
+        }
+        function hideActions() { actionsEl.hidden = true; }
+
+        // Read the token from the fragment (never the query string), then parse it.
+        var frag = (location.hash || "").replace(/^#/, "");
+        var params = new URLSearchParams(frag);
+        var job = params.get("job");
+        var token = params.get("token");
+
+        if (!job || !token) {
+          statusEl.textContent = "This link is missing its booking reference or token. Please open the most recent link from your notification email.";
+          return;
+        }
+
+        function post(action) {
+          return fetch(API, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ job: job, token: token, action: action }),
+          }).then(function (r) {
+            return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; });
+          });
+        }
+
+        function renderState(state, expired, decidedAt) {
+          if (state === "operator_confirmed") {
+            showBanner("info", "You have already accepted this booking" + (decidedAt ? " (" + new Date(decidedAt).toLocaleString("en-GB") + ")" : "") + ". The customer was notified.");
+            hideActions();
+          } else if (state === "operator_declined") {
+            showBanner("warn", "You have already declined this booking" + (decidedAt ? " (" + new Date(decidedAt).toLocaleString("en-GB") + ")" : "") + ". The slot has been released.");
+            hideActions();
+          } else if (state === "auto_confirmed") {
+            showBanner("info", "This booking was auto-confirmed and needs no action.");
+            hideActions();
+          } else if (expired) {
+            showBanner("warn", "This action link has expired. Please action the booking from the admin dashboard.");
+            hideActions();
+          } else {
+            // awaiting_operator, live
+            actionsEl.hidden = false;
+          }
+        }
+
+        function decide(action) {
+          acceptBtn.disabled = true;
+          declineBtn.disabled = true;
+          showBanner("info", "Working…");
+          post(action).then(function (res) {
+            if (res.status === 200) {
+              hideActions();
+              var emailed = res.body && res.body.emailed;
+              if (action === "accept") {
+                showBanner("info", "Booking accepted." + (emailed ? " The customer has been emailed to confirm." : " Note: the customer was NOT emailed automatically. Please contact them to confirm."));
+              } else {
+                showBanner("warn", "Booking declined and the slot released." + (emailed ? " The customer has been emailed." : " Note: the customer was NOT emailed automatically. Please let them know."));
+              }
+            } else if (res.status === 409) {
+              showBanner("warn", (res.body && res.body.error) || "This booking has already been actioned.");
+              hideActions();
+            } else if (res.status === 410) {
+              showBanner("warn", "This action link has expired. Please use the admin dashboard.");
+              hideActions();
+            } else if (res.status === 404) {
+              showBanner("error", "This link is not valid. Please open the most recent link from your notification email.");
+              hideActions();
+            } else {
+              showBanner("error", (res.body && res.body.error) || "Something went wrong. Please try again or use the admin dashboard.");
+              acceptBtn.disabled = false;
+              declineBtn.disabled = false;
+            }
+          }).catch(function () {
+            showBanner("error", "Network error. Please check your connection and try again.");
+            acceptBtn.disabled = false;
+            declineBtn.disabled = false;
+          });
+        }
+
+        acceptBtn.addEventListener("click", function () { decide("accept"); });
+        declineBtn.addEventListener("click", function () { decide("decline"); });
+
+        // Initial read-only load.
+        post("view").then(function (res) {
+          if (res.status !== 200) {
+            statusEl.hidden = true;
+            if (res.status === 404) {
+              showBanner("error", "This link is not valid. Please open the most recent link from your notification email.");
+            } else if (res.status === 429) {
+              showBanner("error", "Too many requests. Please wait a little and try again.");
+            } else {
+              showBanner("error", (res.body && res.body.error) || "Could not load this booking. Please try again shortly.");
+            }
+            return;
+          }
+          var b = res.body || {};
+          var bk = b.booking || {};
+          setText("f-name", bk.name);
+          setText("f-date", bk.date);
+          setText("f-time", bk.time);
+          setText("f-hours", bk.hours ? bk.hours + " hour(s)" : null);
+          setText("f-rooms", bk.rooms);
+          setText("f-address", bk.address);
+          setText("f-price", bk.price);
+          setText("f-email", bk.email);
+          statusEl.hidden = true;
+          summaryEl.hidden = false;
+          renderState(b.state, b.expired, b.decidedAt);
+        }).catch(function () {
+          statusEl.textContent = "Could not load this booking. Please check your connection and try again.";
+        });
+      })();
+    </script>
+  </body>
+</html>

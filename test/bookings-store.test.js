@@ -80,6 +80,7 @@ test("bookingToJobRow maps the core fields and stamps status 'booked'", () => {
   assert.strictEqual(row.address, SAMPLE.address);
   assert.strictEqual(row.slot_date, "2026-07-10");
   assert.strictEqual(row.start_hour, 10);
+  assert.strictEqual(row.start_minute, 0);
   assert.strictEqual(row.slots_needed, 3);
   assert.strictEqual(row.furniture_moving, true);
   assert.strictEqual(row.pets, false);
@@ -87,6 +88,38 @@ test("bookingToJobRow maps the core fields and stamps status 'booked'", () => {
   assert.strictEqual(row.legacy_blob_id, null);
   // customer_id is NOT set by the pure mapper (insertBooking attaches it).
   assert.ok(!("customer_id" in row));
+});
+
+test("bookingToJobRow parses a half-hour start into start_hour + start_minute (D-027)", () => {
+  const half = bookingToJobRow(Object.assign({}, SAMPLE, { start_time: "09:30" }), {});
+  assert.strictEqual(half.start_hour, 9);
+  assert.strictEqual(half.start_minute, 30);
+  const onHour = bookingToJobRow(Object.assign({}, SAMPLE, { start_time: "13:00" }), {});
+  assert.strictEqual(onHour.start_hour, 13);
+  assert.strictEqual(onHour.start_minute, 0);
+  // A missing/garbled minute falls back to 0 rather than NaN (column is NOT NULL).
+  const bare = bookingToJobRow(Object.assign({}, SAMPLE, { start_time: "11" }), {});
+  assert.strictEqual(bare.start_minute, 0);
+});
+
+test("bookingToJobRow defaults confirmation_state to auto_confirmed with null token fields (D-027)", () => {
+  const row = bookingToJobRow(SAMPLE, { calLink: "x" });
+  assert.strictEqual(row.confirmation_state, "auto_confirmed");
+  assert.strictEqual(row.operator_action_token_hash, null);
+  assert.strictEqual(row.operator_action_token_expires_at, null);
+});
+
+test("bookingToJobRow carries a provisional decision + token from opts, still status='booked' (D-027)", () => {
+  const row = bookingToJobRow(SAMPLE, {
+    confirmationState: "awaiting_operator",
+    actionTokenHash: "deadbeef",
+    actionTokenExpiresAt: "2026-07-11T00:00:00.000Z",
+  });
+  assert.strictEqual(row.confirmation_state, "awaiting_operator");
+  assert.strictEqual(row.operator_action_token_hash, "deadbeef");
+  assert.strictEqual(row.operator_action_token_expires_at, "2026-07-11T00:00:00.000Z");
+  // A provisional booking still HOLDS the slot, so its lifecycle status stays 'booked'.
+  assert.strictEqual(row.status, "booked");
 });
 
 test("bookingToJobRow keeps price_display verbatim and leaves ex-VAT/deposit numerics null", () => {
@@ -181,6 +214,26 @@ test("jobRowToAdminRecord maps a joined jobs row to the admin record shape", () 
   assert.ok(!("image" in adminRow));
 });
 
+test("jobRowToAdminRecord renders a half-hour start as H:MM (D-027)", () => {
+  const half = jobRowToAdminRecord({ start_hour: 9, start_minute: 30, customers: {} });
+  assert.strictEqual(half.start_time, "9:30");
+  const onHour = jobRowToAdminRecord({ start_hour: 13, start_minute: 0, customers: {} });
+  assert.strictEqual(onHour.start_time, "13:00");
+  // A pre-D-027 row (no start_minute selected) still renders on the hour.
+  const legacy = jobRowToAdminRecord({ start_hour: 10, customers: {} });
+  assert.strictEqual(legacy.start_time, "10:00");
+});
+
+test("jobRowToAdminRecord surfaces confirmation_state + operator_decided_at (D-027)", () => {
+  const r = jobRowToAdminRecord({ confirmation_state: "operator_confirmed", operator_decided_at: "2026-07-01T09:00:00Z", customers: {} });
+  assert.strictEqual(r.confirmation_state, "operator_confirmed");
+  assert.strictEqual(r.operator_decided_at, "2026-07-01T09:00:00Z");
+  // A row without the columns reads null, not undefined.
+  const legacy = jobRowToAdminRecord({ customers: {} });
+  assert.strictEqual(legacy.confirmation_state, null);
+  assert.strictEqual(legacy.operator_decided_at, null);
+});
+
 // --- Fake client: insertBooking -------------------------------------------
 
 test("insertBooking upserts the customer (no consent cols) then inserts the job", async () => {
@@ -221,12 +274,14 @@ test("insertBooking fails without inserting a job when the customer upsert error
 
 // --- Fake client: availability + admin list --------------------------------
 
-test("availabilityFromJobs returns the union of booked hour-slots", async () => {
+test("availabilityFromJobs returns booked minute-ranges, minute-precise (D-027)", async () => {
   const sb = fakeSupabase({
-    jobsSelect: { data: [{ start_hour: 10, slots_needed: 2 }, { start_hour: 14, slots_needed: 1 }], error: null },
+    jobsSelect: { data: [{ start_hour: 10, slots_needed: 2 }, { start_hour: 12, start_minute: 30, slots_needed: 1 }], error: null },
   });
   const booked = await availabilityFromJobs(sb, "2026-07-10");
-  assert.deepStrictEqual(booked.sort((a, b) => a - b), [10, 11, 14]);
+  const sorted = booked.slice().sort((a, b) => a.start - b.start);
+  // 10:00 for 2h -> [600,720); 12:30 for 1h -> [750,810) (the :30 the old hour model dropped).
+  assert.deepStrictEqual(sorted, [{ start: 600, end: 720 }, { start: 750, end: 810 }]);
 });
 
 test("fetchBookingsFromJobs maps rows to admin records and returns [] when not configured", async () => {
@@ -307,7 +362,7 @@ test("[integration] insertBooking persists, blocks the slot, reads back, and rej
 
     // availability now reports the booked block [10,11]
     const booked = await availabilityFromJobs(sb, IT_DATE);
-    assert.deepStrictEqual(booked.slice().sort((a, b) => a - b), [10, 11]);
+    assert.deepStrictEqual(booked, [{ start: 600, end: 720 }]); // 10:00 for 2h
 
     // the admin list includes it in the flat record shape
     const admin = await fetchBookingsFromJobs(sb);
@@ -329,6 +384,67 @@ test("[integration] insertBooking persists, blocks the slot, reads back, and rej
     assert.strictEqual(overlap.conflict, true);
   } finally {
     await cleanupIT(sb);
+    _resetForTest();
+  }
+});
+
+// A real :30 insert (D-027): proves the store persists start_minute end-to-end and
+// that availability + the admin shape are minute-precise against real Postgres, not
+// just the faked client. Self-skips like the case above; cleans only its own rows.
+const IT30_DATE = "2026-12-16";
+const IT30_EMAILS = ["it30@example.com"];
+
+test("[integration] a 09:30 booking persists start_minute and reports a minute-precise block", {
+  skip: process.env.ICC_SUPABASE_IT === "1" ? false : "set ICC_SUPABASE_IT=1 with local Supabase env to run",
+}, async () => {
+  _resetForTest();
+  const sb = getSupabaseAdmin();
+  assert.ok(sb, "expected a Supabase client from SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY");
+
+  async function cleanup30() {
+    const { data: custs } = await sb.from("customers").select("id").in("email", IT30_EMAILS);
+    const ids = (custs || []).map((c) => c.id);
+    if (ids.length) {
+      await sb.from("jobs").delete().in("customer_id", ids);
+      await sb.from("customers").delete().in("id", ids);
+    }
+  }
+
+  await cleanup30(); // clear any leftovers from a crashed prior run
+  try {
+    const booking = Object.assign({}, IT_BOOKING, {
+      email: IT30_EMAILS[0],
+      date: IT30_DATE,
+      start_time: "09:30",
+      slots_needed: 1,
+    });
+    const res = await insertBooking(sb, booking, {});
+    assert.strictEqual(res.ok, true, res.error && res.error.message);
+    assert.ok(res.id);
+
+    // the half-hour start persists as start_hour=9, start_minute=30, not truncated
+    // to 9:00 (the F2-to-the-DB-layer bug this guards against)
+    const { data: job, error: jobErr } = await sb
+      .from("jobs")
+      .select("status,start_hour,start_minute,slots_needed")
+      .eq("id", res.id)
+      .single();
+    assert.strictEqual(jobErr, null, jobErr && jobErr.message);
+    assert.strictEqual(job.status, "booked");
+    assert.strictEqual(job.start_hour, 9);
+    assert.strictEqual(job.start_minute, 30);
+
+    // availability reports the minute-precise block [09:30, 10:30) = [570, 630)
+    const booked = await availabilityFromJobs(sb, IT30_DATE);
+    assert.deepStrictEqual(booked, [{ start: 570, end: 630 }]);
+
+    // the admin record renders the half-hour start time (hour un-padded, minute padded)
+    const admin = await fetchBookingsFromJobs(sb);
+    const mine = admin.find((b) => b.id === res.id);
+    assert.ok(mine, "the 09:30 booking appears in the admin list");
+    assert.strictEqual(mine.start_time, "9:30");
+  } finally {
+    await cleanup30();
     _resetForTest();
   }
 });

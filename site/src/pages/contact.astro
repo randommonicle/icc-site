@@ -47,7 +47,10 @@ import tradingHours from '../../../shared/config/tradingHours.js';
         <div class="contact-icon"><Icon name="clock" color="var(--teal)" /></div>
         <div>
           <div class="contact-label">Operating Hours</div>
-          <div class="contact-value">{tradingHours.hoursPhrase()}</div>
+          <div class="contact-value">
+            {tradingHours.hoursLines().map((line) => <div>{line}</div>)}
+            <div class="hours-note">{tradingHours.lastBookingPhrase()}</div>
+          </div>
         </div>
       </div>
       <div class="area-coverage">
@@ -143,6 +146,8 @@ import tradingHours from '../../../shared/config/tradingHours.js';
   }
   .contact-value { font-size: 0.9rem; color: var(--text-dark); }
   .contact-value a { color: inherit; text-decoration: none; }
+  /* Per-day hours (D-027): a short list plus the muted 1pm last-booking note. */
+  .hours-note { margin-top: 0.45rem; font-size: 0.78rem; color: var(--text-mid); line-height: 1.5; }
   .contact-value a:hover { color: var(--teal); }
 
   /* Areas covered — ported from index.html .area-coverage */

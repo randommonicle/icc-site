@@ -61,8 +61,17 @@ const knowledge = require("../../../shared/config/knowledge.js");
 // Slice 5a (D-020): the operational-backend client + the pure handoff-row builder.
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const { escalationToMessageDraft } = require("../../../shared/messages.js");
+const { depositPayButtonHtml } = require("../../../shared/emailSnippets.js");
+// D-027: the shared provisional-decision core supplies the action-token mint + expiry
+// so handleBooking, bookingAction and bookingAdmin all compute them identically.
+const { mintActionToken, actionTokenExpiry } = require("./bookingDecision.js");
 // Slice 5b (D-021): the Postgres booking store (used only under BOOKINGS_STORE).
 const { insertBooking, setJobCalLink, availabilityFromJobs } = require("./bookingsStore.js");
+// Shared Netlify Blobs store + per-IP rate limiter (extracted from this file so
+// bookingAction.js reuses the same limiter, not a divergent copy). rateLimit is
+// re-exported below for test/hardening.test.js.
+const { getBlobStore } = require("./blobStore.js");
+const { getClientIP, tooManyResponse, rateLimit, enforceRateLimit } = require("./rateLimit.js");
 
 // Slice 5b (D-021): the single switch for the bookings backend. When "postgres",
 // confirm_booking writes to the Supabase `jobs` table, availability derives from
@@ -166,7 +175,7 @@ Collect in this order, one question at a time:
 8. Whether furniture needs moving
 9. Any pets
 10. Preferred date (must be from the AVAILABLE BOOKING DATES list in the PER-CONVERSATION CONTEXT block, Monday to Saturday only)
-11. Preferred start time (${tradingHours.formatHour(tradingHours.earliest_start_hour)} to ${tradingHours.formatHour(tradingHours.latest_start_hour)}, hourly slots)
+11. Preferred start time (choose one of the available start times for that day listed in the Hours section above; the last start on any day is ${tradingHours.formatClock(tradingHours.last_start)} and the earliest depends on the day)
 
 Once you have all details, calculate the total estimated time needed (minimum 1 hour per room, round up, add 1 hour buffer). Tell the customer the estimated duration, total price, and the 10% deposit amount. Then ask them to confirm they want to proceed.
 
@@ -252,52 +261,8 @@ function corsHeaders(origin){
   };
 }
 
-function getClientIP(event){
-  const xff = event.headers["x-forwarded-for"] || "";
-  const first = xff.split(",")[0].trim();
-  return first || event.headers["client-ip"] || event.headers["x-real-ip"] || "";
-}
-
-// 429 response shared by all rate-limited paths.
-function tooManyResponse(baseHeaders, retryAfter){
-  return {
-    statusCode: 429,
-    headers: Object.assign({}, baseHeaders, { "Retry-After": String(retryAfter || 3600) }),
-    body: JSON.stringify({ error: "Too many requests. Please wait a little and try again, or call us on 01242 279590." })
-  };
-}
-
-// Sliding-window per-IP rate limiting, backed by Blobs. The pure decision logic
-// lives in rateLimit() so it can be unit-tested with an in-memory store (see
-// test/hardening.test.js); enforceRateLimit() wraps it with the real Blobs store
-// and the fail-open policy — a storage outage must never block a real customer.
-//
-// rateLimit records `now` in a per-key timestamp list, drops entries older than
-// the window, and refuses once the list reaches `limit`. The store is injected:
-// any object with async get(key)->string|null and set(key, value).
-async function rateLimit(store, key, limit, windowMs, now){
-  const data = await store.get(key);
-  const arr = (data ? JSON.parse(data) : []).filter(t => t > now - windowMs);
-  if(arr.length >= limit) return { ok: false, retryAfter: Math.ceil(windowMs / 1000) };
-  arr.push(now);
-  await store.set(key, JSON.stringify(arr));
-  return { ok: true };
-}
-
-// Production wrapper: real Blobs store, namespaced key, fail-open on any error.
-// Used for three paths at different limits — chat (AI cost), booking confirmation
-// (expensive write + slot-griefing vector), and availability (cheap but loopable).
-async function enforceRateLimit(ip, prefix, limit){
-  if(!ip) return { ok: true };
-  const windowMs = 60 * 60 * 1000;
-  try {
-    const store = getBlobStore();
-    return await rateLimit(store, prefix + ":" + ip, limit, windowMs, Date.now());
-  } catch(e){
-    console.log("Rate limit blob unavailable, failing open:", e.message);
-    return { ok: true };
-  }
-}
+// getClientIP / tooManyResponse / rateLimit / enforceRateLimit now live in
+// rateLimit.js (imported above), so bookingAction.js shares the same limiter.
 
 exports.handler = async function (event) {
   const origin = getOrigin(event);
@@ -721,68 +686,80 @@ async function sendEscalationEmail(input, context, resendKey) {
   return await res.json();
 }
 
-function getBlobStore() {
-  const { getStore } = require("@netlify/blobs");
-  return getStore({
-    name: "icc-bookings",
-    siteID: process.env.NETLIFY_SITE_ID,
-    token: process.env.NETLIFY_TOKEN
-  });
-}
-
 async function checkAvailability(date, slotsNeeded, baseHeaders, supabase) {
   const headers = Object.assign({}, baseHeaders || {}, { "Content-Type": "application/json" });
-  // Slice 5b (D-021): under the Postgres store, availability derives from the
-  // committed `jobs` rows and the grid is the hardened 09:00-16:30 day (start
-  // slots 9..15, up to 7 hours); the Blobs path keeps the Phase 0 09:00-17:00 grid
-  // (up to 9 hours). Gated by the same flag as the booking write so store + hours
-  // move together.
+  // D-027: the offered grid is the PER-DAY set of start times for the requested
+  // date's weekday (tradingHours.offeredStartTimes) — the SAME source validateBooking
+  // reads — so a start the booking gate would reject is never offered (F2). This is
+  // the offered grid for EVERY store; the store choice only affects where the booked
+  // hours are read from (committed `jobs` rows under Postgres, the Blobs blob
+  // otherwise). Occupancy is judged MINUTE-precise: each committed job's
+  // [start, start+slots) minute span is overlapped against the offered start's span,
+  // mirroring the DB span_minutes exclusion, so the grid never offers a start the
+  // confirm would reject — a :30 job that overruns into the next hour is caught.
   const usePostgres = bookingsStoreIsPostgres() && !!supabase;
   if (bookingsStoreIsPostgres() && !supabase) {
     console.log("WARNING: BOOKINGS_STORE=postgres but no Supabase client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY unset) — availability is using Blobs.");
   }
-  const allSlots = usePostgres
-    ? tradingHours.startHours()
-    : [9,10,11,12,13,14,15,16,17];
+  // Cap matches the active store's slot cap so the endpoint agrees with the booking
+  // engine's payload bound (the trading WINDOW itself is now per-day for both).
   const maxSlots = usePostgres ? tradingHours.max_slots : tradingHours.legacy_blobs.max_slots;
   // Light input check — bookings.js does the full validate; this path is read-only.
-  // Cap matches the active store so the endpoint agrees with the booking engine.
   const slots = Number(slotsNeeded);
   if(typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isInteger(slots) || slots < 1 || slots > maxSlots){
     return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid availability query" }) };
   }
+  // The offered starts for this date's weekday. Parse the date as LOCAL components
+  // so the function's UTC runtime cannot shift the weekday (date-parse-utc-safe).
+  const [dy, dm, dd] = date.split("-").map(Number);
+  const dayName = tradingHours.dayNameOf(new Date(dy, dm - 1, dd));
+  const offered = tradingHours.offeredStartTimes(dayName); // [] on a closed day (e.g. Sunday)
   try {
-    let bookedSlots;
+    // Booked spans as MINUTE ranges [start, start+slots*60): committed jobs under
+    // Postgres, or the legacy whole-hour Blobs array widened to hour ranges.
+    let bookedRanges;
     if (usePostgres) {
-      bookedSlots = await availabilityFromJobs(supabase, date);
+      bookedRanges = await availabilityFromJobs(supabase, date);
     } else {
       const store = getBlobStore();
       const existing = await store.get(date);
-      bookedSlots = existing ? JSON.parse(existing) : [];
+      const hours = existing ? JSON.parse(existing) : [];
+      bookedRanges = hours.map((h) => ({ start: h * 60, end: h * 60 + 60 }));
     }
+    // Soft close (D-027): a job may run past 1pm, so there is no grid-end fit check.
+    // An offered start is dropped only when its own span [start, start+slots*60)
+    // overlaps a committed span — minute-precise, matching the DB span_minutes
+    // exclusion, so a :30 job that overruns the hour is caught (F2).
+    const overlaps = (aS, aE, bS, bE) => aS < bE && bS < aE;
     const available = [];
-
-    for (let i = 0; i <= allSlots.length - slots; i++) {
-      const block = allSlots.slice(i, i + slots);
-      const conflict = block.some(s => bookedSlots.includes(s));
-      if (!conflict) {
-        available.push(`${allSlots[i]}:00`);
-      }
+    for (const startTime of offered) {
+      const s = tradingHours.clockToMinutes(startTime);
+      const e = s + slots * 60;
+      if (!bookedRanges.some((r) => overlaps(s, e, r.start, r.end))) available.push(startTime);
+    }
+    // `booked` keeps its backward-compatible shape: the whole-hour blocks each job
+    // spans (the clients' advisory re-check and older tests read a flat hour array).
+    // The authoritative guard is the DB exclusion at confirm, not this list.
+    const booked = [];
+    for (const r of bookedRanges) {
+      const sh = Math.floor(r.start / 60);
+      const n = Math.round((r.end - r.start) / 60);
+      for (let i = 0; i < n; i++) booked.push(sh + i);
     }
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ available, booked: bookedSlots })
+      body: JSON.stringify({ available, booked })
     };
   } catch (err) {
-    // Fail open: offer the full grid rather than blocking a customer on a store
+    // Fail open: offer the day's full grid rather than blocking a customer on a store
     // hiccup; confirm_booking is the real guard (the Blobs conflict check, or the
     // DB exclusion constraint under Postgres).
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ available: allSlots.map(h => `${h}:00`), booked: [] })
+      body: JSON.stringify({ available: offered, booked: [] })
     };
   }
 }
@@ -797,16 +774,15 @@ function escHtml(s){
 function validateBooking(b, opts){
   if(!b || typeof b !== "object") return "Invalid booking payload";
 
-  // Trading-hours bounds depend on the active store (Slice 5b / D-021): the
-  // Postgres `jobs` table enforces the live day from shared/config/tradingHours.js
-  // (start 9..15, end <= 16, up to 7 slots), passed in by the caller; the Phase 0
-  // Blobs grid is the longer 09:00-17:00 day. The defaults reproduce the exact
-  // Blobs behaviour, so the flag-off path is byte-identical and the DB constraint
-  // is a backstop, not the gate (a too-late/too-long slot is a clean 400 here,
-  // never a 23514 at insert).
+  // Trading-hours gate (D-027): the window is PER-DAY and read from the shared
+  // source (tradingHours.startWindowFor), so it can never drift from what the
+  // assistant offers or the site advertises (F2). The window is the same for every
+  // store; `opts` carries only the payload slot cap — the default preserves the
+  // flag-off Blobs cap (9), and the Postgres/live caller passes bookingBounds() (7).
+  // There is no hard end-of-day clock: 1pm is the last START and the finish is soft
+  // (D-027), so a job that runs past the old close is allowed. Double-booking is the
+  // DB exclusion constraint / Blobs conflict check, not this gate.
   const o = opts || {};
-  const latestStartHour = o.latestStartHour || tradingHours.legacy_blobs.latest_start_hour;
-  const latestEndHour = o.latestEndHour || tradingHours.legacy_blobs.latest_end_hour;
   const maxSlots = o.maxSlots || tradingHours.legacy_blobs.max_slots;
 
   const required = ["name","phone","email","address","date","start_time","slots_needed"];
@@ -819,17 +795,9 @@ function validateBooking(b, opts){
   if(typeof b.email !== "string" || b.email.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.email)) return "Invalid email";
   if(typeof b.address !== "string" || b.address.length < 5 || b.address.length > 500) return "Invalid address";
   if(typeof b.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.date)) return "Invalid date format";
-  // On-the-hour 9..latestStartHour, no leading zero (the assistant emits
-  // "9:00".."17:00"); the allowed set narrows to 9..15 under the Postgres store.
-  const allowedStartHours = [];
-  for(let h = 9; h <= latestStartHour; h++) allowedStartHours.push(h);
-  const startTimeRe = new RegExp("^(" + allowedStartHours.join("|") + "):00$");
-  if(typeof b.start_time !== "string" || !startTimeRe.test(b.start_time)) return "Invalid start_time";
 
-  const slots = Number(b.slots_needed);
-  if(!Number.isInteger(slots) || slots < 1 || slots > maxSlots) return "Invalid slots_needed";
-
-  // Date must be in the bookable window and not a Sunday
+  // Date must be in the bookable window. Parse as LOCAL components so the function's
+  // UTC runtime cannot shift the weekday (date-parse-utc-safe).
   const today = new Date(); today.setHours(0,0,0,0);
   const [y,m,d] = b.date.split("-").map(Number);
   const bookingDate = new Date(y, m-1, d);
@@ -837,11 +805,20 @@ function validateBooking(b, opts){
   const daysOut = Math.floor((bookingDate - today) / (24*60*60*1000));
   if(daysOut < 6) return "Date too soon — minimum 7 days notice";
   if(daysOut > 90) return "Date too far ahead";
-  if(bookingDate.getDay() === 0) return "Sundays are not bookable";
 
-  // Slots fit within trading hours (last slot ends by latestEndHour)
-  const startHour = parseInt(b.start_time.split(":")[0], 10);
-  if(startHour + slots > latestEndHour) return "Slots overflow trading hours";
+  // Per-day window for this weekday. A closed day (Sunday) has no window.
+  const dayWindow = tradingHours.startWindowFor(tradingHours.dayNameOf(bookingDate));
+  if(!dayWindow) return "Sundays are not bookable";
+
+  // start_time is "HH:MM" (the assistant emits e.g. "9:30" / "13:00"; a leading zero
+  // is tolerated). It must be no earlier than this day's earliest start and no later
+  // than the 1pm last start. No end-of-day check — the finish is soft (D-027).
+  if(typeof b.start_time !== "string" || !/^\d{1,2}:\d{2}$/.test(b.start_time)) return "Invalid start_time";
+  const startMinutes = tradingHours.clockToMinutes(b.start_time);
+  if(startMinutes < dayWindow.earliestMinutes || startMinutes > dayWindow.lastStartMinutes) return "Invalid start_time";
+
+  const slots = Number(b.slots_needed);
+  if(!Number.isInteger(slots) || slots < 1 || slots > maxSlots) return "Invalid slots_needed";
 
   // Price floor — minimum call-out is £75. Anything under £30
   // is almost certainly a prompt-injection or tampered payload.
@@ -913,8 +890,11 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   }
 
   // Reject malformed/tampered payloads before touching the store, email, or PDF.
-  // Under the Postgres store the bounds match the 09:00-16:30 day, so a too-late or
-  // too-long slot is a clean 400 here, never a DB constraint error at insert
+  // The per-day trading window (D-027) is enforced for BOTH stores — validateBooking
+  // reads it from the shared source regardless of opts — so a Sunday, a start before
+  // the day's earliest, or a start after the 1pm last start is a clean 400 here,
+  // never a DB constraint error at insert. bookingBounds() supplies only the
+  // Postgres/live slot cap; the Blobs path keeps its own cap via the no-opts default
   // (Slice 5b / D-021).
   const validationError = usePostgres
     ? validateBooking(booking, tradingHours.bookingBounds())
@@ -933,6 +913,26 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   // rather than "undefined" when the assistant omits it.
   booking.deposit = depositLabel(booking.deposit);
 
+  // D-027 provisional decision. A booking whose FINISH is after the auto-confirm line
+  // (15:00) is TAKEN and holds the slot, but waits for Mark to accept/decline from his
+  // email. Only the Postgres store has the columns for this; the legacy Blobs path
+  // auto-confirms as before. The plaintext token goes ONLY in Mark's email link; the
+  // stored value is its SHA-256 hash (single-use + expiring), so a DB leak cannot forge
+  // a link. The confirmation_state + hash are passed to the insert so they persist
+  // atomically with the row (fail-closed, before any email).
+  const finishMinutes = tradingHours.clockToMinutes(booking.start_time) + Number(booking.slots_needed) * 60;
+  const provisional = usePostgres && finishMinutes > tradingHours.autoConfirmByMinutes();
+  let actionToken = null;
+  const insertOpts = { calLink: null };
+  if (provisional) {
+    const minted = mintActionToken();
+    actionToken = minted.plaintext; // plaintext only in Mark's email link
+    insertOpts.confirmationState = "awaiting_operator";
+    insertOpts.actionTokenHash = minted.hash; // only the hash is stored
+    // Valid through the whole booking day (Mark decides before the job).
+    insertOpts.actionTokenExpiresAt = actionTokenExpiry(booking.date);
+  }
+
   // Persist the booking. The calLink is built after this block and stamped on the
   // stored record below (both stores), so null is passed here first.
   let currentBookingId = null;
@@ -944,7 +944,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
     // phone-number fallback). Double-booking is the DB exclusion constraint
     // (23P01 -> 409), not a read-then-write. No fallback to Blobs: that would
     // reintroduce the split-brain this slice removes.
-    const res = await insertBooking(supabase, booking, { calLink: null });
+    const res = await insertBooking(supabase, booking, insertOpts);
     if (!res.ok) {
       if (res.conflict) {
         return {
@@ -1004,12 +1004,16 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
     }
   }
 
-  // Generate Google Calendar link for Mark
+  // Generate Google Calendar link for Mark. start_time carries minutes now (D-027,
+  // e.g. "09:30"), so the calendar times must too, or the event would show the wrong
+  // start. slots_needed is whole hours, so the end keeps the start's minutes.
   const dateStr = booking.date.replace(/-/g, "");
-  const startHour = parseInt(booking.start_time.split(":")[0]);
-  const endHour = startHour + booking.slots_needed;
-  const startStr = `${dateStr}T${String(startHour).padStart(2,"0")}0000`;
-  const endStr = `${dateStr}T${String(endHour).padStart(2,"0")}0000`;
+  const start = tradingHours.parseClock(booking.start_time);
+  const startMin = start.minute || 0;
+  const endHour = start.hour + booking.slots_needed;
+  const calClock = (h, mm) => `${String(h).padStart(2,"0")}${String(mm).padStart(2,"0")}00`;
+  const startStr = `${dateStr}T${calClock(start.hour, startMin)}`;
+  const endStr = `${dateStr}T${calClock(endHour, startMin)}`;
   const calTitle = encodeURIComponent(`ICC - ${booking.name} - ${booking.rooms}`);
   const calDetails = encodeURIComponent(`Customer: ${booking.name}\nPhone: ${booking.phone}\nEmail: ${booking.email}\nAddress: ${booking.address}\nRooms: ${booking.rooms}\nCarpet types: ${booking.carpet_types}\nConcerns: ${booking.concerns}\nMethod: ${booking.recommended_method}\nEstimated price: ${booking.estimated_price}\nDeposit due: ${booking.deposit}`);
   const calLocation = encodeURIComponent(booking.address);
@@ -1040,14 +1044,14 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, message: "Booking recorded. Email sending not configured.", calLink })
+      body: JSON.stringify({ success: true, provisional, message: "Booking recorded. Email sending not configured.", calLink })
     };
   }
 
   // Generate PDF job card
   let pdfBase64 = null;
   try {
-    const pdfBuffer = await generateJobCardPDF(booking, calLink, currentBookingId);
+    const pdfBuffer = await generateJobCardPDF(booking, calLink, currentBookingId, provisional);
     pdfBase64 = pdfBuffer.toString("base64");
   } catch(e) {
     console.log("PDF generation error:", e.message);
@@ -1067,15 +1071,37 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   const customerReplyTo = process.env.CUSTOMER_REPLY_TO || "hello@intelligentclean.co.uk";
   const customerPrivacyUrl = privacyNoticeUrl();
 
+  // D-027 operator accept/decline. The link goes to a READ-ONLY confirm page (Phase 4)
+  // with the token in the URL FRAGMENT, so it is never sent to the server or a referrer
+  // and a mail-scanner prefetch cannot act; the page's buttons POST it. Only a
+  // provisional booking has a token, so actionUrl (and the block/flags) are null/plain
+  // otherwise, leaving the ordinary confirmed operator email unchanged.
+  const actionUrl = provisional && actionToken && currentBookingId
+    ? `${PUBLIC_SITE_URL}/booking-action#job=${encodeURIComponent(currentBookingId)}&token=${actionToken}`
+    : null;
+  const operatorSubject = provisional
+    ? `ACTION NEEDED - Provisional booking - ${booking.name} - ${booking.date}`
+    : `New Booking - ${booking.name} - ${booking.date}`;
+  const operatorHeader = provisional ? "Provisional Booking — Approval Needed" : "New Booking Confirmed";
+  const operatorFooterNote = provisional
+    ? "This booking was taken via the ICC website AI assistant. It finishes after 3pm, so accept or decline it above before arranging the deposit."
+    : "This booking was taken via the ICC website AI assistant. Please contact the customer to arrange deposit payment.";
+  const operatorProvisionalBlock = actionUrl ? `
+          <div style="margin-top:16px;padding:16px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;">
+            <p style="margin:0 0 8px;font-size:14px;font-weight:bold;color:#9a3412;">This job finishes after 3pm — your approval is needed.</p>
+            <p style="margin:0 0 12px;font-size:13px;color:#7c2d12;">The slot is held for now and the customer has been told you will confirm. Review the booking, then accept or decline.</p>
+            <a href="${escHtml(actionUrl)}" style="display:inline-block;background:#c2410c;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;">Review &amp; respond</a>
+          </div>` : "";
+
   // Send email to Mark
   const markEmail = {
     from: operatorFrom,
     to: operatorEmail,
-    subject: `New Booking - ${booking.name} - ${booking.date}`,
+    subject: operatorSubject,
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
         <div style="background:#0d2236;padding:20px;border-radius:8px 8px 0 0;">
-          <h1 style="color:#2ab8a4;margin:0;font-size:20px;">New Booking Confirmed</h1>
+          <h1 style="color:#2ab8a4;margin:0;font-size:20px;">${operatorHeader}</h1>
           <p style="color:rgba(255,255,255,0.7);margin:5px 0 0;">Intelligent Carpet Cleaning</p>
         </div>
         <div style="background:#f7f8fa;padding:20px;border-radius:0 0 8px 8px;border:1px solid #e2e8f0;">
@@ -1097,10 +1123,11 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
             <tr style="background:#fff;"><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Estimated Price</strong></td><td style="padding:8px 0;font-size:14px;color:#1a8a7a;"><strong>${escHtml(booking.estimated_price)}</strong></td></tr>
             <tr style="background:#fff;"><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Deposit Due</strong></td><td style="padding:8px 0;font-size:14px;color:#1a8a7a;"><strong>${escHtml(booking.deposit)}</strong></td></tr>
           </table>
+          ${operatorProvisionalBlock}
           <div style="margin-top:20px;padding:15px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;text-align:center;">
             <a href="${escHtml(calLink)}" style="display:inline-block;background:#1a8a7a;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;">Add to Google Calendar</a>
           </div>
-          <p style="margin-top:15px;font-size:12px;color:#718096;">This booking was taken via the ICC website AI assistant. Please contact the customer to arrange deposit payment.</p>
+          <p style="margin-top:15px;font-size:12px;color:#718096;">${operatorFooterNote}</p>
           ${(booking.image && ["image/jpeg","image/png","image/gif","image/webp"].includes(booking.image.mediaType)) ? '<div style="margin-top:15px;"><p style="font-size:13px;font-weight:bold;color:#1a3a5c;margin-bottom:8px;">Carpet Photo (uploaded by customer):</p><img src="data:'+escHtml(booking.image.mediaType)+';base64,'+escHtml(booking.image.base64)+'" style="max-width:400px;border-radius:8px;border:1px solid #e2e8f0;" alt="Carpet photo"></div>' : '<p style="font-size:12px;color:#718096;margin-top:8px;">No carpet photo was uploaded.</p>'}
           <p style="margin-top:12px;font-size:12px;color:#718096;">The full job card PDF is attached to this email.</p>
         </div>
@@ -1108,21 +1135,36 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
     attachments: pdfBase64 ? [{ filename: pdfFilename, content: pdfBase64 }] : []
   };
 
-  // Send confirmation email to customer
+  // Send confirmation email to customer. D-027: a provisional (late-finish) booking must
+  // NOT tell the customer it is confirmed/secured — it is received and held pending Mark's
+  // accept (copy approved by Ben 2026-09-01). An on-time booking keeps the confirmed wording.
+  const customerSubject = provisional
+    ? "Your booking request - Intelligent Carpet Cleaning"
+    : "Your Booking Confirmation - Intelligent Carpet Cleaning";
+  const customerHeader = provisional ? "Booking Received" : "Booking Confirmation";
+  const customerOpener = provisional
+    ? "Thank you for your request. As your clean would finish later in the afternoon, Mark will confirm the time with you and be in touch shortly to arrange your deposit. Here's a summary of what you've asked for:"
+    : "Thank you for booking with Intelligent Carpet Cleaning. Here is a summary of your appointment:";
+  // TODO(D-004/D-026 deposit-link): for an AUTO-CONFIRMED booking only (a provisional
+  // booking gets its pay link in the accept email after Mark accepts, bookingAction.js),
+  // set this to a server-created Stripe deposit Checkout Session URL once the deposit
+  // amount is server-derived. Null today, so the email shows no button and keeps the
+  // "Mark will be in touch" wording (dormant-until-configured, D-004 addendum).
+  const customerDepositPayUrl = null;
   const customerEmail = {
     from: customerFrom,
     reply_to: customerReplyTo,
     to: booking.email,
-    subject: `Your Booking Confirmation - Intelligent Carpet Cleaning`,
+    subject: customerSubject,
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
         <div style="background:#0d2236;padding:20px;border-radius:8px 8px 0 0;">
-          <h1 style="color:#2ab8a4;margin:0;font-size:20px;">Booking Confirmation</h1>
+          <h1 style="color:#2ab8a4;margin:0;font-size:20px;">${customerHeader}</h1>
           <p style="color:rgba(255,255,255,0.7);margin:5px 0 0;">Intelligent Carpet Cleaning</p>
         </div>
         <div style="background:#f7f8fa;padding:20px;border-radius:0 0 8px 8px;border:1px solid #e2e8f0;">
           <p style="font-size:15px;">Hi ${escHtml(booking.name.split(" ")[0])},</p>
-          <p style="font-size:14px;color:#4a5568;">Thank you for booking with Intelligent Carpet Cleaning. Here is a summary of your appointment:</p>
+          <p style="font-size:14px;color:#4a5568;">${customerOpener}</p>
           <table style="width:100%;border-collapse:collapse;margin:15px 0;">
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;width:40%"><strong>Date</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.date)}</td></tr>
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Start Time</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.start_time)}</td></tr>
@@ -1139,7 +1181,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
               <li>Keep pets away from the work area during the clean and until carpets are dry</li>
               <li>Mark will be in touch to arrange your deposit payment to confirm the slot</li>
             </ul>
-          </div>
+          </div>${depositPayButtonHtml(customerDepositPayUrl)}
           <div style="margin-top:15px;text-align:center;">
             <a href="${escHtml(calLink)}" style="display:inline-block;background:#1a8a7a;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;">Add to My Calendar</a>
           </div>
@@ -1152,7 +1194,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
             <p style="margin:0;font-size:11px;color:#718096;line-height:1.6;">These terms do not affect your statutory rights.</p>
           </div>
           <p style="margin-top:15px;font-size:12px;color:#888;">How we handle your data: <a href="${escHtml(customerPrivacyUrl)}" style="color:#888;">our privacy notice</a>.</p>
-          <p style="margin-top:15px;font-size:12px;color:#a0aec0;">Established Trust, Superior Cleaning.</p>
+          <p style="margin-top:15px;font-size:12px;color:#a0aec0;">Intelligence you can trust.</p>
         </div>
       </div>`
   };
@@ -1179,7 +1221,8 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
       headers,
       body: JSON.stringify({
         success: true,
-        message: "Booking confirmed. Confirmation emails sent.",
+        provisional,
+        message: provisional ? "Booking held — Mark will confirm the time." : "Booking confirmed. Confirmation emails sent.",
         calLink,
         markEmail: markData,
         customerEmail: customerData
@@ -1189,12 +1232,12 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, message: "Booking recorded but email sending failed.", calLink, error: err.message })
+      body: JSON.stringify({ success: true, provisional, message: "Booking recorded but email sending failed.", calLink, error: err.message })
     };
   }
 }
 
-async function generateJobCardPDF(booking, calLink, bookingId) {
+async function generateJobCardPDF(booking, calLink, bookingId, provisional) {
   const PDFDocument = require("pdfkit");
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 40, size: "A4", info: { Title: `ICC Job Card - ${booking.name} - ${booking.date}`, Author: "Intelligent Carpet Cleaning" } });
@@ -1209,9 +1252,17 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
     // Header
     doc.rect(0, 0, doc.page.width, 75).fill(navy);
     doc.fontSize(18).fillColor(tealLight).font("Helvetica-Bold").text("INTELLIGENT CARPET CLEANING", 40, 14, { width: W });
-    doc.fontSize(9).fillColor("white").font("Helvetica").text("Established Trust, Superior Cleaning", 40, 37);
+    doc.fontSize(9).fillColor("white").font("Helvetica").text("Intelligence you can trust", 40, 37);
     doc.fontSize(7.5).fillColor("rgba(255,255,255,0.5)").text(`Job Ref: ${bookingId || "N/A"}   |   Created: ${new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })}   |   01242 279590   |   hello@intelligentclean.co.uk`, 40, 54);
     doc.y = 88;
+
+    // D-027: a provisional (late-finish) job is flagged on Mark's card too.
+    if (provisional) {
+      const py = doc.y;
+      doc.rect(40, py, W, 22).fill("#c2410c");
+      doc.fontSize(9).fillColor("white").font("Helvetica-Bold").text("PROVISIONAL - finishes after 3pm; accept or decline before arranging the deposit.", 46, py + 6, { width: W - 12 });
+      doc.y = py + 30;
+    }
 
     function sectionHeader(title) {
       doc.moveDown(0.2);
@@ -1331,7 +1382,7 @@ async function generateJobCardPDF(booking, calLink, bookingId) {
     doc.rect(40, doc.y, W, 1).fill("#e2e8f0");
     doc.moveDown(0.5);
     doc.fontSize(7.5).fillColor(textMid).font("Helvetica")
-       .text("Intelligent Carpet Cleaning  |  01242 279590  |  hello@intelligentclean.co.uk  |  All GL Postcodes  |  Mon-Sat 8am-6pm", 40, doc.y, { align: "center", width: W });
+       .text(`Intelligent Carpet Cleaning  |  01242 279590  |  hello@intelligentclean.co.uk  |  All GL Postcodes  |  ${tradingHours.daysPhrase()}`, 40, doc.y, { align: "center", width: W });
     doc.moveDown(0.4);
     doc.fontSize(7).fillColor("#a0aec0")
        .text("This job card was generated automatically by the ICC AI booking system. Please verify all details with the customer before the appointment.", 40, doc.y, { align: "center", width: W });
