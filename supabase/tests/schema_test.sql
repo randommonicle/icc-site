@@ -7,7 +7,7 @@
 -- guard is MINUTE-precise, so half-hour starts are judged correctly.
 
 begin;
-select plan(20);
+select plan(25);
 
 -- enums + core tables exist
 select has_type('job_status');
@@ -122,6 +122,44 @@ select throws_ok(
   '23P01',
   null,
   'a 10:00 job overlaps the 09:30 job; minutes are honoured, not truncated to the hour'
+);
+
+-- ── D-027 strict single-winner notice: message_status 'sending' + partial index ──
+-- (migration 20260903120000). One provisional-notice row per (job, kind) is enforced, so
+-- the customer is emailed at most once; the app claims the row before sending.
+select ok(
+  'sending' = any(enum_range(null::message_status)::text[]),
+  'message_status includes the sending claim state'
+);
+
+insert into jobs (id, customer_id, status, address, postcode, slot_date, start_hour, slots_needed)
+  values ('00000000-0000-0000-0000-0000000000f0', '00000000-0000-0000-0000-000000000001', 'booked', '1 Test St', 'GL50 1AA', '2026-07-08', 9, 1);
+
+select lives_ok(
+  $$insert into messages (customer_id, job_id, kind, channel, status, body)
+    values ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000f0', 'provisional_confirmed', 'email', 'sent', 'ok')$$,
+  'a provisional notice row inserts'
+);
+-- a SECOND provisional_confirmed row for the same job is rejected by the partial unique
+-- index (the strict single winner), regardless of the row's status
+select throws_ok(
+  $$insert into messages (customer_id, job_id, kind, channel, status, body)
+    values ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000f0', 'provisional_confirmed', 'email', 'sending', 'again')$$,
+  '23505',
+  null,
+  'a second provisional_confirmed row for the same job is rejected'
+);
+-- a provisional_declined row for the same job is allowed (the index keys on kind too)
+select lives_ok(
+  $$insert into messages (customer_id, job_id, kind, channel, status, body)
+    values ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000f0', 'provisional_declined', 'email', 'sent', 'ok')$$,
+  'a different provisional kind for the same job is allowed'
+);
+-- a non-provisional message on the same job is outside the partial predicate, so unaffected
+select lives_ok(
+  $$insert into messages (customer_id, job_id, kind, channel, status, body)
+    values ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000f0', 'review_request', 'email', 'draft', 'ok')$$,
+  'a non-provisional message on the same job is unaffected by the partial index'
 );
 
 select * from finish();

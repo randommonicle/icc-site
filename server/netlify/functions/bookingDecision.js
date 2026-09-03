@@ -250,24 +250,74 @@ function messageRow(job, kind, status, content) {
   };
 }
 
-// Best-effort audit insert — logging must never undo a send that already happened or
-// fail the request, so an insert error is logged, not thrown.
-async function logMessage(supabase, row) {
+// D-027 strict single winner. The provisional notice is ONE `messages` row per (job_id,
+// kind), guarded by the partial unique index messages_provisional_notice_uniq (migration
+// 20260903120000). A sender must CLAIM that row (move it to 'sending') before sending, so
+// exactly one sender proceeds and the customer is emailed at most once, even under a
+// concurrent admin retry or a retry racing an initial send that died after sending but
+// before recording. A dead claim must never strand a notice, so a 'sending' row older than
+// this window is reclaimable; the 10s function timeout sits well inside it.
+const STALE_SENDING_MS = 15 * 60 * 1000;
+
+// Claim the (job, kind) notice row by moving it to 'sending'. Returns { claimed, id }.
+// Reclaim-UPDATE-then-INSERT against the partial unique index (NOT ON CONFLICT: supabase-js
+// upsert cannot target a partial index): reclaim a terminal draft/failed row or a stale
+// 'sending' one; otherwise insert a fresh claim, where a 23505 means another sender already
+// holds the row (already sent, or sending right now), so we lose the race.
+async function claimNotice(supabase, job, kind, content) {
+  const staleBefore = new Date(Date.now() - STALE_SENDING_MS).toISOString();
+  const claimFields = {
+    status: "sending",
+    subject: content.subject || null,
+    body: content.text || content.subject || "(no body)",
+  };
+  const { data: reclaimed, error: upErr } = await supabase
+    .from("messages")
+    .update(claimFields)
+    .eq("job_id", job.id)
+    .eq("kind", kind)
+    .or(`status.in.(draft,failed),and(status.eq.sending,updated_at.lt.${staleBefore})`)
+    .select("id");
+  if (upErr) throw new Error(upErr.message);
+  if (reclaimed && reclaimed.length) return { claimed: true, id: reclaimed[0].id };
+
+  const { data: inserted, error: insErr } = await supabase
+    .from("messages")
+    .insert(messageRow(job, kind, "sending", content))
+    .select("id");
+  if (insErr) {
+    if (insErr.code === "23505") return { claimed: false, id: null };
+    throw new Error(insErr.message);
+  }
+  return { claimed: true, id: inserted && inserted[0] ? inserted[0].id : null };
+}
+
+// Settle a claimed notice row to its terminal status by id. Best-effort: settling must
+// never undo a send that already happened, so an error is logged, not thrown.
+async function settleNotice(supabase, id, status, content) {
+  if (!id) return;
+  const fields = {
+    status,
+    subject: content.subject || null,
+    body: content.text || content.subject || "(no body)",
+    sent_at: status === "sent" ? new Date().toISOString() : null,
+  };
   try {
-    const { error } = await supabase.from("messages").insert(row);
-    if (error) console.log("booking notice log failed:", error.message);
+    const { error } = await supabase.from("messages").update(fields).eq("id", id);
+    if (error) console.log("booking notice settle failed:", error.message);
   } catch (e) {
-    console.log("booking notice log threw:", e.message);
+    console.log("booking notice settle threw:", e.message);
   }
 }
 
-// Send the customer their outcome notice (confirmed / not accepted) and ALWAYS record a
-// `messages` row for it — 'sent' on success, 'failed' otherwise, including when there is
-// no email address or no RESEND_API_KEY. A resolved booking must never leave NO row, so
-// a missing or failed notice is always visible and retryable in the admin (cross-agent
-// review 2026-09-02, finding 5). The kind is derived from `action`, so a confirmed
-// booking can never emit a decline notice. Best-effort: never throws (the decision has
-// already committed). Returns { emailed, status, reason? }.
+// Send the customer their outcome notice (confirmed / not accepted) as a strict single
+// winner: CLAIM the (job, kind) row, then send, then settle it 'sent' (or 'failed'). A lost
+// claim means another sender already handled this notice, so we do nothing (no duplicate).
+// A resolved booking still ALWAYS leaves a row: no email / no key / a send failure settles
+// 'failed', so the notice stays visible and retryable in the admin (cross-agent review
+// 2026-09-02, finding 5). The kind is derived from `action`, so a confirmed booking can
+// never emit a decline notice. Best-effort: never throws (the decision has already
+// committed). Returns { emailed, status, reason? }.
 async function notifyCustomerOutcome(supabase, job, action, opts = {}) {
   const { resendKey, sendEmailFn = sendCustomerEmail, depositPayUrl = null } = opts;
   const summary = bookingSummary(job);
@@ -276,21 +326,31 @@ async function notifyCustomerOutcome(supabase, job, action, opts = {}) {
     action === "accept"
       ? buildAcceptEmail(summary, privacyNoticeUrl(), depositPayUrl)
       : buildDeclineEmail(summary, privacyNoticeUrl());
+
+  let claim;
+  try {
+    claim = await claimNotice(supabase, job, kind, content);
+  } catch (e) {
+    console.log(`booking notify ${action} claim failed for job`, job.id, "-", e.message);
+    return { emailed: false, status: "failed", reason: "claim failed" };
+  }
+  if (!claim.claimed) return { emailed: false, status: "skipped", reason: "already handled" };
+
   if (!summary.email) {
-    await logMessage(supabase, messageRow(job, kind, "failed", content));
+    await settleNotice(supabase, claim.id, "failed", content);
     return { emailed: false, status: "failed", reason: "no email on file" };
   }
   if (!resendKey) {
-    await logMessage(supabase, messageRow(job, kind, "failed", content));
+    await settleNotice(supabase, claim.id, "failed", content);
     return { emailed: false, status: "failed", reason: "email not configured" };
   }
   try {
     await sendEmailFn(summary.email, content, resendKey);
-    await logMessage(supabase, messageRow(job, kind, "sent", content));
+    await settleNotice(supabase, claim.id, "sent", content);
     return { emailed: true, status: "sent" };
   } catch (e) {
     console.log(`booking notify ${action} failed for job`, job.id, "-", e.message);
-    await logMessage(supabase, messageRow(job, kind, "failed", content));
+    await settleNotice(supabase, claim.id, "failed", content);
     return { emailed: false, status: "failed", reason: "send failed" };
   }
 }
@@ -313,6 +373,5 @@ module.exports = {
   buildDeclineEmail,
   sendCustomerEmail,
   messageRow,
-  logMessage,
   notifyCustomerOutcome,
 };

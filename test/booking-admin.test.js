@@ -71,13 +71,42 @@ function makeSupabase({ job = null, sentNotice = false } = {}) {
     };
     return c;
   }
+  // messages: models the D-027 single-winner notice (claim = reclaim-UPDATE then INSERT
+  // under the partial unique index; settle mutates the claimed row IN PLACE) AND the
+  // hasSentProvisionalNotice read (limit, driven by sentNotice).
   function messagesChain() {
+    let mode = null; let payload = null; const eqs = {}; let ored = false;
     const c = {
-      select() { return c; },
-      eq() { return c; },
+      select() { if (!mode) mode = "read"; return c; },
+      update(f) { mode = "update"; payload = f; return c; },
+      insert(r) { mode = "insert"; payload = r; return c; },
+      eq(k, v) { eqs[k] = v; return c; },
       in() { return c; },
-      insert(row) { inserts.push(row); return Promise.resolve({ error: null }); },
+      or() { ored = true; return c; },
       limit() { return Promise.resolve({ data: sentNotice ? [{ id: "m1" }] : [], error: null }); },
+      then(res) {
+        if (mode === "insert") {
+          if (["provisional_confirmed", "provisional_declined"].includes(payload.kind) &&
+              inserts.some((r) => r.job_id === payload.job_id && r.kind === payload.kind)) {
+            return res({ data: null, error: { code: "23505", message: "duplicate key value" } });
+          }
+          const row = { id: `m${inserts.length + 1}`, sent_at: null, ...payload };
+          inserts.push(row);
+          return res({ data: [{ id: row.id }], error: null });
+        }
+        if (mode === "update" && ored) { // reclaim a terminal draft/failed row
+          const row = inserts.find((r) => r.job_id === eqs.job_id && r.kind === eqs.kind &&
+            (r.status === "draft" || r.status === "failed"));
+          if (row) { Object.assign(row, payload); return res({ data: [{ id: row.id }], error: null }); }
+          return res({ data: [], error: null });
+        }
+        if (mode === "update") { // settle by id
+          const row = inserts.find((r) => r.id === eqs.id);
+          if (row) Object.assign(row, payload);
+          return res({ data: null, error: null });
+        }
+        return res({ data: [], error: null });
+      },
     };
     return c;
   }
