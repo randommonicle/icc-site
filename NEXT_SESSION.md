@@ -12,7 +12,59 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
-## This session — 2026-09-02: D-027 Phases 4 and 5 built (public accept/decline + admin fallback), two cross-agent reviews; Phase 6 remains
+## This session — 2026-09-03: D-027 Phase 6 DONE — strict single-winner notice built + reviewed, merged to `main` and DEPLOYED
+
+*Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading — /context unavailable in this harness. No compaction/summarisation warnings seen; a clean deliberate wrap at Ben's request.**
+
+**D-027 IS LIVE.** The full slice (per-day trading hours, half-hour starts, minute-precise double-booking, provisional bookings for late-finish jobs, the public accept/decline endpoint + admin fallback, and this session's strict single-winner notice) merged to `main` (`2f8a0ff`) and deployed. *Verified: Netlify production deploy of `2f8a0ff` is state `ready`, no error; site `super-frangollo-c3a14a.netlify.app`.* This SUPERSEDES the 2026-09-02 "Phase 6 remains".
+
+**Session goal.** Finish D-027 Phase 6 (the deploy gate): pgTAP, a real integration insert, build the strict single-winner retry (Ben's call), diff-review it, then merge + deploy.
+
+**Branch and worktree.** Work on `feat/d027-per-day-hours` (home machine, standard checkout), 6 commits this session, pushed to `origin/feat`. Then merged `--no-ff` to `main` (`2f8a0ff`) and pushed (deployed). **`main` is now `2f8a0ff` (deployed); `feat/d027-per-day-hours` is fully merged (deletable). HEAD is currently on `main`.**
+
+**What landed (all verified green before merge: node --test 320 = 311 pass / 9 skip; 40 pgTAP; 19 guarded integration; build 24 pages):**
+- `667ed29` pgTAP: drop the stale `jobs_trading_hours` assertion; add `confirmation_state` + minute cases to `schema_test.sql`. *verified (supabase test db)*
+- `8efd081` a real `:30` integration booking round-trip vs local Postgres. *verified*
+- `7f09775` strict single-winner notice: migration `20260903120000` (`sending` `message_status` + partial unique index `messages_provisional_notice_uniq`), `bookingDecision.js` claim-then-send (`claimNotice`/`settleNotice`). *verified (pgTAP + integration + a measured 3/3 single-winner)*
+- `e4a1030` concurrent reclaim-race integration test. *verified*
+- `d2e28bd` docs: DECISIONS D-027 addendum, LESSONS L-027/L-028, plan checkpoint.
+- `abeb2b5` review fixes: Resend `Idempotency-Key` (`${kind}/${job.id}`) in `sendCustomerEmail`; an enforcing concurrent-stale-reclaim test + a comment naming the `set_updated_at` trigger dependency. *verified*
+- `2f8a0ff` merge D-027 to `main` (deploy). *verified (Netlify ready)*
+
+**Migration.** `20260903120000_messages_provisional_single_winner.sql` **APPLIED to prod** (Ben ran `bash scripts/db-push.sh`) and **catalog-verified**: `message_status` has `sending`, `messages_provisional_notice_uniq` present. *verified via `supabase db query` through the aws-1-eu-west-2 pooler.* Applied BEFORE the code deployed (the D-027 DB-ahead-of-code expand pattern).
+
+**Cross-agent review.** `agent-exchange/REVIEW_d027-strict-retry_2026-09-03.md`. **CLAUDE + GEMINI converged**; GPT never completed a round (usage limit; and its watcher was initially on a DIFFERENT project's exchange folder). Gemini found two real things, both fixed this session: (1) the concurrent stale-`sending` reclaim is single-winner only via the `set_updated_at` trigger (now enforced by a test + comment, L-028 area); (2) a stuck-`sending` two-generals residual if a settle fails after a successful send (closed by the Resend idempotency key). §5.4 a non-issue.
+
+**In flight / NOT done — what deploy skipped:**
+- **THE REAL RIDE.** No real end-to-end run has happened: a real provisional booking (finish after 15:00) on the live site → the operator email to Mark → click the link → accept → the customer confirmation email + a `messages` `sent` row; then a decline (slot freed + customer email); then admin-fallback accept/decline/resend/notify from `admin.html`. Tests + review cover the logic; the live email seam is unproven in prod. **First next action.**
+
+**Deferred items (flagged, unchanged):**
+- Deposit pay-link dormant until Stripe live + server-derived amount. Anchor: `TODO(D-004/D-026 deposit-link)` in `bookingAction.js` / `chat.js`.
+- Saturday weekend premium figure unset. Anchor: `TODO(D-027/saturday-premium)` in `bookingsStore.js`.
+- (The strict single-winner retry, previously deferred, is now BUILT + deployed.)
+
+**Verification still outstanding:** the real ride (above); a post-deploy smoke of the live availability grid showing the new per-day hours; GPT's independent review pass (optional; REVIEW file open at `NEXT: GPT`).
+
+**Blockers and open questions:** none block the ride. To resume GPT's pass, re-point its watcher at `C:\Users\bengr\agent-exchange\` (NOT the "AI domain and social network" project's exchange) and re-arm a monitor.
+
+**Next actions (ordered, each a single first step):**
+1. Real ride: submit a real provisional booking (finish after 3pm) on `https://super-frangollo-c3a14a.netlify.app/book`; confirm Mark's operator email; click the link; accept; check the customer email + the admin card's "Customer notified".
+2. Then a decline: confirm the slot frees and the customer decline email sends.
+3. Then admin fallback from `admin.html`: accept / decline / resend / retry_customer_notice on a provisional booking.
+4. Watch the first real provisional notice to confirm the idempotency key is on the live Resend call (no dupes).
+5. Optional: GPT's independent review pass; then delete `feat/d027-per-day-hours`.
+
+**Traps and working agreements (this session):**
+- Repo at **`C:\Users\bengr\Projects\ICC\icc-site`** (Desktop is an empty stub; auto-memory).
+- **Prod migrations: Ben runs `bash scripts/db-push.sh` himself** (the classifier blocks my schema writes). From PowerShell (`bash` not on PATH there), invoke `& "C:\Program Files\Git\bin\bash.exe" "C:/Users/bengr/Projects/ICC/icc-site/scripts/db-push.sh"`. **Catalog READS are NOT blocked:** `supabase db query "<SELECT>" --db-url <pooler>` (build the pooler URL as `scripts/db-push.sh` does).
+- **Local pgTAP/integration: `supabase db reset` FIRST** or you test a stale ghost schema (L-027). Integration needs `ICC_SUPABASE_IT=1` + `SUPABASE_URL=http://127.0.0.1:54321` + the local `sb_secret_…` key from `supabase status` (memory `icc-local-integration-tests`).
+- **Cross-agent review:** do NOT stamp `[[CONVERGED]]`/close while a seated reviewer still owes a round (I closed on Gemini's convergence, waving GPT off; re-opened). ICC relay is `C:\Users\bengr\agent-exchange\`.
+- Ben's shell is **Windows PowerShell 5.1** (no `&&`; use `;` / `if ($?)`), memory `ben-powershell-51-no-ampersand`. No em dashes in prose.
+- confirm-before-push honoured: Ben said "push and deploy"; the prod migration was sequenced first for safety.
+
+---
+
+## This session — 2026-09-02: D-027 Phases 4 and 5 built (public accept/decline + admin fallback), two cross-agent reviews; Phase 6 remains **(SUPERSEDED 2026-09-03: Phase 6 done, merged to `main` `2f8a0ff`, deployed — see the 2026-09-03 entry above)**
 
 *Diagnoses in this note are unverified unless marked.* **Context: `/context` is not invokable in this non-interactive session; Ben reported 63% (yellow band). Not an independent read.**
 
