@@ -1,11 +1,12 @@
 -- pgTAP — Slice 5b (D-021): jobs.postcode is nullable, invariants intact.
 -- Run with: supabase test db   (needs the local stack: supabase start -> Docker).
 -- Proves the column change is real (a job can be stored without a postcode) AND
--- that the migration did not drop the double-booking / trading-hours invariants
--- the booking write relies on as a backstop.
+-- that the migration did not drop the double-booking invariant the booking write
+-- relies on as a backstop. (D-021's trading-hours assertion was removed once D-027's
+-- soft close, 20260901133038, intentionally dropped the jobs_trading_hours check.)
 
 begin;
-select plan(4);
+select plan(3);
 
 -- postcode is now nullable
 select col_is_null('jobs', 'postcode', 'jobs.postcode is nullable');
@@ -23,12 +24,6 @@ select lives_ok(
 select ok(
   exists(select 1 from pg_constraint where conname = 'jobs_no_double_booking'),
   'jobs_no_double_booking exclusion constraint still exists'
-);
-
--- the trading-hours guard still exists
-select ok(
-  exists(select 1 from pg_constraint where conname = 'jobs_trading_hours'),
-  'jobs_trading_hours check constraint still exists'
 );
 
 select * from finish();
