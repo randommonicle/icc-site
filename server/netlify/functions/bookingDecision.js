@@ -219,12 +219,20 @@ function buildDeclineEmail(summary, privacyUrl) {
 
 // Send the customer email via Resend. Fail-closed (throws on non-2xx) so the caller
 // logs 'failed'. Injectable in tests via deps.sendEmailFn.
-async function sendCustomerEmail(toEmail, content, resendKey) {
+async function sendCustomerEmail(toEmail, content, resendKey, idempotencyKey) {
   const customerFrom = process.env.CUSTOMER_FROM || "Intelligent Carpet Cleaning <onboarding@resend.dev>";
   const replyTo = process.env.CUSTOMER_REPLY_TO || "hello@intelligentclean.co.uk";
+  // Idempotency-Key (Resend, 24h window): a duplicate send for the same notice (a stuck
+  // 'sending' row retried after the stale window, or any re-fire of the same (job, kind)) is
+  // a no-op at the provider, so no second email reaches the customer. This closes the
+  // send-then-settle two-generals residual (cross-agent review 2026-09-03, GEMINI). The
+  // payload is fixed at decision time, so a replay carries the same body (Resend 409s a
+  // same-key/different-payload reuse).
+  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` };
+  if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
+    headers,
     body: JSON.stringify({ from: customerFrom, reply_to: replyTo, to: toEmail, subject: content.subject, html: content.html, text: content.text }),
   });
   if (!res.ok) {
@@ -264,6 +272,13 @@ const STALE_SENDING_MS = 15 * 60 * 1000;
 // upsert cannot target a partial index): reclaim a terminal draft/failed row or a stale
 // 'sending' one; otherwise insert a fresh claim, where a 23505 means another sender already
 // holds the row (already sent, or sending right now), so we lose the race.
+//
+// The stale-'sending' reclaim stays single-winner under concurrency ONLY because this UPDATE
+// advances updated_at (the set_updated_at BEFORE UPDATE trigger on messages, init migration
+// 20260605115456): a racing second reclaim then re-checks against a freshly-stamped row, no
+// longer matches updated_at.lt.staleBefore, and loses at the INSERT. If that trigger were
+// dropped, two racers could both reclaim a stale row and double-send. The concurrent-stale-
+// reclaim integration test enforces the dependency (drop the trigger and it fails).
 async function claimNotice(supabase, job, kind, content) {
   const staleBefore = new Date(Date.now() - STALE_SENDING_MS).toISOString();
   const claimFields = {
@@ -345,7 +360,7 @@ async function notifyCustomerOutcome(supabase, job, action, opts = {}) {
     return { emailed: false, status: "failed", reason: "email not configured" };
   }
   try {
-    await sendEmailFn(summary.email, content, resendKey);
+    await sendEmailFn(summary.email, content, resendKey, `${kind}/${job.id}`);
     await settleNotice(supabase, claim.id, "sent", content);
     return { emailed: true, status: "sent" };
   } catch (e) {

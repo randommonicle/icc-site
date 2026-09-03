@@ -11,6 +11,7 @@ const {
   actionTokenExpiry,
   decideProvisional,
   notifyCustomerOutcome,
+  sendCustomerEmail,
 } = require("../server/netlify/functions/bookingDecision.js");
 
 // --- token lifecycle -------------------------------------------------------
@@ -209,6 +210,23 @@ test("notifyCustomerOutcome reclaims a 'failed' row on retry and settles it 'sen
   assert.ok(f.inserts[0].sent_at);
 });
 
+// --- Resend idempotency key (the two-generals close) -----------------------
+
+test("sendCustomerEmail sets the Idempotency-Key header when given one, omits it otherwise", async () => {
+  const orig = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, opts) => { calls.push({ url, opts }); return { ok: true, json: async () => ({ id: "e1" }), text: async () => "" }; };
+  try {
+    await sendCustomerEmail("c@x.com", { subject: "s", html: "<p>h</p>", text: "h" }, "re", "provisional_confirmed/j1");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].opts.headers["Idempotency-Key"], "provisional_confirmed/j1"); // keyed on (kind, job)
+    await sendCustomerEmail("c@x.com", { subject: "s", html: "<p>h</p>", text: "h" }, "re"); // no key supplied
+    assert.equal(calls[1].opts.headers["Idempotency-Key"], undefined);
+  } finally {
+    globalThis.fetch = orig;
+  }
+});
+
 // --- Guarded integration: the claim against real Postgres (D-010, no mocks) ----
 // Runs only when ICC_SUPABASE_IT=1 with local Supabase env. Proves what the fakes cannot:
 // the partial unique index makes concurrent claims a strict single winner, a retry after a
@@ -322,6 +340,33 @@ test("[integration] a concurrent retry on a 'failed' row is still a single winne
     assert.equal(sends, 1, "the email is sent exactly once");
     const rows = await itNoticeRows(sb);
     assert.equal(rows.length, 1, "the failed row was reclaimed once, not duplicated");
+    assert.equal(rows[0].status, "sent");
+  } finally {
+    await cleanupItJob(sb);
+  }
+});
+
+test("[integration] a concurrent retry on a STALE 'sending' row is still a single winner", { skip: IT_SKIP }, async () => {
+  // GEMINI §5.1: the stale reclaim is only single-winner because the set_updated_at BEFORE
+  // UPDATE trigger advances updated_at when the first racer reclaims, so the second re-checks
+  // a fresh row and loses. This test ENFORCES that trigger dependency: drop the trigger and
+  // both racers reclaim the stale row and double-send, failing here.
+  const sb = getSupabaseAdmin();
+  await cleanupItJob(sb);
+  await seedItJob(sb);
+  try {
+    const staleAt = new Date(Date.now() - 20 * 60 * 1000).toISOString(); // 20 min ago
+    await sb.from("messages").insert({ customer_id: IT_CUST, job_id: IT_JOB, kind: "provisional_confirmed", channel: "email", status: "sending", body: "(stale claim)", updated_at: staleAt });
+    let sends = 0;
+    const send = async () => { await new Promise((r) => setTimeout(r, 5)); sends++; };
+    const outcomes = await Promise.all([
+      notifyCustomerOutcome(sb, itJob, "accept", { resendKey: "re", sendEmailFn: send }),
+      notifyCustomerOutcome(sb, itJob, "accept", { resendKey: "re", sendEmailFn: send }),
+    ]);
+    assert.equal(outcomes.filter((r) => r.emailed).length, 1, "exactly one racer reclaims the stale row");
+    assert.equal(sends, 1, "the email is sent exactly once");
+    const rows = await itNoticeRows(sb);
+    assert.equal(rows.length, 1, "the stale row reclaimed once, not duplicated");
     assert.equal(rows[0].status, "sent");
   } finally {
     await cleanupItJob(sb);
