@@ -387,3 +387,64 @@ test("[integration] insertBooking persists, blocks the slot, reads back, and rej
     _resetForTest();
   }
 });
+
+// A real :30 insert (D-027): proves the store persists start_minute end-to-end and
+// that availability + the admin shape are minute-precise against real Postgres, not
+// just the faked client. Self-skips like the case above; cleans only its own rows.
+const IT30_DATE = "2026-12-16";
+const IT30_EMAILS = ["it30@example.com"];
+
+test("[integration] a 09:30 booking persists start_minute and reports a minute-precise block", {
+  skip: process.env.ICC_SUPABASE_IT === "1" ? false : "set ICC_SUPABASE_IT=1 with local Supabase env to run",
+}, async () => {
+  _resetForTest();
+  const sb = getSupabaseAdmin();
+  assert.ok(sb, "expected a Supabase client from SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY");
+
+  async function cleanup30() {
+    const { data: custs } = await sb.from("customers").select("id").in("email", IT30_EMAILS);
+    const ids = (custs || []).map((c) => c.id);
+    if (ids.length) {
+      await sb.from("jobs").delete().in("customer_id", ids);
+      await sb.from("customers").delete().in("id", ids);
+    }
+  }
+
+  await cleanup30(); // clear any leftovers from a crashed prior run
+  try {
+    const booking = Object.assign({}, IT_BOOKING, {
+      email: IT30_EMAILS[0],
+      date: IT30_DATE,
+      start_time: "09:30",
+      slots_needed: 1,
+    });
+    const res = await insertBooking(sb, booking, {});
+    assert.strictEqual(res.ok, true, res.error && res.error.message);
+    assert.ok(res.id);
+
+    // the half-hour start persists as start_hour=9, start_minute=30, not truncated
+    // to 9:00 (the F2-to-the-DB-layer bug this guards against)
+    const { data: job, error: jobErr } = await sb
+      .from("jobs")
+      .select("status,start_hour,start_minute,slots_needed")
+      .eq("id", res.id)
+      .single();
+    assert.strictEqual(jobErr, null, jobErr && jobErr.message);
+    assert.strictEqual(job.status, "booked");
+    assert.strictEqual(job.start_hour, 9);
+    assert.strictEqual(job.start_minute, 30);
+
+    // availability reports the minute-precise block [09:30, 10:30) = [570, 630)
+    const booked = await availabilityFromJobs(sb, IT30_DATE);
+    assert.deepStrictEqual(booked, [{ start: 570, end: 630 }]);
+
+    // the admin record renders the half-hour start time (hour un-padded, minute padded)
+    const admin = await fetchBookingsFromJobs(sb);
+    const mine = admin.find((b) => b.id === res.id);
+    assert.ok(mine, "the 09:30 booking appears in the admin list");
+    assert.strictEqual(mine.start_time, "9:30");
+  } finally {
+    await cleanup30();
+    _resetForTest();
+  }
+});
