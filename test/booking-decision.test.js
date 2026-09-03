@@ -301,3 +301,29 @@ test("[integration] a stale 'sending' claim is reclaimed (a dead sender cannot s
     await cleanupItJob(sb);
   }
 });
+
+test("[integration] a concurrent retry on a 'failed' row is still a single winner (reclaim race)", { skip: IT_SKIP }, async () => {
+  // The subtler interleaving: two retries race to reclaim the SAME 'failed' row. Under
+  // READ COMMITTED the second UPDATE blocks on the row lock, then re-checks its predicate
+  // against the committed 'sending' row (EvalPlanQual) and matches 0, falling to an INSERT
+  // that the partial unique index rejects. Exactly one reclaims and sends.
+  const sb = getSupabaseAdmin();
+  await cleanupItJob(sb);
+  await seedItJob(sb);
+  try {
+    await sb.from("messages").insert({ customer_id: IT_CUST, job_id: IT_JOB, kind: "provisional_confirmed", channel: "email", status: "failed", body: "(prior failure)" });
+    let sends = 0;
+    const send = async () => { await new Promise((r) => setTimeout(r, 5)); sends++; };
+    const outcomes = await Promise.all([
+      notifyCustomerOutcome(sb, itJob, "accept", { resendKey: "re", sendEmailFn: send }),
+      notifyCustomerOutcome(sb, itJob, "accept", { resendKey: "re", sendEmailFn: send }),
+    ]);
+    assert.equal(outcomes.filter((r) => r.emailed).length, 1, "exactly one retry wins the reclaim");
+    assert.equal(sends, 1, "the email is sent exactly once");
+    const rows = await itNoticeRows(sb);
+    assert.equal(rows.length, 1, "the failed row was reclaimed once, not duplicated");
+    assert.equal(rows[0].status, "sent");
+  } finally {
+    await cleanupItJob(sb);
+  }
+});
