@@ -221,3 +221,13 @@ Ben between P2 and P3. Nothing merges to main until P6 is green and the real rid
   D-027 admin-fallback addendum + LESSONS entries (token rotation must bind the CAS; send-then-log ≠
   claim-then-send on a path with no CAS). (The earlier D-027 provisional addendum + LESSONS L-024 already
   landed — commit 5b0fe9f.)
+- **Phase 6 — IN PROGRESS (2026-09-03).** pgTAP done: dropped the stale `jobs_trading_hours` assertion,
+  added confirmation_state, minute-precise, and strict-notice cases; `supabase test db` gives 40 pass
+  after a `supabase db reset` (the local volume was stale, see L-027). One real `:30` integration insert
+  added and green. The FLAGGED strict single-winner retry was BUILT (Ben's call): migration `20260903120000`
+  (`sending` message_status + partial unique index), claim-then-send in `bookingDecision.js`, a 15-minute
+  stale reclaim; proven single-winner by guarded integration for both the fresh-insert and reclaim
+  interleavings (DECISIONS D-027 addendum 2026-09-03; L-028; why not `.upsert()`: L-028). Commits on
+  `feat/d027-per-day-hours`: `667ed29`, `8efd081`, `7f09775`, `e4a1030` (all local, not pushed). Remaining:
+  a diff-review (`agent-exchange/REVIEW_d027-strict-retry_2026-09-03.md`, monitored), apply `20260903120000`
+  to prod, the one real end-to-end ride, then full suite + build + merge.
