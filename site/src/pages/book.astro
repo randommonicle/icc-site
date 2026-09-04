@@ -428,9 +428,15 @@ async function processBooking(booking){
     // Build the confirmation block via DOM nodes so booking fields are text-only.
     function strong(txt){ const s=document.createElement("strong"); s.textContent=String(txt||""); return s; }
     const isProvisional = bookData.provisional === true;
-    // The server reports which emails actually sent (emailStatus). Only claim the
-    // customer's email went out if it did; otherwise tell them honestly to call.
-    const customerEmailFailed = bookData.emailStatus && bookData.emailStatus.customer === false;
+    // The server reports which emails actually sent (emailStatus.{operator,customer}).
+    // Only make a claim we can stand behind: if EITHER the customer's email or Mark's
+    // operator email failed, fall back to an honest "we'll be in touch / call us" line
+    // rather than promising it all went out. The operator half is what strands a
+    // provisional slot, so it must gate "Mark will confirm" too (L-029).
+    const emailStatus = bookData.emailStatus || {};
+    const customerEmailFailed = emailStatus.customer === false;
+    const operatorEmailFailed = emailStatus.operator === false;
+    const anyEmailFailed = customerEmailFailed || operatorEmailFailed;
     const title = document.createElement("strong");
     title.style.color = "#1a8a7a";
     title.textContent = isProvisional ? "Booking received" : "Booking Confirmed";
@@ -442,10 +448,9 @@ async function processBooking(booking){
       bub.appendChild(strong(booking.date));
       bub.appendChild(document.createTextNode(" at "));
       bub.appendChild(strong(booking.start_time));
-      bub.appendChild(document.createTextNode(" for you. As this clean would finish later in the afternoon, Mark will confirm the time with you personally and arrange your deposit."));
-      bub.appendChild(document.createTextNode(customerEmailFailed
-        ? " We've recorded your request. If a summary email doesn't reach you shortly, please call us on 01242 279590."
-        : " We've emailed you a summary."));
+      bub.appendChild(document.createTextNode(anyEmailFailed
+        ? " for you. As this clean would finish later in the afternoon, it needs confirming before it's final. We'll be in touch shortly to confirm the time and arrange your deposit; if you don't hear from us soon, please call us on 01242 279590."
+        : " for you. As this clean would finish later in the afternoon, Mark will confirm the time with you personally and arrange your deposit. We've emailed you a summary."));
     } else {
       bub.appendChild(document.createTextNode("Your appointment is secured for "));
       bub.appendChild(strong(booking.date));
@@ -454,10 +459,8 @@ async function processBooking(booking){
       bub.appendChild(document.createTextNode("."));
       bub.appendChild(document.createElement("br"));
       bub.appendChild(document.createElement("br"));
-      if(customerEmailFailed){
-        bub.appendChild(document.createTextNode("Your booking is recorded. If a confirmation email doesn't reach "));
-        bub.appendChild(strong(booking.email));
-        bub.appendChild(document.createTextNode(" shortly, please call us on 01242 279590."));
+      if(anyEmailFailed){
+        bub.appendChild(document.createTextNode("Your booking is recorded. If you don't receive a confirmation, or don't hear from us shortly, please call us on 01242 279590."));
       } else {
         bub.appendChild(document.createTextNode("Confirmation emails have been sent to "));
         bub.appendChild(strong(booking.email));

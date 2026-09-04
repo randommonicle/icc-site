@@ -719,10 +719,10 @@ async function processBooking(booking){
     bub.appendChild(document.createTextNode("."));
     bub.appendChild(document.createElement("br"));
     bub.appendChild(document.createElement("br"));
-    if(bookData.emailStatus && bookData.emailStatus.customer === false){
-      bub.appendChild(document.createTextNode("Your booking is recorded. If a confirmation email doesn't reach "));
-      bub.appendChild(strong(booking.email));
-      bub.appendChild(document.createTextNode(" shortly, please call us on 01242 279590."));
+    // Honest on either email failing (Mark's operator email or the customer's), L-029.
+    var emailStatus = bookData.emailStatus || {};
+    if(emailStatus.customer === false || emailStatus.operator === false){
+      bub.appendChild(document.createTextNode("Your booking is recorded. If you don't receive a confirmation, or don't hear from us shortly, please call us on 01242 279590."));
     } else {
       bub.appendChild(document.createTextNode("Confirmation emails have been sent to "));
       bub.appendChild(strong(booking.email));

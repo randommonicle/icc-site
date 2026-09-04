@@ -78,6 +78,19 @@ test("book.astro renders the provisional outcome the server sends (D-027)", () =
   assert.match(bookAstro, /provisionally held/, "the held-booking copy must be present");
 });
 
+test("both booking clients surface an operator-email failure, not only the customer one (L-029)", () => {
+  // The server reports emailStatus.{operator,customer}. A booking that failed to notify
+  // Mark (operator email) must NOT still tell the customer "and to our team" / "Mark will
+  // confirm personally"; BOTH failure fields have to gate the confirmation copy, in the
+  // live client and the retained rollback. A .customer-only gate is the bug this catches.
+  assert.match(chatFn, /emailStatus:\s*\{\s*operator/, "chat.js must send emailStatus.operator");
+  const indexHtml = fs.readFileSync(path.join(repoRoot, "index.html"), "utf8");
+  for (const [name, src] of [["book.astro", bookAstro], ["index.html", indexHtml]]) {
+    assert.match(src, /emailStatus\.operator/, name + " must read emailStatus.operator, not only .customer");
+    assert.match(src, /emailStatus\.customer/, name + " must read emailStatus.customer");
+  }
+});
+
 test("citations render as DOM nodes, never innerHTML (L-003)", () => {
   const start = bookAstro.indexOf("function renderCitations(");
   assert.ok(start > -1, "renderCitations must exist");
