@@ -141,16 +141,12 @@ import Icon from '../components/Icon.astro';
 <script is:inline>
 const LOGO="/logo.jpg";
 let conversationHistory=[];
-const AI_NAMES=["Jamie","Alex","Sam","Ellie","Tom"];
-const aiAssistantName=AI_NAMES[Math.floor(Math.random()*AI_NAMES.length)];
-
-// Personalise the welcome bubble with the AI's chosen name. Built via DOM nodes
-// so the name and any future copy can never inject HTML.
+// Render the welcome bubble. Built via DOM nodes so the copy can never inject HTML.
 (function(){
   const wb = document.getElementById("welcomeBubble");
   if(!wb) return;
   while(wb.firstChild) wb.removeChild(wb.firstChild);
-  wb.appendChild(document.createTextNode("Hi, I'm " + aiAssistantName + ". Welcome to Intelligent Carpet Cleaning. I'm here to help you with quotes, carpet advice, stain guidance, and booking."));
+  wb.appendChild(document.createTextNode("Hi, welcome to Intelligent Carpet Cleaning. I'm the booking assistant, here to help you with quotes, carpet advice, stain guidance, and booking."));
   wb.appendChild(document.createElement("br"));
   wb.appendChild(document.createElement("br"));
   wb.appendChild(document.createTextNode("To get started, could you tell me about your carpet and what you need? For example, the room type, approximate size, and any concerns such as staining or heavy soiling."));
@@ -526,7 +522,7 @@ async function sendMessage(){
     const r=await fetch("/api/chat",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({messages:conversationHistory,assistantName:aiAssistantName})
+      body:JSON.stringify({messages:conversationHistory})
     });
     const d=await r.json();removeTyping();
     if(d.content&&d.content[0]){

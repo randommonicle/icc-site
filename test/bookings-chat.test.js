@@ -10,7 +10,7 @@ const assert = require("node:assert");
 
 const chat = require("../server/netlify/functions/chat.js");
 const tradingHours = require("../shared/config/tradingHours.js");
-const { validateBooking, handleBooking, checkAvailability } = chat;
+const { validateBooking, handleBooking, checkAvailability, STATIC_SYSTEM_PROMPT } = chat;
 
 // Per-day bounds (D-027): bookingBounds() carries the live slot cap; the trading
 // WINDOW itself is read from the shared source by validateBooking.
@@ -116,6 +116,13 @@ async function underPostgres(fn) {
     global.fetch = prevFetch;
   }
 }
+
+// --- assistant identity (2026-09-04): no rotating personal name -------------
+
+test("the booking assistant carries no per-conversation personal name", () => {
+  assert.ok(!/your name for this conversation/i.test(STATIC_SYSTEM_PROMPT), "the per-conversation name mechanic is gone from the prompt");
+  assert.ok(!/do not change your name/i.test(STATIC_SYSTEM_PROMPT), "no name-persistence instruction remains");
+});
 
 // --- validateBooking: per-day window (D-027) -------------------------------
 

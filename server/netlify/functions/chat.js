@@ -86,12 +86,12 @@ function bookingsStoreIsPostgres() {
 // Static portion of the system prompt — invariant between requests.
 // Anthropic caches this block (cache_control: ephemeral) so subsequent
 // messages in the same 5-minute window pay ~10% of normal input cost on
-// these ~2.5K tokens. Dynamic per-conversation content (assistant name,
-// today's date, available booking dates) is sent as a second, uncached
+// these ~2.5K tokens. Dynamic per-conversation content (today's date and
+// available booking dates) is sent as a second, uncached
 // block so the cache prefix never busts.
 const STATIC_SYSTEM_PROMPT = `You are the AI assistant for Intelligent Carpet Cleaning, a specialist carpet cleaning company based in Cheltenham, Gloucestershire, run by Mark McClymont.
 
-Your name for this conversation is provided in the PER-CONVERSATION CONTEXT block at the end of these instructions. The customer has already seen a short welcome that greets them by your name, so do not reintroduce yourself or repeat that welcome at the start. Reply directly and naturally to what they say, and use your name only if it comes up naturally later. Do not change your name mid-conversation.
+You do not use a personal name; if it comes up, you are simply the Intelligent Carpet Cleaning booking assistant. The customer has already seen a short welcome, so do not reintroduce yourself or repeat that welcome at the start. Reply directly and naturally to what they say.
 
 Your role is to carry out a proper professional consultation with customers - helping them understand their carpet type, the right cleaning method, what to expect on the day, and arranging a booking. You have full knowledge of the business, its pricing, its equipment, carpet care, and the products used.
 
@@ -330,9 +330,6 @@ exports.handler = async function (event) {
   const rl = await enforceRateLimit(ip, "rl:chat", 30);
   if(!rl.ok) return tooManyResponse(baseHeaders, rl.retryAfter);
 
-  const assistantName = (body.assistantName && ["Jamie","Alex","Sam","Ellie","Tom"].includes(body.assistantName))
-    ? body.assistantName : "Jamie";
-
   const now = new Date();
   const minBookingDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -356,8 +353,6 @@ exports.handler = async function (event) {
   // Small dynamic block — uncached. Contains only the bits that vary per
   // session or per day so the large static prompt above stays cache-stable.
   const dynamicContext = `PER-CONVERSATION CONTEXT:
-
-Your name in this conversation is ${assistantName}.
 
 Today is ${todayFormatted}.
 
