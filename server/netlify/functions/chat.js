@@ -86,12 +86,12 @@ function bookingsStoreIsPostgres() {
 // Static portion of the system prompt — invariant between requests.
 // Anthropic caches this block (cache_control: ephemeral) so subsequent
 // messages in the same 5-minute window pay ~10% of normal input cost on
-// these ~2.5K tokens. Dynamic per-conversation content (assistant name,
-// today's date, available booking dates) is sent as a second, uncached
+// these ~2.5K tokens. Dynamic per-conversation content (today's date and
+// available booking dates) is sent as a second, uncached
 // block so the cache prefix never busts.
 const STATIC_SYSTEM_PROMPT = `You are the AI assistant for Intelligent Carpet Cleaning, a specialist carpet cleaning company based in Cheltenham, Gloucestershire, run by Mark McClymont.
 
-Your name for this conversation is provided in the PER-CONVERSATION CONTEXT block at the end of these instructions. The customer has already seen a short welcome that greets them by your name, so do not reintroduce yourself or repeat that welcome at the start. Reply directly and naturally to what they say, and use your name only if it comes up naturally later. Do not change your name mid-conversation.
+You do not use a personal name; if it comes up, you are simply the Intelligent Carpet Cleaning booking assistant. The customer has already seen a short welcome, so do not reintroduce yourself or repeat that welcome at the start. Reply directly and naturally to what they say.
 
 Your role is to carry out a proper professional consultation with customers - helping them understand their carpet type, the right cleaning method, what to expect on the day, and arranging a booking. You have full knowledge of the business, its pricing, its equipment, carpet care, and the products used.
 
@@ -178,6 +178,8 @@ Collect in this order, one question at a time:
 11. Preferred start time (choose one of the available start times for that day listed in the Hours section above; the last start on any day is ${tradingHours.formatClock(tradingHours.last_start)} and the earliest depends on the day)
 
 Once you have all details, calculate the total estimated time needed (minimum 1 hour per room, round up, add 1 hour buffer). Tell the customer the estimated duration, total price, and the 10% deposit amount. Then ask them to confirm they want to proceed.
+
+If that total comes to more than ${tradingHours.max_slots} hours, the job is too large to complete in a single visit. Do NOT quote a booking or output a BOOKING_READY block for it. Instead call escalate_to_human (reason: customer_request) with a short summary of the job in the question field (this oversize hand-off is the one deliberate exception to the "do not escalate ordinary bookings" rule), and tell the customer, warmly: "That's a larger job than we can fit into a single visit. I'll pass your details to Mark, who'll be in touch to arrange it across two days at a time that suits you." Still take their name and contact details so Mark can reach them.
 
 When they confirm, output a special booking confirmation block in this EXACT format on its own line:
 BOOKING_READY:{"name":"[full name]","phone":"[phone]","email":"[email]","address":"[full address]","postcode":"[postcode]","date":"[YYYY-MM-DD]","start_time":"[HH:MM]","slots_needed":[number of 1-hour slots],"rooms":"[description of rooms]","carpet_types":"[carpet types]","concerns":"[any concerns or stains]","furniture_moving":[true/false],"pets":[true/false],"estimated_price":"[price]","deposit":"[10% amount]","recommended_method":"[Texatherm low-moisture / Texatherm wet extraction / combination]","ai_assessment":"[brief professional assessment of carpet type and recommended approach]","rams":"[see RAMS instructions below]"}
@@ -330,9 +332,6 @@ exports.handler = async function (event) {
   const rl = await enforceRateLimit(ip, "rl:chat", 30);
   if(!rl.ok) return tooManyResponse(baseHeaders, rl.retryAfter);
 
-  const assistantName = (body.assistantName && ["Jamie","Alex","Sam","Ellie","Tom"].includes(body.assistantName))
-    ? body.assistantName : "Jamie";
-
   const now = new Date();
   const minBookingDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -356,8 +355,6 @@ exports.handler = async function (event) {
   // Small dynamic block — uncached. Contains only the bits that vary per
   // session or per day so the large static prompt above stays cache-stable.
   const dynamicContext = `PER-CONVERSATION CONTEXT:
-
-Your name in this conversation is ${assistantName}.
 
 Today is ${todayFormatted}.
 
@@ -609,20 +606,28 @@ async function handleTool(toolUse, context, resendKey, supabase) {
 // or throws. `supabase` is null until SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are
 // set, so this is a no-op in production until the backend is deliberately wired.
 async function handleEscalation(input, context, resendKey, supabase) {
+  let emailOk = false;
   try {
-    if (resendKey) await sendEscalationEmail(input, context, resendKey);
+    if (resendKey) { await sendEscalationEmail(input, context, resendKey); emailOk = true; }
     else console.log("Escalation (no RESEND_API_KEY, not emailed):", input.reason, "-", input.question);
   } catch (e) {
     console.log("Escalation email failed:", e.message);
   }
+  let dbOk = false;
   if (supabase) {
     try {
       const draft = escalationToMessageDraft(input, context);
       const { error } = await supabase.from("messages").insert(draft);
       if (error) console.log("Handoff INSERT failed:", error.message);
+      else dbOk = true;
     } catch (e) {
       console.log("Handoff INSERT threw:", e.message);
     }
+  }
+  // Do not tell the model the team was notified if NEITHER the email nor the durable
+  // messages-table handoff reached it. Surfaces a genuine dead-end honestly (L-029).
+  if (!emailOk && !dbOk) {
+    return "The escalation could NOT be sent to the team automatically. Tell the customer you could not reach the team just now and ask them to call 01242 279590; do not claim anyone has been notified. Do not attempt to answer the original question yourself.";
   }
   return "Escalation logged and the team has been notified. Tell the customer you will get Mark or the team to confirm the answer, and ask how they would like to be contacted if you do not already have their name and number. Do not attempt to answer the original question yourself.";
 }
@@ -683,7 +688,12 @@ async function sendEscalationEmail(input, context, resendKey) {
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${resendKey}` },
     body: JSON.stringify(email)
   });
-  return await res.json();
+  // A non-2xx from Resend does not throw from fetch, so check it explicitly and throw:
+  // handleEscalation's catch then logs it (its comment already promises failures are
+  // logged, L-004), instead of the error being silently returned as data.
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Resend ${res.status}: ${JSON.stringify(data).slice(0, 200)}`);
+  return data;
 }
 
 async function checkAvailability(date, slotsNeeded, baseHeaders, supabase) {
@@ -818,6 +828,8 @@ function validateBooking(b, opts){
   if(startMinutes < dayWindow.earliestMinutes || startMinutes > dayWindow.lastStartMinutes) return "Invalid start_time";
 
   const slots = Number(b.slots_needed);
+  // TODO(D-029/two-day-split): oversize jobs are routed to Mark by the assistant prompt
+  // (interim); a future slice may auto-split them across two consecutive open days.
   if(!Number.isInteger(slots) || slots < 1 || slots > maxSlots) return "Invalid slots_needed";
 
   // Price floor — minimum call-out is £75. Anything under £30
@@ -1213,8 +1225,18 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
       })
     ]);
 
-    const markData = await markRes.json();
-    const customerData = await customerRes.json();
+    const markData = await markRes.json().catch(() => ({}));
+    const customerData = await customerRes.json().catch(() => ({}));
+
+    // fetch does not throw on an HTTP error, so a non-2xx from Resend is a real send
+    // failure that used to be swallowed here: the booking returned success and the UI
+    // said "Mark will confirm" even when Mark's email never sent (found on the D-027
+    // live ride, 2026-09-04). The booking is already persisted and the slot is held,
+    // so we do NOT fail it; instead we log each failure and surface an emailStatus flag.
+    const operatorEmailed = markRes.ok;
+    const customerEmailed = customerRes.ok;
+    if (!operatorEmailed) console.error("Booking operator email failed:", markRes.status, JSON.stringify(markData));
+    if (!customerEmailed) console.error("Booking customer email failed:", customerRes.status, JSON.stringify(customerData));
 
     return {
       statusCode: 200,
@@ -1222,17 +1244,21 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
       body: JSON.stringify({
         success: true,
         provisional,
-        message: provisional ? "Booking held — Mark will confirm the time." : "Booking confirmed. Confirmation emails sent.",
+        message: (operatorEmailed && customerEmailed)
+          ? (provisional ? "Booking held — Mark will confirm the time." : "Booking confirmed. Confirmation emails sent.")
+          : "Booking recorded, but a notification email failed to send.",
         calLink,
         markEmail: markData,
-        customerEmail: customerData
+        customerEmail: customerData,
+        emailStatus: { operator: operatorEmailed, customer: customerEmailed }
       })
     };
   } catch (err) {
+    console.error("Booking email send threw:", err.message);
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, provisional, message: "Booking recorded but email sending failed.", calLink, error: err.message })
+      body: JSON.stringify({ success: true, provisional, message: "Booking recorded but email sending failed.", calLink, error: err.message, emailStatus: { operator: false, customer: false } })
     };
   }
 }
