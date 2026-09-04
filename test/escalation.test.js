@@ -159,26 +159,54 @@ test("handleEscalation returns model guidance and does not throw without a Resen
 });
 
 // A non-2xx from Resend must be logged, not swallowed as data (found on the D-027 live
-// ride, 2026-09-04). The customer reply is still never blocked on the email (L-004).
-test("handleEscalation logs a failed escalation email instead of swallowing a non-2xx", async () => {
+// ride, 2026-09-04). The durable messages-table handoff still succeeds here, so the team
+// IS notified; the failed email push is logged and the customer is never blocked (L-004).
+test("handleEscalation logs a failed escalation email but still notifies via the DB handoff", async () => {
   const prevFetch = global.fetch;
   const prevLog = console.log;
   const logs = [];
   console.log = (...a) => logs.push(a.join(" "));
   global.fetch = async () => ({ ok: false, status: 422, json: async () => ({ message: "domain not verified" }) });
+  const supabaseUp = { from: () => ({ insert: async () => ({ error: null }) }) };
   let out;
   try {
     out = await handleEscalation(
       { question: "Can I steam clean sisal?", reason: "damage_risk" },
       { messages: [] },
-      "re_test" // a key is present, so the email is attempted and fails
+      "re_test", // a key is present, so the email is attempted and fails
+      supabaseUp
     );
   } finally {
     global.fetch = prevFetch;
     console.log = prevLog;
   }
-  assert.match(out, /team/i, "the customer reply is never blocked on the email");
+  assert.match(out, /has been notified/i, "the durable handoff still notified the team");
   assert.ok(logs.some((l) => /Escalation email failed/i.test(l)), "the send failure is logged, not swallowed");
+});
+
+// Double failure: both the email and the durable handoff fail, so the model must NOT be
+// told the team was notified (honest-failure-surfacing).
+test("handleEscalation is honest when BOTH the email and the DB handoff fail", async () => {
+  const prevFetch = global.fetch;
+  const prevLog = console.log;
+  console.log = () => {};
+  global.fetch = async () => ({ ok: false, status: 500, json: async () => ({ message: "resend down" }) });
+  const supabaseDown = { from: () => ({ insert: async () => ({ error: { message: "db down" } }) }) };
+  let out;
+  try {
+    out = await handleEscalation(
+      { question: "Can I steam clean sisal?", reason: "damage_risk" },
+      { messages: [] },
+      "re_test",
+      supabaseDown
+    );
+  } finally {
+    global.fetch = prevFetch;
+    console.log = prevLog;
+  }
+  assert.match(out, /01242 279590/, "the customer is directed to call when nothing reached the team");
+  assert.match(out, /could NOT be sent/i, "it returns the honest could-not-reach message, not the 'team notified' one");
+  assert.ok(!/logged and the team has been notified/i.test(out), "the normal 'notified' claim must not be used");
 });
 
 test("handleTool routes escalate_to_human and rejects unknown tools", async () => {

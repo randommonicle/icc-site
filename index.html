@@ -719,9 +719,15 @@ async function processBooking(booking){
     bub.appendChild(document.createTextNode("."));
     bub.appendChild(document.createElement("br"));
     bub.appendChild(document.createElement("br"));
-    bub.appendChild(document.createTextNode("Confirmation emails have been sent to "));
-    bub.appendChild(strong(booking.email));
-    bub.appendChild(document.createTextNode(" and to our team."));
+    if(bookData.emailStatus && bookData.emailStatus.customer === false){
+      bub.appendChild(document.createTextNode("Your booking is recorded. If a confirmation email doesn't reach "));
+      bub.appendChild(strong(booking.email));
+      bub.appendChild(document.createTextNode(" shortly, please call us on 01242 279590."));
+    } else {
+      bub.appendChild(document.createTextNode("Confirmation emails have been sent to "));
+      bub.appendChild(strong(booking.email));
+      bub.appendChild(document.createTextNode(" and to our team."));
+    }
     // Calendar link: only render if it looks like a Google Calendar URL
     if(bookData.calLink && typeof bookData.calLink === "string" && bookData.calLink.startsWith("https://calendar.google.com/")){
       bub.appendChild(document.createElement("br"));

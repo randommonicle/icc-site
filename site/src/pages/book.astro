@@ -428,6 +428,9 @@ async function processBooking(booking){
     // Build the confirmation block via DOM nodes so booking fields are text-only.
     function strong(txt){ const s=document.createElement("strong"); s.textContent=String(txt||""); return s; }
     const isProvisional = bookData.provisional === true;
+    // The server reports which emails actually sent (emailStatus). Only claim the
+    // customer's email went out if it did; otherwise tell them honestly to call.
+    const customerEmailFailed = bookData.emailStatus && bookData.emailStatus.customer === false;
     const title = document.createElement("strong");
     title.style.color = "#1a8a7a";
     title.textContent = isProvisional ? "Booking received" : "Booking Confirmed";
@@ -439,7 +442,10 @@ async function processBooking(booking){
       bub.appendChild(strong(booking.date));
       bub.appendChild(document.createTextNode(" at "));
       bub.appendChild(strong(booking.start_time));
-      bub.appendChild(document.createTextNode(" for you. As this clean would finish later in the afternoon, Mark will confirm the time with you personally and arrange your deposit. We've emailed you a summary."));
+      bub.appendChild(document.createTextNode(" for you. As this clean would finish later in the afternoon, Mark will confirm the time with you personally and arrange your deposit."));
+      bub.appendChild(document.createTextNode(customerEmailFailed
+        ? " We've recorded your request. If a summary email doesn't reach you shortly, please call us on 01242 279590."
+        : " We've emailed you a summary."));
     } else {
       bub.appendChild(document.createTextNode("Your appointment is secured for "));
       bub.appendChild(strong(booking.date));
@@ -448,9 +454,15 @@ async function processBooking(booking){
       bub.appendChild(document.createTextNode("."));
       bub.appendChild(document.createElement("br"));
       bub.appendChild(document.createElement("br"));
-      bub.appendChild(document.createTextNode("Confirmation emails have been sent to "));
-      bub.appendChild(strong(booking.email));
-      bub.appendChild(document.createTextNode(" and to our team."));
+      if(customerEmailFailed){
+        bub.appendChild(document.createTextNode("Your booking is recorded. If a confirmation email doesn't reach "));
+        bub.appendChild(strong(booking.email));
+        bub.appendChild(document.createTextNode(" shortly, please call us on 01242 279590."));
+      } else {
+        bub.appendChild(document.createTextNode("Confirmation emails have been sent to "));
+        bub.appendChild(strong(booking.email));
+        bub.appendChild(document.createTextNode(" and to our team."));
+      }
     }
     // Calendar link: only render if it looks like a Google Calendar URL
     if(bookData.calLink && typeof bookData.calLink === "string" && bookData.calLink.startsWith("https://calendar.google.com/")){

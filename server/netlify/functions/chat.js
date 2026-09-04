@@ -179,7 +179,7 @@ Collect in this order, one question at a time:
 
 Once you have all details, calculate the total estimated time needed (minimum 1 hour per room, round up, add 1 hour buffer). Tell the customer the estimated duration, total price, and the 10% deposit amount. Then ask them to confirm they want to proceed.
 
-If that total comes to more than ${tradingHours.max_slots} hours, the job is too large to complete in a single visit. Do NOT quote a booking or output a BOOKING_READY block for it. Instead call escalate_to_human (reason: customer_request) with a short summary of the job in the question field, and tell the customer, warmly: "That's a larger job than we can fit into a single visit. I'll pass your details to Mark, who'll be in touch to arrange it across two days at a time that suits you." Still take their name and contact details so Mark can reach them.
+If that total comes to more than ${tradingHours.max_slots} hours, the job is too large to complete in a single visit. Do NOT quote a booking or output a BOOKING_READY block for it. Instead call escalate_to_human (reason: customer_request) with a short summary of the job in the question field (this oversize hand-off is the one deliberate exception to the "do not escalate ordinary bookings" rule), and tell the customer, warmly: "That's a larger job than we can fit into a single visit. I'll pass your details to Mark, who'll be in touch to arrange it across two days at a time that suits you." Still take their name and contact details so Mark can reach them.
 
 When they confirm, output a special booking confirmation block in this EXACT format on its own line:
 BOOKING_READY:{"name":"[full name]","phone":"[phone]","email":"[email]","address":"[full address]","postcode":"[postcode]","date":"[YYYY-MM-DD]","start_time":"[HH:MM]","slots_needed":[number of 1-hour slots],"rooms":"[description of rooms]","carpet_types":"[carpet types]","concerns":"[any concerns or stains]","furniture_moving":[true/false],"pets":[true/false],"estimated_price":"[price]","deposit":"[10% amount]","recommended_method":"[Texatherm low-moisture / Texatherm wet extraction / combination]","ai_assessment":"[brief professional assessment of carpet type and recommended approach]","rams":"[see RAMS instructions below]"}
@@ -606,20 +606,28 @@ async function handleTool(toolUse, context, resendKey, supabase) {
 // or throws. `supabase` is null until SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are
 // set, so this is a no-op in production until the backend is deliberately wired.
 async function handleEscalation(input, context, resendKey, supabase) {
+  let emailOk = false;
   try {
-    if (resendKey) await sendEscalationEmail(input, context, resendKey);
+    if (resendKey) { await sendEscalationEmail(input, context, resendKey); emailOk = true; }
     else console.log("Escalation (no RESEND_API_KEY, not emailed):", input.reason, "-", input.question);
   } catch (e) {
     console.log("Escalation email failed:", e.message);
   }
+  let dbOk = false;
   if (supabase) {
     try {
       const draft = escalationToMessageDraft(input, context);
       const { error } = await supabase.from("messages").insert(draft);
       if (error) console.log("Handoff INSERT failed:", error.message);
+      else dbOk = true;
     } catch (e) {
       console.log("Handoff INSERT threw:", e.message);
     }
+  }
+  // Do not tell the model the team was notified if NEITHER the email nor the durable
+  // messages-table handoff reached it. Surfaces a genuine dead-end honestly (L-029).
+  if (!emailOk && !dbOk) {
+    return "The escalation could NOT be sent to the team automatically. Tell the customer you could not reach the team just now and ask them to call 01242 279590; do not claim anyone has been notified. Do not attempt to answer the original question yourself.";
   }
   return "Escalation logged and the team has been notified. Tell the customer you will get Mark or the team to confirm the answer, and ask how they would like to be contacted if you do not already have their name and number. Do not attempt to answer the original question yourself.";
 }
@@ -1217,8 +1225,8 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
       })
     ]);
 
-    const markData = await markRes.json();
-    const customerData = await customerRes.json();
+    const markData = await markRes.json().catch(() => ({}));
+    const customerData = await customerRes.json().catch(() => ({}));
 
     // fetch does not throw on an HTTP error, so a non-2xx from Resend is a real send
     // failure that used to be swallowed here: the booking returned success and the UI
