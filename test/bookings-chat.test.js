@@ -107,7 +107,7 @@ async function underPostgres(fn) {
   const prevFetch = global.fetch;
   const fetchCalls = [];
   process.env.BOOKINGS_STORE = "postgres";
-  global.fetch = async (url) => { fetchCalls.push(url); return { json: async () => ({ id: "fake" }) }; };
+  global.fetch = async (url) => { fetchCalls.push(url); return { ok: true, status: 200, json: async () => ({ id: "fake" }) }; };
   try {
     return await fn(fetchCalls);
   } finally {
@@ -264,7 +264,7 @@ async function captureBookingEmails(booking) {
   process.env.BOOKINGS_STORE = "postgres";
   global.fetch = async (url, opts) => {
     sent.push({ url, body: JSON.parse(opts.body) });
-    return { json: async () => ({ id: "fake" }) };
+    return { ok: true, status: 200, json: async () => ({ id: "fake" }) };
   };
   try {
     await handleBooking(booking, "re_test", {}, fakeSupabase());
@@ -305,6 +305,42 @@ test("privacyNoticeUrl: default origin, and a trailing slash on an injected base
   assert.strictEqual(privacyNoticeUrl("https://example.test/"), "https://example.test/privacy");
 });
 
+// A non-2xx from Resend is a real send failure that must be surfaced, not swallowed
+// (found on the D-027 live ride, 2026-09-04). The booking is already persisted, so
+// success stays true, but emailStatus reports the failed send and it is logged.
+test("handleBooking surfaces a failed operator email instead of reporting a clean success", async () => {
+  const prevStore = process.env.BOOKINGS_STORE;
+  const prevFetch = global.fetch;
+  const prevError = console.error;
+  const errors = [];
+  process.env.BOOKINGS_STORE = "postgres";
+  console.error = (...a) => errors.push(a.join(" "));
+  // The operator send (to != the customer address) returns 422; the customer send is fine.
+  global.fetch = async (url, opts) => {
+    const isOperator = JSON.parse(opts.body).to !== "jane@example.com";
+    return {
+      ok: !isOperator,
+      status: isOperator ? 422 : 200,
+      json: async () => (isOperator ? { statusCode: 422, message: "domain not verified" } : { id: "fake" }),
+    };
+  };
+  let res;
+  try {
+    res = await handleBooking(baseBooking(), "re_test", {}, fakeSupabase());
+  } finally {
+    if (prevStore === undefined) delete process.env.BOOKINGS_STORE;
+    else process.env.BOOKINGS_STORE = prevStore;
+    global.fetch = prevFetch;
+    console.error = prevError;
+  }
+  const body = JSON.parse(res.body);
+  assert.strictEqual(body.success, true, "the booking is still recorded; the slot is already held");
+  assert.strictEqual(body.emailStatus.operator, false, "the failed operator send is surfaced");
+  assert.strictEqual(body.emailStatus.customer, true, "the customer send still succeeded");
+  assert.match(body.message, /failed to send/i, "the response no longer claims all emails were sent");
+  assert.ok(errors.some((l) => /operator email failed/i.test(l)), "the failure is logged, not swallowed");
+});
+
 // --- D-027: provisional booking (finish after the 15:00 auto-confirm line) ----
 // A late-finishing job is TAKEN and holds the slot, but is marked awaiting_operator
 // with a stored (hashed) single-use action token, and Mark's email carries the
@@ -315,7 +351,7 @@ async function runBooking(booking) {
   const prevFetch = global.fetch;
   process.env.BOOKINGS_STORE = "postgres";
   const sent = [];
-  global.fetch = async (url, opts) => { sent.push({ url, body: JSON.parse(opts.body) }); return { json: async () => ({ id: "fake" }) }; };
+  global.fetch = async (url, opts) => { sent.push({ url, body: JSON.parse(opts.body) }); return { ok: true, status: 200, json: async () => ({ id: "fake" }) }; };
   const sb = fakeSupabase({ jobsInsert: { data: { id: "job-77" }, error: null } });
   let res;
   try { res = await handleBooking(booking, "re_test", {}, sb); }

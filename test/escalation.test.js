@@ -158,6 +158,29 @@ test("handleEscalation returns model guidance and does not throw without a Resen
   assert.match(out, /Do not attempt to answer/i);
 });
 
+// A non-2xx from Resend must be logged, not swallowed as data (found on the D-027 live
+// ride, 2026-09-04). The customer reply is still never blocked on the email (L-004).
+test("handleEscalation logs a failed escalation email instead of swallowing a non-2xx", async () => {
+  const prevFetch = global.fetch;
+  const prevLog = console.log;
+  const logs = [];
+  console.log = (...a) => logs.push(a.join(" "));
+  global.fetch = async () => ({ ok: false, status: 422, json: async () => ({ message: "domain not verified" }) });
+  let out;
+  try {
+    out = await handleEscalation(
+      { question: "Can I steam clean sisal?", reason: "damage_risk" },
+      { messages: [] },
+      "re_test" // a key is present, so the email is attempted and fails
+    );
+  } finally {
+    global.fetch = prevFetch;
+    console.log = prevLog;
+  }
+  assert.match(out, /team/i, "the customer reply is never blocked on the email");
+  assert.ok(logs.some((l) => /Escalation email failed/i.test(l)), "the send failure is logged, not swallowed");
+});
+
 test("handleTool routes escalate_to_human and rejects unknown tools", async () => {
   const esc = await handleTool(
     { name: "escalate_to_human", input: { question: "q", reason: "out_of_scope" } },

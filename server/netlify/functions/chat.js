@@ -683,7 +683,12 @@ async function sendEscalationEmail(input, context, resendKey) {
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${resendKey}` },
     body: JSON.stringify(email)
   });
-  return await res.json();
+  // A non-2xx from Resend does not throw from fetch, so check it explicitly and throw:
+  // handleEscalation's catch then logs it (its comment already promises failures are
+  // logged, L-004), instead of the error being silently returned as data.
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Resend ${res.status}: ${JSON.stringify(data).slice(0, 200)}`);
+  return data;
 }
 
 async function checkAvailability(date, slotsNeeded, baseHeaders, supabase) {
@@ -1216,23 +1221,37 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
     const markData = await markRes.json();
     const customerData = await customerRes.json();
 
+    // fetch does not throw on an HTTP error, so a non-2xx from Resend is a real send
+    // failure that used to be swallowed here: the booking returned success and the UI
+    // said "Mark will confirm" even when Mark's email never sent (found on the D-027
+    // live ride, 2026-09-04). The booking is already persisted and the slot is held,
+    // so we do NOT fail it; instead we log each failure and surface an emailStatus flag.
+    const operatorEmailed = markRes.ok;
+    const customerEmailed = customerRes.ok;
+    if (!operatorEmailed) console.error("Booking operator email failed:", markRes.status, JSON.stringify(markData));
+    if (!customerEmailed) console.error("Booking customer email failed:", customerRes.status, JSON.stringify(customerData));
+
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
         provisional,
-        message: provisional ? "Booking held — Mark will confirm the time." : "Booking confirmed. Confirmation emails sent.",
+        message: (operatorEmailed && customerEmailed)
+          ? (provisional ? "Booking held — Mark will confirm the time." : "Booking confirmed. Confirmation emails sent.")
+          : "Booking recorded, but a notification email failed to send.",
         calLink,
         markEmail: markData,
-        customerEmail: customerData
+        customerEmail: customerData,
+        emailStatus: { operator: operatorEmailed, customer: customerEmailed }
       })
     };
   } catch (err) {
+    console.error("Booking email send threw:", err.message);
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, provisional, message: "Booking recorded but email sending failed.", calLink, error: err.message })
+      body: JSON.stringify({ success: true, provisional, message: "Booking recorded but email sending failed.", calLink, error: err.message, emailStatus: { operator: false, customer: false } })
     };
   }
 }
