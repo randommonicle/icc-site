@@ -12,6 +12,65 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session — 2026-09-04: D-027 REAL RIDE done (accept path proven in prod); send-failure hardening + assistant rename + oversize→Mark shipped; one follow-up committed but NOT yet deployed
+
+*Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading — /context unavailable in this harness. Ben reported 58% (yellow); that is his figure, not an independent read. No compaction/summarisation warnings seen.**
+
+**This SUPERSEDES the 2026-09-03 entry's "THE REAL RIDE ... First next action":** the ride is done for the accept path.
+
+**Session goal.** Do the D-027 real ride (the deploy gate the 2026-09-03 handover left open), then act on what it surfaced.
+
+**THE REAL RIDE — accept path PROVEN end to end in production.** *Verified:* a real provisional booking placed through the live AI booking page (a whole-house job forced to a 1pm/5-slot finish after 3pm) created the `jobs` row `status=booked` + `confirmation_state=awaiting_operator` with the token hash + expiry stored (queried via the pooler); the operator email delivered to Mark (`mark_director@intelligentclean.co.uk`, Mark confirmed receipt) with a working Review & respond link; the customer "provisionally held" email delivered to Ben's Gmail (screenshot); Mark clicked **Accept** and the DB flipped to `operator_confirmed` (`operator_decided_at` + token `used_at` set) with a `messages` `provisional_confirmed`/`sent` row, and the customer confirmation email arrived. Ben then deleted the test job (jobs/messages/customer = 0, slot freed). *Both `markEmail`/`customerEmail` returned Resend ids in the browser network log.* The DECLINE path and the admin-fallback controls were NOT live-tested (the one booking was accepted; both need a fresh provisional booking, which re-pings Mark, or the admin login which Ben could not recall).
+
+**Prod mail config confirmed (Netlify env, read via the Netlify API):** `OPERATOR_EMAIL=mark_director@intelligentclean.co.uk`, `OPERATOR_FROM=ICC Bookings <bookings@intelligentclean.co.uk>`, `CUSTOMER_FROM=...<hello@intelligentclean.co.uk>`; the intelligentclean.co.uk domain is verified in Resend and both send paths work. Operator emails go to MARK. (An earlier-session claim that OPERATOR_EMAIL was `ben@...` was wrong.)
+
+**Branch and worktree.** Home machine, standard checkout. All work merged to **`main`**. `main` is **1 commit ahead of `origin/main`** (`7626bfc` committed but NOT pushed). `origin/main` = `e2b71e9`, which IS deployed (Netlify state `ready`).
+
+**What landed (all GREEN before each step: node --test 326 = 317 pass / 9 skip; build 24 pages):**
+- `5ef9b5c` fix: silent Resend send-failure in `chat.js` (the booking + escalation sends never checked `res.ok`; `fetch` does not throw on 4xx/5xx). Now checks `res.ok`, logs, adds an `emailStatus` flag, honest message; escalation throws on non-2xx so its catch logs it. + LESSONS L-029. *verified (tests).* NB the ride did NOT trigger this (sends worked); found by inspection.
+- `417ccc0` refactor: removed the rotating assistant names (Jamie/Alex/Sam/Ellie/Tom); the assistant now has no personal name and greets as "the booking assistant" (`chat.js` + `book.astro` + `index.html` + a prompt-content lock test). DECISIONS addendum (supersedes the 24-Aug mascot note's "named human" premise) + CLAUDE.md. *verified (tests + build).* Ben's call.
+- `10cbb37` feat: oversize jobs (> `tradingHours.max_slots` = 7 hours) now route to Mark via `escalate_to_human` with approved copy instead of the misleading "Invalid slots_needed / choose another time". + DECISIONS D-029 + `TODO(D-029/two-day-split)`. *verified (tests + build).*
+- `a26aef8` fix: pre-deploy review fixes — the browser clients now show an honest "call us" message when the CUSTOMER email fails (they had ignored `emailStatus`); `handleEscalation` honest when BOTH channels fail; `.json().catch` robustness; oversize/tool-description reconciliation. *verified (tests + build).*
+- `e2b71e9` MERGE of `fix/silent-send-failure` to `main` — **DEPLOYED** (Ben ran the merge+push; push = deploy for this Netlify Git integration). *verified: Netlify deploy of `e2b71e9` state `ready`, no error, via the Netlify API.*
+- `7626bfc` fix: operator-email-failure follow-up — the `a26aef8` client fix only gated on `emailStatus.customer`; if MARK's email fails but the customer's succeeds the customer was still told "and to our team" / "Mark will confirm personally". Now both clients gate the copy on EITHER email failing; + a `chat-client-parity.test.js` test that fails on the `.customer`-only gate. *verified GREEN locally (326/317/0, build 24). NOT pushed, NOT deployed.*
+
+**Two code reviews (local `code-reviewer` agent).** First pass BLOCKED: the `emailStatus` flag was computed server-side but no client read it (the customer still saw hardcoded "emails sent"). Fixed in `a26aef8`. Re-verify narrowed the Block to the operator-email-failure case (only `.customer` was wired). Fixed in `7626bfc` + the parity test. A final reviewer re-verify of `7626bfc` was NOT requested (optional; the fix is the reviewer's exact ask plus a failing-first test).
+
+**In flight / NOT done — the deploy is one commit behind:**
+- **REDEPLOY `7626bfc`.** `main` is 1 ahead of `origin/main`; the live site (`e2b71e9`) still carries the operator-email-failure client gap (failure-mode only: it needs Mark's Resend send to actually fail). Push `main` to deploy the fix. FIRST next action.
+- Post-deploy check: load the live `/book`, confirm the greeting is "I'm the booking assistant" (no name) and an ordinary on-time booking still confirms cleanly (the send-fix touched the booking response).
+
+**Deferred items (flagged):**
+- Full two-day auto-split (D-029). Anchor: `TODO(D-029/two-day-split)` at the `validateBooking` slots cap in `chat.js`. Open: the day-1 sizing (start early and run to close, vs "customer books the last slot"; Ben owns, see D-029).
+- Review Finding 3 (cosmetic): oversize jobs escalate with `reason: customer_request`, whose email label "Customer asked for a person" reads oddly. Noted in the `a26aef8` commit body; no code anchor.
+- Review Finding 4 (latent, fails safe): the oversize prompt quotes `max_slots`=7 (Postgres) but the legacy-Blobs rollback path allows 9, so a rolled-back site would over-escalate an 8h job. Noted in `a26aef8`; Postgres is the live store.
+- Deposit pay-link dormant until Stripe live: `TODO(D-004/D-026 deposit-link)`.
+- Saturday weekend premium unset: `TODO(D-027/saturday-premium)`.
+- Logo artwork still bakes in the superseded tagline "Established Trust, Superior Cleaning" (now "Intelligence you can trust"): a new logo PNG job, not code. NB a "broken logo" reported on the homepage this session was a stale cache / transient deploy-swap; the live hero logo is verified fine (the webp serves HTTP 200 and loads at 500px), no code fault.
+
+**Verification still outstanding:** the redeploy + post-deploy check (above); the DECLINE and admin-fallback live tests (untested); an optional final reviewer re-verify of `7626bfc`; a live look at the oversize→Mark routing (only unit/prompt-tested).
+
+**Blockers and open questions:** D-029 day-1 sizing (Ben). The `admin.html` login password — Ben could not recall it (blocked the admin-fallback route this session); reset via Supabase → Authentication → Users if that path is needed. Whether to re-verify `7626bfc` with the reviewer.
+
+**Next actions (ordered, each a single first step):**
+1. Redeploy: push `main` to `origin` (deploys `7626bfc`). (Per the new working rule, the exact command is given only at the point of running it.)
+2. Post-deploy check on the live `/book`: greeting says "the booking assistant"; an ordinary booking confirms.
+3. Optional: re-verify `7626bfc` with the `code-reviewer`.
+4. Ben decides the D-029 two-day day-1 sizing.
+5. Optional: test the DECLINE path and the admin-fallback controls (needs a fresh provisional booking or the admin login).
+
+**Traps and working agreements (this session):**
+- **NEW standing rule (saved to memory `dont-give-runnable-commands-until-ready`):** do not hand Ben runnable commands, especially deploys, until we are actually at the point of executing them. This session I gave the merge+push while saying "hold for the reviewer"; Ben ran it and it deployed before the reviewer cleared, so a review-flagged residual (`7626bfc`'s fix) rode out live. Push to `main` = deploy.
+- **The file tools (Grep/Glob/Read) DEFAULT to the empty Desktop stub** `C:\Users\bengr\OneDrive\Desktop\icc-site` and silently return nothing — ALWAYS pass the explicit repo path `C:\Users\bengr\Projects\ICC\icc-site`.
+- **The auto-mode classifier blocks my prod-infra WRITES** (a Netlify env PUT, a `form_input` on the live site, and a DB delete were all denied); catalog/data READS via the pooler and Netlify API GETs are fine. Ben runs prod mutations (env, DB deletes, `git push`).
+- Prod DB reads: `supabase db query "<SELECT>" --db-url <pooler>`; CAST enum columns to `::text` or the CLI errors "unknown oid". Build the pooler URL as `scripts/db-push.sh` does.
+- `scripts/delete-booking.js` targets the LEGACY Netlify Blobs store, NOT Postgres — clean a Postgres test booking via SQL (messages first; `messages.job_id` is ON DELETE SET NULL).
+- Emails to `mark_director@intelligentclean.co.uk` are REAL and reach Mark; a live provisional booking pings him.
+- No em dashes in prose. Ben's shell is PowerShell 5.1 (no `&&`); commits this session were via the Bash tool (Git Bash).
+- Entering a login password to authenticate is a hard line I will not cross even when authorised; the `admin.html` login stays Ben's.
+
+---
+
 ## This session — 2026-09-03: D-027 Phase 6 DONE — strict single-winner notice built + reviewed, merged to `main` and DEPLOYED
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading — /context unavailable in this harness. No compaction/summarisation warnings seen; a clean deliberate wrap at Ben's request.**
