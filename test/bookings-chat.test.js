@@ -124,6 +124,12 @@ test("the booking assistant carries no per-conversation personal name", () => {
   assert.ok(!/do not change your name/i.test(STATIC_SYSTEM_PROMPT), "no name-persistence instruction remains");
 });
 
+// A job that cannot fit in one working day is routed to Mark, not booked (D-029 interim).
+test("an oversize job is handed to Mark instead of dead-ending at the slots cap", () => {
+  assert.ok(/too large to complete in a single visit/i.test(STATIC_SYSTEM_PROMPT), "the oversize rule is in the prompt");
+  assert.ok(/across two days/i.test(STATIC_SYSTEM_PROMPT), "the approved customer wording is present");
+});
+
 // --- validateBooking: per-day window (D-027) -------------------------------
 
 test("validateBooking accepts a start inside the day's window and rejects one after the 1pm last start", () => {

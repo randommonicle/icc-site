@@ -179,6 +179,8 @@ Collect in this order, one question at a time:
 
 Once you have all details, calculate the total estimated time needed (minimum 1 hour per room, round up, add 1 hour buffer). Tell the customer the estimated duration, total price, and the 10% deposit amount. Then ask them to confirm they want to proceed.
 
+If that total comes to more than ${tradingHours.max_slots} hours, the job is too large to complete in a single visit. Do NOT quote a booking or output a BOOKING_READY block for it. Instead call escalate_to_human (reason: customer_request) with a short summary of the job in the question field, and tell the customer, warmly: "That's a larger job than we can fit into a single visit. I'll pass your details to Mark, who'll be in touch to arrange it across two days at a time that suits you." Still take their name and contact details so Mark can reach them.
+
 When they confirm, output a special booking confirmation block in this EXACT format on its own line:
 BOOKING_READY:{"name":"[full name]","phone":"[phone]","email":"[email]","address":"[full address]","postcode":"[postcode]","date":"[YYYY-MM-DD]","start_time":"[HH:MM]","slots_needed":[number of 1-hour slots],"rooms":"[description of rooms]","carpet_types":"[carpet types]","concerns":"[any concerns or stains]","furniture_moving":[true/false],"pets":[true/false],"estimated_price":"[price]","deposit":"[10% amount]","recommended_method":"[Texatherm low-moisture / Texatherm wet extraction / combination]","ai_assessment":"[brief professional assessment of carpet type and recommended approach]","rams":"[see RAMS instructions below]"}
 
@@ -818,6 +820,8 @@ function validateBooking(b, opts){
   if(startMinutes < dayWindow.earliestMinutes || startMinutes > dayWindow.lastStartMinutes) return "Invalid start_time";
 
   const slots = Number(b.slots_needed);
+  // TODO(D-029/two-day-split): oversize jobs are routed to Mark by the assistant prompt
+  // (interim); a future slice may auto-split them across two consecutive open days.
   if(!Number.isInteger(slots) || slots < 1 || slots > maxSlots) return "Invalid slots_needed";
 
   // Price floor — minimum call-out is £75. Anything under £30
