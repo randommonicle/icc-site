@@ -3,12 +3,15 @@
 // sole trader trading as Intelligent Carpet Cleaning (confirmed June 2026). The
 // controller postal address is held OFF this public page by decision (D-016) and
 // given to the ICO privately, so the public contact route is email/phone/post-on-request.
-// Still to do before go-live: drop in the ICO registration number once registered
-// (the [to confirm: ...] slot below), confirm the international-transfer position with
-// each provider, and have the whole notice reviewed by a data-protection professional
-// before any marketing capability is added (Phase 4 / PECR). Retention: ~6 years for
-// financial records / 6 months for unconverted leads (D-023). See ROADMAP.md,
-// DECISIONS.md (D-016/D-023) and docs/DESIGN.md §11.
+// ICO number ZC230232 is in (below). 2026-09-04 pre-review (docs/PRIVACY_REVIEW_2026-09.md):
+// corrected the auto-confirm accuracy (D-027), fixed the international-transfer wording
+// (Ben confirmed the UK IDTA/Addendum wording — retain each provider's DPA as evidence),
+// and removed the visible [to confirm] placeholder.
+// STILL TO DO before go-live: a human data-protection professional review; and BEFORE the
+// D-025 review engine is switched on, add The SMS Works as a processor plus a review-request
+// purpose/lawful basis ("Fix 3" in the review doc). Retention: ~6 years financial /
+// 6 months unconverted leads (D-023). See ROADMAP.md, DECISIONS.md (D-016/D-023/D-025/D-027),
+// docs/PRIVACY_REVIEW_2026-09.md, docs/LAUNCH_CUTOVER.md and docs/DESIGN.md §11.
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 <BaseLayout
@@ -21,7 +24,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   </header>
 
   <div class="legal-wrap">
-    <p class="legal-meta">Last updated: 1 September 2026. This notice explains what we do with your personal data when you use this website, chat with our AI assistant, or book a clean.</p>
+    <p class="legal-meta">Last updated: 4 September 2026. This notice explains what we do with your personal data when you use this website, chat with our AI assistant, or book a clean.</p>
 
     <h2>Who we are</h2>
     <p>This website is operated by Mark McClymont, a sole trader trading as Intelligent Carpet Cleaning, based in the Cheltenham and Gloucester area of Gloucestershire. We are the data controller for the personal information described in this notice.</p>
@@ -48,7 +51,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     <p>We do not use your details for marketing without your clear consent, and you can withdraw that consent at any time.</p>
 
     <h2>Our AI assistant</h2>
-    <p>Your enquiry is handled by an AI assistant provided by Anthropic, the makers of Claude. Any photographs you upload are analysed by AI to help identify your carpet type and recommend a cleaning method. Your messages and photos are sent to Anthropic only to generate a response, and under our commercial agreement Anthropic does not use them to train its models. No decision with a legal or similarly significant effect is made about you by automated means alone, and Mark personally reviews and confirms every booking.</p>
+    <p>Your enquiry is handled by an AI assistant provided by Anthropic, the makers of Claude. Any photographs you upload are analysed by AI to help identify your carpet type and recommend a cleaning method. Your messages and photos are sent to Anthropic only to generate a response, and under our commercial agreement Anthropic does not use them to train its models. Standard daytime bookings are confirmed automatically by our system as soon as you book. Bookings that would finish later in the day are held and reviewed by Mark personally, who confirms or declines them. No decision producing a legal or similarly significant effect is made about you by solely automated means, and you can ask for a person to review any automated confirmation by contacting us.</p>
 
     <h2>Who we share it with</h2>
     <p>We do not sell your personal data. We share it only with the service providers that allow us to run the service, who act on our instructions:</p>
@@ -59,7 +62,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       <li>Netlify, which hosts this website and runs the booking and chat functions.</li>
       <li>Google, which provides our business email (where Mark receives booking notifications and replies to you) and the calendar link we use to add your appointment to our diary.</li>
     </ul>
-    <p>Our database is hosted in the UK. Some of the other providers (for example Anthropic, Resend, and Netlify) are based in the United States and may process data outside the UK. Where they do, we rely on appropriate safeguards such as the UK International Data Transfer Agreement or other approved transfer mechanisms. [to confirm: review the transfer position with each provider before go-live.]</p>
+    <p>Our database is hosted in the UK. Some of these providers (for example Anthropic, Resend, Netlify, and Google) are based in the United States and may process data outside the UK. Where they do, the transfer is covered by appropriate safeguards under each provider's data processing agreement, such as the UK International Data Transfer Agreement or the UK Addendum to the EU Standard Contractual Clauses.</p>
 
     <h2>How long we keep it</h2>
     <p>We keep booking records for as long as we need them to provide the service and to meet our legal and accounting obligations (around 6 years for financial records), after which we delete them. Enquiries that do not lead to a booking, including any conversation you ask us to follow up, are kept for no longer than 6 months and then deleted.</p>
