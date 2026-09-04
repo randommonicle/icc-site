@@ -3,6 +3,8 @@
 **Status:** Design note, 25 August 2026. Prepared after the 24 Aug Mark meeting (D-027, and the cross-business clash-check in the minutes §4.3). Relates to roadmap Phase 3 / D-005 (calendar). Not built yet; this is the how.
 **Why:** The booking engine must avoid double-booking Mark across both businesses. His existing commitments (Regency jobs and personal) live in one phone diary today; Intelligent's bookings need their own calendar. This note covers (A) the idiot-proof steps for Mark to share his calendar from his phone, and (B) how the booking bot connects to Google Calendar.
 
+**Status update (2026-09-04):** reconfirmed as the plan for the cross-business clash-check (Ben). NOT built yet (A3 open). Two things to settle BEFORE building the slice: (1) enumerate EVERY calendar holding Mark's commitments and confirm whether Regency is a separate Google account/calendar or his personal diary, so no calendar becomes a double-booking blind spot; (2) prove the auth/freebusy path with a throwaway read (see Part B's gotcha) before writing the slice. Then finalise Part A's sharing guide for the chosen identity (service-account email vs `ben@`). Tracked in `NEXT_SESSION.md`.
+
 ---
 
 ## Part A. For Mark: share your calendar (from your phone, 2 minutes)

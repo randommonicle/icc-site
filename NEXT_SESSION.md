@@ -12,6 +12,66 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session (2026-09-04, later): 7626bfc DEPLOYED + verified; privacy pre-review shipped (2 REDs fixed, live); launch runbook written; cross-business calendar item added (research first)
+
+*Diagnoses unverified unless marked.* **Context: Ben reported 30% (green). `/context` is not invokable in this harness, so 30% is Ben's figure. A clean, deliberate stop; pick up cold in a fresh session.**
+
+**This SUPERSEDES the earlier 2026-09-04 entry's first-next-action "REDEPLOY 7626bfc" (now done) and its post-deploy check (done).**
+
+**Session goal.** Work the handover's pending items, then move toward production release (domain, dedicated Resend, SEO), at pace.
+
+**State now.** `main` = `origin/main` = `20fceef` (in sync), **deployed and live** (Netlify `ready`). Site still on `super-frangollo-c3a14a.netlify.app`, **still `noindex`** (the pre-launch block is intact, verified live). HEAD on `main`. The stale branch `fix/silent-send-failure` still exists (its content is already on `main` via `7626bfc`; deletable).
+
+**What shipped and was verified live:**
+- `7626bfc` operator-email-failure fix (review follow-up) is DEPLOYED. NB the push alone did NOT deploy it: the tip commit `710a4ba` carried `[skip ci]`, so Netlify skipped the whole build (see L-030). It was deployed via a manual Netlify API build (`POST /sites/{id}/builds`), which ignores `[skip ci]`. Post-deploy verified: `/book/` greeting reads "I'm the booking assistant", no stale personal names, `noindex` intact. *verified (live curl + Netlify API).*
+- **Privacy notice pre-review (UK GDPR/PECR)** — a primary pass plus an independent `property-reg-reviewer` pass, reconciled and re-derived from code. **Two REDs fixed and DEPLOYED** (`268404b`): R1, "Mark personally reviews and confirms every booking" was false post-D-027 (on-time bookings auto-confirm, `chat.js:936` / `tradingHours.js` 15:00 line), reworded plus an offer of human review; R2, removed the visible `[to confirm]` placeholder, added Google to the US-transfer list, transfer wording confirmed by Ben as fine for UK use. One RED STAGED (R3, The SMS Works / review-request disclosure) and wired as a hard dependency into runbook STEP 6. Findings for the DP professional: **`docs/PRIVACY_REVIEW_2026-09.md`**. *verified (build + live curl: new wording present, `noindex` intact).*
+- **`docs/LAUNCH_CUTOVER.md`** — the consolidated go-live runbook (domain cutover done email-safely, dedicated Resend, `noindex` flip, Search Console, GBP/reviews), with owners and gates marked. This is the single entry point for launch.
+- **`L-030`** — the `[skip ci]` deploy trap.
+- **SEO audit:** the on-site SEO is READY (unique titles/descriptions, canonical, OG/Twitter, LocalBusiness + Service/FAQ/Breadcrumb/Article JSON-LD, sitemap, robots, self-hosted fonts). No code fixes needed. The real visibility levers (GBP + reviews) are out-of-repo and gated on the 01452 phone.
+
+**Human items (Ben) marked agreed and resolved this session:** the international-transfer DPAs (retain each provider's DPA as evidence for the R2 wording), and the privacy review's AMBER judgment calls (Art 22 characterisation, PECR transactional-vs-marketing, 6-year retention enforcement, erasure procedure). So the privacy gate is cleared per Ben; the human DP professional review remains the formal authority when arranged.
+
+**Decision this session:** ICC gets its **own** Resend account, Mark-owned (D-009), not a shared/personal one. Mechanics are in runbook STEP 1.
+
+**Release critical path (all in `docs/LAUNCH_CUTOVER.md`; mostly Ben/Mark, out-of-repo):**
+1. Dedicated ICC Resend account (STEP 1).
+2. Domain cutover: web records at 123reg point to Netlify, email records (MX/SPF/DKIM/`_dmarc`) untouched (STEP 2).
+3. Remove the `noindex` block from `netlify.toml` and set `ALLOWED_ORIGINS`/`PUBLIC_SITE_URL` (STEP 3). The code edit is mine, at cutover; gated on the DP review.
+4. Search Console + Bing + submit the sitemap (STEP 4).
+5. 01452 phone (GATE 0) then the phone swap 01242 to 01452 across the repo (STEP 5, mine) then GBP + review-engine switch-on (STEP 6, includes privacy Fix 3).
+
+**My two remaining in-repo jobs, ready the moment a gate clears:** the `noindex` removal (at cutover) and the phone swap (when the 01452 number exists; targets in `docs/LAUNCH_GBP_PROFILE.md:25`).
+
+**Cross-business calendar (Regency and ICC) so Mark is never double-booked across his two businesses. Ben's steer this session: verify before building. IMPORTANT: this is ALREADY DESIGNED, not greenfield.**
+`docs/CALENDAR_INTEGRATION.md` (25 Aug design note) already covers it end to end: **Part A** is a Mark-facing, phone-app, free/busy calendar-sharing guide (privacy-preserving, no appointment details leave his phone); **Part B** is the full technical integration (Google Calendar API v3, `freebusy.query` / `events.list` clash-check + `events.insert`, a GCP service account, the verified freebusy-on-shared-calendar gotcha with two fallbacks, least-privilege scopes, the booking flow, and the ordered setup). The Supabase `jobs` table stays the system of record; the calendar is a mirror plus a second clash source (Mark's Regency and personal commitments). It is **NOT built**; A3 ("share the Google Calendar") is the open action and the slice would ship dormant behind calendar env vars.
+**The genuine open items before building (the "research needed" Ben flagged):**
+1. **Account / calendar topology.** Confirm whether Mark's Regency appointments live in a separate Google account/calendar or his personal one, and enumerate EVERY calendar holding his commitments. The Part A guide handles multiple calendars (repeat the share for each), but a missed calendar is a real double-booking blind spot, so this must be complete.
+2. **Verify the auth/freebusy path first (one-real-ride).** The doc itself flags that `freebusy.query` as a service account on merely-shared calendars can be unreliable; prove which of service-account+`freebusy` / `events.list` fallback / OAuth-as-ICC actually works with a throwaway read BEFORE building the slice.
+3. Then build the dormant slice and finalise the Part A guide for the chosen identity (the service-account email vs `ben@`).
+DP note: the free/busy-only sharing already handles the cross-business data concern (only busy-times, never appointment details). Anchor: `docs/CALENDAR_INTEGRATION.md`.
+
+**Next actions (ordered, each a single first step):**
+1. Cross-business calendar: already designed in `docs/CALENDAR_INTEGRATION.md` (not greenfield). Confirm Mark's calendar/account topology, do the throwaway auth/freebusy verification (one-real-ride), then build the dormant slice and finalise the Part A guide.
+2. Release: work the `docs/LAUNCH_CUTOVER.md` steps as gates clear (Resend account, then domain cutover; then I do the `noindex` removal + `ALLOWED_ORIGINS`).
+3. When the 01452 number exists: I do the phone swap (STEP 5), then Ben/Mark create the GBP + switch on reviews (STEP 6, including privacy Fix 3).
+4. Optional carry-overs: D-029 two-day auto-split (Ben's day-1 sizing call); the DECLINE / admin-fallback live tests (still untested, need a fresh provisional booking or the admin login).
+
+**Deferred items (flagged, carried forward):**
+- Full two-day auto-split (D-029). Anchor `TODO(D-029/two-day-split)` in `chat.js`.
+- Deposit pay-link dormant until Stripe live: `TODO(D-004/D-026 deposit-link)`.
+- Saturday weekend premium unset: `TODO(D-027/saturday-premium)`.
+- Logo artwork still bakes in the superseded tagline (og:image/favicon show it); a new logo PNG job, not code.
+- Privacy R3 (The SMS Works disclosure) before the review engine switches on (runbook STEP 6).
+
+**Traps and working agreements (this session):**
+- **`[skip ci]` on a push's TIP commit skips the WHOLE build** (L-030). Never leave a `[skip ci]` docs/handover commit as the tip over an un-deployed code change; make the change the tip, or trigger a manual build. Confirm a deploy exists at the pushed SHA (Netlify API), never infer pushed == deployed. **NB: this handover commit is `[skip ci]`, which is safe ONLY because all code is already deployed; push it after any pending code deploy has built.**
+- **Deploy runs from the REAL repo.** Ben's terminal defaulted to the empty Desktop stub `C:\Users\bengr\OneDrive\Desktop\icc-site`; a `git push` there did nothing. Always `cd C:\Users\bengr\Projects\ICC\icc-site` first.
+- **The auto-mode classifier did NOT block a Netlify API build POST this session** (a prod deploy trigger went through), though prior sessions saw env PUT / DB writes blocked. Netlify API GETs plus the build POST worked; `git push` is Ben's.
+- Ben runs prod mutations (`git push` = deploy). confirm-before-push honoured (Ben ran each push/deploy).
+- Ben's shell is PowerShell 5.1 (no `&&`; use `;`). Commits this session were via the Bash tool (Git Bash). No em dashes in prose.
+
+---
+
 ## This session — 2026-09-04: D-027 REAL RIDE done (accept path proven in prod); send-failure hardening + assistant rename + oversize→Mark shipped; one follow-up committed but NOT yet deployed
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading — /context unavailable in this harness. Ben reported 58% (yellow); that is his figure, not an independent read. No compaction/summarisation warnings seen.**
