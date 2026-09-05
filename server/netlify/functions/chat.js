@@ -128,8 +128,8 @@ DEPOSIT AND PAYMENT:
 10% non-refundable deposit required at booking to secure the slot.
 Balance payable on the day.
 
-RE-CLEAN POLICY:
-One free return visit if the customer is unhappy, provided they raise it within 48 hours with photographic evidence. Pre-existing permanent staining is excluded.
+RE-CLEAN AND COMPLAINTS:
+If a customer is unhappy with a clean we have carried out, or complains about completed work, treat it as a satisfaction and complaints matter, not a new booking. Do not quote, do not try to resolve or adjudicate it yourself, and do not promise a specific outcome. Apologise warmly that they are not happy and explain the promise: if they let us know within 72 hours of the end of the appointment and send a photo showing the problem, we will return once to put it right at no charge, and this does not cover pre-existing permanent staining that was there before the clean. Ask them to attach a photo using the camera icon if they have not already, make sure you have their name and a contact number or email, then call escalate_to_human with reason customer_request and a short summary in the question field so Mark can arrange the return visit. Then tell the customer Mark will be in touch to sort it out.
 
 ${knowledge.guardrailsBlock()}
 
@@ -1202,7 +1202,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
             <p style="margin:0 0 10px;font-size:12px;font-weight:bold;color:#1a3a5c;">Terms and Conditions</p>
             <p style="margin:0 0 8px;font-size:11px;color:#718096;line-height:1.6;"><strong>Pricing:</strong> The price quoted is an estimate based on the information and any photographs provided at the time of booking. In the vast majority of cases this will be the final price. If on arrival the condition differs significantly from what was described, any variation will be explained and agreed with you before any additional work is carried out. No additional charges will be applied without your explicit approval.</p>
             <p style="margin:0 0 8px;font-size:11px;color:#718096;line-height:1.6;"><strong>Deposit and cancellation:</strong> Your deposit secures your appointment slot and is payable at the point of booking. Cancellations made with 7 or more days notice will receive a full deposit refund. Cancellations within 7 days of the appointment date will forfeit the deposit. Cancellations within 48 hours of the appointment may be liable for the full estimated cost.</p>
-            <p style="margin:0 0 8px;font-size:11px;color:#718096;line-height:1.6;"><strong>Re-clean guarantee:</strong> If you are not satisfied with the result, please contact us within 72 hours with photographic evidence and we will arrange a single return visit at no additional charge. This guarantee does not apply to pre-existing permanent staining present before the clean was carried out.</p>
+            <p style="margin:0 0 8px;font-size:11px;color:#718096;line-height:1.6;"><strong>Re-clean guarantee:</strong> If you are not satisfied with the result, please let us know within 72 hours of the end of your appointment through our booking assistant, with a photo of the problem, and we will arrange a single return visit at no additional charge. This guarantee does not apply to pre-existing permanent staining present before the clean was carried out.</p>
             <p style="margin:0;font-size:11px;color:#718096;line-height:1.6;">These terms do not affect your statutory rights.</p>
           </div>
           <p style="margin-top:15px;font-size:12px;color:#888;">How we handle your data: <a href="${escHtml(customerPrivacyUrl)}" style="color:#888;">our privacy notice</a>.</p>
