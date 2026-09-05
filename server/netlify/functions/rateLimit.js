@@ -26,7 +26,7 @@ function tooManyResponse(baseHeaders, retryAfter) {
   return {
     statusCode: 429,
     headers: Object.assign({}, baseHeaders, { "Retry-After": String(retryAfter || 3600) }),
-    body: JSON.stringify({ error: "Too many requests. Please wait a little and try again, or call us on 01242 279590." }),
+    body: JSON.stringify({ error: "Too many requests. Please wait a little and try again, or call us on 01452 452356." }),
   };
 }
 

@@ -163,7 +163,7 @@ function escHtml(s) {
 // it and how to reach us (review finding A4). Service-area only, no street address
 // (D-016). The phone/email mirror chat.js + the PDF job card; a shared
 // contact-config could dedupe them later.
-const ICC_SIGN_OFF_LINES = ["Intelligent Carpet Cleaning", "Cheltenham, Gloucestershire", "01242 279590", "hello@intelligentclean.co.uk"];
+const ICC_SIGN_OFF_LINES = ["Intelligent Carpet Cleaning", "Cheltenham, Gloucestershire", "01452 452356", "hello@intelligentclean.co.uk"];
 
 // Public site origin used to build the privacy-notice link in the email. Env
 // overridable so the link tracks the domain at cutover with no code change; it

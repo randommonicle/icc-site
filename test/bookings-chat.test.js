@@ -199,7 +199,7 @@ test("handleBooking (Postgres) returns 502 and sends NO email when the write fai
     const sb = fakeSupabase({ jobsInsert: { data: null, error: { code: "23502", message: "not null" } } });
     const res = await handleBooking(baseBooking(), "re_test", {}, sb);
     assert.strictEqual(res.statusCode, 502);
-    assert.match(JSON.parse(res.body).error, /01242 279590/);
+    assert.match(JSON.parse(res.body).error, /01452 452356/);
     assert.strictEqual(fetchCalls.length, 0, "must never email a confirmation when nothing was persisted");
   });
 });

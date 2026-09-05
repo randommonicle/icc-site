@@ -113,7 +113,7 @@ Today's date and the verified list of bookable dates are provided in the PER-CON
 
 BUSINESS DETAILS:
 Owner: Mark McClymont
-Phone: 01242 279590
+Phone: 01452 452356
 Email: hello@intelligentclean.co.uk
 Service area: All GL postcodes - full Gloucestershire
 ${tradingHours.hoursBlock()}
@@ -161,7 +161,7 @@ WEB SEARCH (RARE, LOW-STAKES ONLY):
 You also have a web_search tool. It is a narrow fallback, not a knowledge source: your vetted reference document always comes first, and most conversations should never need a search. Use it only for low-stakes practical questions that sit outside your reference and carry no risk to the customer's carpet, upholstery or property, for example where to dispose of or recycle an old carpet locally, or whether a local service or supplier exists. Never use it for anything about cleaning, treating or applying products to a carpet or fabric, stain treatment, aftercare, drying, fibre identification, or anything where a wrong answer could cause damage: those answers come from your reference, or are handed to a human with escalate_to_human (damage risk is always handed over first). Never search as a way to avoid handing over. When you do use a search result, mention naturally that you looked it up, stick to what the sources actually say, and the sources will be shown to the customer automatically.
 
 ENDING THE CONVERSATION:
-When the customer clearly signals they are finished (for example they say goodbye, "thanks, that's everything", "no thank you", or otherwise wrap up and are not asking anything further), give a brief, warm sign-off: thank them, invite them back any time, and let them know they can reach the team on 01242 279590 for anything urgent. End that closing message with the marker CONVERSATION_END on its own line. Only do this on a clear closing signal from the customer, never just because they have paused or because you have finished answering, and never put the marker in a message that still asks the customer a question. Never mention the marker to the customer.
+When the customer clearly signals they are finished (for example they say goodbye, "thanks, that's everything", "no thank you", or otherwise wrap up and are not asking anything further), give a brief, warm sign-off: thank them, invite them back any time, and let them know they can reach the team on 01452 452356 for anything urgent. End that closing message with the marker CONVERSATION_END on its own line. Only do this on a clear closing signal from the customer, never just because they have paused or because you have finished answering, and never put the marker in a message that still asks the customer a question. Never mention the marker to the customer.
 
 BOOKING PROCESS:
 Collect in this order, one question at a time:
@@ -480,7 +480,7 @@ async function runAssistantTurn(initialMessages, callModel, handleTool, maxRound
         result = await handleTool(tu, { messages });
       } catch (e) {
         console.log("Tool handler error:", e.message);
-        result = "That could not be completed. Ask the customer to call 01242 279590.";
+        result = "That could not be completed. Ask the customer to call 01452 452356.";
       }
       toolResults.push({ type: "tool_result", tool_use_id: tu.id, content: result });
     }
@@ -592,7 +592,7 @@ async function handleTool(toolUse, context, resendKey, supabase) {
   if (toolUse && toolUse.name === "escalate_to_human") {
     return await handleEscalation(toolUse.input || {}, context, resendKey, supabase);
   }
-  return "Unknown tool. Ask the customer to call 01242 279590.";
+  return "Unknown tool. Ask the customer to call 01452 452356.";
 }
 
 // Log the escalation as a lead and notify Mark by email, then tell the model what
@@ -627,7 +627,7 @@ async function handleEscalation(input, context, resendKey, supabase) {
   // Do not tell the model the team was notified if NEITHER the email nor the durable
   // messages-table handoff reached it. Surfaces a genuine dead-end honestly (L-029).
   if (!emailOk && !dbOk) {
-    return "The escalation could NOT be sent to the team automatically. Tell the customer you could not reach the team just now and ask them to call 01242 279590; do not claim anyone has been notified. Do not attempt to answer the original question yourself.";
+    return "The escalation could NOT be sent to the team automatically. Tell the customer you could not reach the team just now and ask them to call 01452 452356; do not claim anyone has been notified. Do not attempt to answer the original question yourself.";
   }
   return "Escalation logged and the team has been notified. Tell the customer you will get Mark or the team to confirm the answer, and ask how they would like to be contacted if you do not already have their name and number. Do not attempt to answer the original question yourself.";
 }
@@ -969,7 +969,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
       return {
         statusCode: 502,
         headers,
-        body: JSON.stringify({ error: "We couldn't confirm your booking just now. Please call 01242 279590 to book." })
+        body: JSON.stringify({ error: "We couldn't confirm your booking just now. Please call 01452 452356 to book." })
       };
     }
     currentBookingId = res.id;
@@ -1197,7 +1197,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
           <div style="margin-top:15px;text-align:center;">
             <a href="${escHtml(calLink)}" style="display:inline-block;background:#1a8a7a;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;">Add to My Calendar</a>
           </div>
-          <p style="margin-top:20px;font-size:13px;color:#718096;">Questions? Call us on 01242 279590 or email hello@intelligentclean.co.uk</p>
+          <p style="margin-top:20px;font-size:13px;color:#718096;">Questions? Call us on 01452 452356 or email hello@intelligentclean.co.uk</p>
           <div style="margin-top:20px;padding:15px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;">
             <p style="margin:0 0 10px;font-size:12px;font-weight:bold;color:#1a3a5c;">Terms and Conditions</p>
             <p style="margin:0 0 8px;font-size:11px;color:#718096;line-height:1.6;"><strong>Pricing:</strong> The price quoted is an estimate based on the information and any photographs provided at the time of booking. In the vast majority of cases this will be the final price. If on arrival the condition differs significantly from what was described, any variation will be explained and agreed with you before any additional work is carried out. No additional charges will be applied without your explicit approval.</p>
@@ -1279,7 +1279,7 @@ async function generateJobCardPDF(booking, calLink, bookingId, provisional) {
     doc.rect(0, 0, doc.page.width, 75).fill(navy);
     doc.fontSize(18).fillColor(tealLight).font("Helvetica-Bold").text("INTELLIGENT CARPET CLEANING", 40, 14, { width: W });
     doc.fontSize(9).fillColor("white").font("Helvetica").text("Intelligence you can trust", 40, 37);
-    doc.fontSize(7.5).fillColor("rgba(255,255,255,0.5)").text(`Job Ref: ${bookingId || "N/A"}   |   Created: ${new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })}   |   01242 279590   |   hello@intelligentclean.co.uk`, 40, 54);
+    doc.fontSize(7.5).fillColor("rgba(255,255,255,0.5)").text(`Job Ref: ${bookingId || "N/A"}   |   Created: ${new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })}   |   01452 452356   |   hello@intelligentclean.co.uk`, 40, 54);
     doc.y = 88;
 
     // D-027: a provisional (late-finish) job is flagged on Mark's card too.
@@ -1408,7 +1408,7 @@ async function generateJobCardPDF(booking, calLink, bookingId, provisional) {
     doc.rect(40, doc.y, W, 1).fill("#e2e8f0");
     doc.moveDown(0.5);
     doc.fontSize(7.5).fillColor(textMid).font("Helvetica")
-       .text(`Intelligent Carpet Cleaning  |  01242 279590  |  hello@intelligentclean.co.uk  |  All GL Postcodes  |  ${tradingHours.daysPhrase()}`, 40, doc.y, { align: "center", width: W });
+       .text(`Intelligent Carpet Cleaning  |  01452 452356  |  hello@intelligentclean.co.uk  |  All GL Postcodes  |  ${tradingHours.daysPhrase()}`, 40, doc.y, { align: "center", width: W });
     doc.moveDown(0.4);
     doc.fontSize(7).fillColor("#a0aec0")
        .text("This job card was generated automatically by the ICC AI booking system. Please verify all details with the customer before the appointment.", 40, doc.y, { align: "center", width: W });

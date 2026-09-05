@@ -176,7 +176,7 @@ function emailShell(header, innerHtml, privacyUrl) {
         </div>
         <div style="background:#f7f8fa;padding:20px;border-radius:0 0 8px 8px;border:1px solid #e2e8f0;">
           ${innerHtml}
-          <p style="margin-top:20px;font-size:13px;color:#718096;">Questions? Call us on 01242 279590 or email hello@intelligentclean.co.uk</p>
+          <p style="margin-top:20px;font-size:13px;color:#718096;">Questions? Call us on 01452 452356 or email hello@intelligentclean.co.uk</p>
           <p style="margin-top:15px;font-size:12px;color:#888;">How we handle your data: <a href="${escHtml(privacyUrl)}" style="color:#888;">our privacy notice</a>.</p>
           <p style="margin-top:15px;font-size:12px;color:#a0aec0;">Intelligence you can trust.</p>
         </div>
@@ -202,7 +202,7 @@ function buildAcceptEmail(summary, privacyUrl, depositPayUrl) {
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Estimated duration</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(summary.hours)} hour(s)</td></tr>
           </table>
           <p style="font-size:14px;color:#4a5568;">${depositLine}</p>${payButton}`;
-  const text = `Hi ${firstName},\n\nGood news. Mark has confirmed your carpet cleaning appointment for ${summary.date} at ${summary.time} (estimated ${summary.hours} hour(s)). ${payButton ? "Please pay your deposit to confirm your appointment." : "Mark will be in touch shortly to arrange your deposit and secure the slot."}${payTextLine ? "\n\n" + payTextLine : ""}\n\nQuestions? Call 01242 279590 or email hello@intelligentclean.co.uk.\n\nIntelligent Carpet Cleaning`;
+  const text = `Hi ${firstName},\n\nGood news. Mark has confirmed your carpet cleaning appointment for ${summary.date} at ${summary.time} (estimated ${summary.hours} hour(s)). ${payButton ? "Please pay your deposit to confirm your appointment." : "Mark will be in touch shortly to arrange your deposit and secure the slot."}${payTextLine ? "\n\n" + payTextLine : ""}\n\nQuestions? Call 01452 452356 or email hello@intelligentclean.co.uk.\n\nIntelligent Carpet Cleaning`;
   return { subject: "Your booking is confirmed - Intelligent Carpet Cleaning", html: emailShell("Booking Confirmed", inner, privacyUrl), text };
 }
 
@@ -211,9 +211,9 @@ function buildDeclineEmail(summary, privacyUrl) {
   const inner = `
           <p style="font-size:15px;">Hi ${escHtml(firstName)},</p>
           <p style="font-size:14px;color:#4a5568;">Thank you for your booking request for ${escHtml(summary.date)} at ${escHtml(summary.time)}. Unfortunately Mark isn't able to take that appointment, so the slot is no longer being held.</p>
-          <p style="font-size:14px;color:#4a5568;">We'd still love to help. Please call <strong>01242 279590</strong> or email <strong>hello@intelligentclean.co.uk</strong> and we'll find a time that works for you.</p>
+          <p style="font-size:14px;color:#4a5568;">We'd still love to help. Please call <strong>01452 452356</strong> or email <strong>hello@intelligentclean.co.uk</strong> and we'll find a time that works for you.</p>
           <p style="font-size:13px;color:#718096;">Sorry for the inconvenience.</p>`;
-  const text = `Hi ${firstName},\n\nThank you for your booking request for ${summary.date} at ${summary.time}. Unfortunately Mark isn't able to take that appointment, so the slot is no longer being held.\n\nWe'd still love to help. Please call 01242 279590 or email hello@intelligentclean.co.uk and we'll find a time that works for you.\n\nSorry for the inconvenience.\n\nIntelligent Carpet Cleaning`;
+  const text = `Hi ${firstName},\n\nThank you for your booking request for ${summary.date} at ${summary.time}. Unfortunately Mark isn't able to take that appointment, so the slot is no longer being held.\n\nWe'd still love to help. Please call 01452 452356 or email hello@intelligentclean.co.uk and we'll find a time that works for you.\n\nSorry for the inconvenience.\n\nIntelligent Carpet Cleaning`;
   return { subject: "About your booking request - Intelligent Carpet Cleaning", html: emailShell("Booking Update", inner, privacyUrl), text };
 }
 

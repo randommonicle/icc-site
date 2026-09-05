@@ -58,7 +58,7 @@ test("buildReviewEmail identifies the controller in both parts (A4)", () => {
   const { html, text } = buildReviewEmail({ name: "A", reviewUrl: URL, privacyUrl: null });
   for (const part of [html, text]) {
     assert.match(part, /Intelligent Carpet Cleaning/);
-    assert.match(part, /01242 279590/);
+    assert.match(part, /01452 452356/);
     assert.match(part, /hello@intelligentclean\.co\.uk/);
   }
 });

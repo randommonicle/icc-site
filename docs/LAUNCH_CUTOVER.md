@@ -162,6 +162,8 @@ meaningful ranking on a new domain; reviews (STEP 6) are the biggest accelerant.
 
 ## STEP 5 — Phone swap 01242 → 01452
 
+> **Status (2026-09-05):** repo swap done, number `01452 452356` (Tamar), on branch `feat/phone-01452-swap`, NOT deployed. Test call to the number deferred until Tamar completes allocation.
+
 **Gate: ICC's own 01452 number is provisioned (action A1).** Until then the site keeps
 `01242 279590` on purpose (it works and reaches Mark) — do not swap to a placeholder.
 

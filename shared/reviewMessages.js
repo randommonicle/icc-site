@@ -15,7 +15,7 @@ const { BUSINESS_NAME } = require("./config/reviews.js");
 const ICC_SIGN_OFF_LINES = [
   "Intelligent Carpet Cleaning",
   "Cheltenham, Gloucestershire",
-  "01242 279590",
+  "01452 452356",
   "hello@intelligentclean.co.uk",
 ];
 

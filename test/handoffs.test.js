@@ -79,10 +79,10 @@ test("buildHandoffEmail adds the ICC sign-off and escapes the reply (A4, L-003)"
   const { html, text } = buildHandoffEmail("Hi there <script>alert(1)</script>\nThanks");
   // sign-off identifies the sender in both parts
   assert.match(text, /Intelligent Carpet Cleaning/);
-  assert.match(text, /01242 279590/);
+  assert.match(text, /01452 452356/);
   assert.match(text, /hello@intelligentclean\.co\.uk/);
   assert.match(html, /Intelligent Carpet Cleaning/);
-  assert.match(html, /01242 279590/);
+  assert.match(html, /01452 452356/);
   // the reply is escaped in the HTML part, never injected as live markup
   assert.ok(!html.includes("<script>alert(1)</script>"), "reply must be escaped in HTML");
   assert.match(html, /&lt;script&gt;/);

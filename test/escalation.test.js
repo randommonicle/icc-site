@@ -119,7 +119,7 @@ test("runAssistantTurn does not crash the turn if a tool handler throws", async 
   // a fallback tool_result was still sent on the second call
   const toolResult = model.calls[1].slice(-1)[0].content[0];
   assert.strictEqual(toolResult.type, "tool_result");
-  assert.match(toolResult.content, /01242 279590/);
+  assert.match(toolResult.content, /01452 452356/);
 });
 
 test("withSingleTextBlock drops tool_use and breaks the paragraph where it sat (Slice 4d contract)", () => {
@@ -204,7 +204,7 @@ test("handleEscalation is honest when BOTH the email and the DB handoff fail", a
     global.fetch = prevFetch;
     console.log = prevLog;
   }
-  assert.match(out, /01242 279590/, "the customer is directed to call when nothing reached the team");
+  assert.match(out, /01452 452356/, "the customer is directed to call when nothing reached the team");
   assert.match(out, /could NOT be sent/i, "it returns the honest could-not-reach message, not the 'team notified' one");
   assert.ok(!/logged and the team has been notified/i.test(out), "the normal 'notified' claim must not be used");
 });
@@ -217,5 +217,5 @@ test("handleTool routes escalate_to_human and rejects unknown tools", async () =
   );
   assert.match(esc, /team/i);
   const unknown = await handleTool({ name: "nope", input: {} }, { messages: [] }, null);
-  assert.match(unknown, /01242 279590/);
+  assert.match(unknown, /01452 452356/);
 });
