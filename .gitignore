@@ -27,3 +27,11 @@ build/
 # Logs
 *.log
 npm-debug.log*
+
+# Cross-agent review (cross-agent-review skill): track the reusable scaffolding,
+# ignore the machine-local debate transcripts and any staged artifacts.
+exchange/**
+!exchange/README.md
+!exchange/PROTOCOL.md
+!exchange/kickoffs/
+!exchange/kickoffs/**
