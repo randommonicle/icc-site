@@ -420,3 +420,19 @@ ICC's own distinct number is **01452 452356** (Gloucester), provisioned with **T
 **Open before public use.** The one unverified item is a test call for post-dial delay, deferred until Tamar completes full allocation of the number. Make that call before the number goes on the Google Business Profile or anywhere public.
 
 **Relationships and status.** Implements the "ICC's own number" requirement of D-016 (private address, service-area NAP) and clears the phone gate (GATE 0) of the launch runbook; complements D-025 (SMS via The SMS Works). The repo swap is on branch `feat/phone-01452-swap` (runbook STEP 5), verified green (tests + build) but not yet deployed. The Tamar account is business-owned (D-009).
+
+## D-031 — Customer terms and conditions: dedicated /terms page (satisfaction re-clean, complaints, payment)
+**Status:** Draft (5 September 2026), pending a professional legal / data-protection review before go-live (GATE 0)
+
+A dedicated `/terms` page (`site/src/pages/terms.astro`, linked in the footer) holds ICC's customer terms. Key commitments set by Ben (5 Sep 2026):
+- **Satisfaction promise:** if the customer notifies within 24 hours of the END of the appointment, via the assistant (kept in-channel for a logged paper trail; phone/email deliberately not offered for this route), ICC returns once to put it right at no charge. Stated as in addition to statutory rights (CRA 2015).
+- **Complaints:** acknowledged within 3 working days; resolved within 10 working days of that acknowledgement.
+- **Payment:** invoices due within 14 days; interest on overdue invoices in line with the Bank of England base rate; domestic balance due on completion; no VAT (D-024).
+- Generic terms: quotes are estimates confirmed on inspection, a 10% deposit applied to the bill and refunded if ICC cancels, 48h cancellation notice, access/parking/preparation, realistic-results and permanent-damage honesty, a liability clause that does not exclude non-excludable liability, a data section linking the privacy notice, and governing law (England and Wales).
+
+Owner still to confirm before go-live: public-liability insurance wording (omitted until confirmed, L-009/D-015), the cancellation notice period (48h drafted), and deposit-refund terms. The satisfaction promise's assistant route depends on the assistant recognising a post-clean complaint and escalating it (the `chat.js` wiring, tracked separately). Relationships: addresses the A2/A4 trust and substantiation findings from the marketability review; complements D-024 (no VAT) and D-016 (contact/NAP).
+
+## D-032 — The AI assistant is the advertised booking channel; phone/email booking works but is not promoted
+**Status:** Accepted (5 September 2026)
+
+Customers can complete a booking by phone or email (tested and operational), but ICC deliberately directs all booking traffic to the AI assistant and does not advertise the phone/email route as a booking channel; the human line stays a quiet fallback for people who need it. Reason: the assistant is the product differentiator, it captures a complete structured customer file, and keeping the flow in one channel gives a consistent record. This is why both home-page CTAs and the page CTAs point at `/book`, and why the marketability review's recommendation to make a phone booking route prominent (A3) was declined. The phone number and email stay visible for help and accessibility.
