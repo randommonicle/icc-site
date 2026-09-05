@@ -31,12 +31,12 @@ If you cannot find Google Calendar, open the **Play Store**, search
    address**).
 5. Tap **Add people or groups**.
 6. Type this exactly, then tap it when it appears:
-   **ben@intelligentclean.co.uk**
+   **mark_director@intelligentclean.co.uk**
 7. Set the permission to **See only free/busy (hide details)**. If it shows
    anything else, tap it and pick that one.
 8. Tap **Send** (or **Save**) at the top.
 
-**That's it.** When the screen goes back and shows *ben@intelligentclean.co.uk*
+**That's it.** When the screen goes back and shows *mark_director@intelligentclean.co.uk*
 in the list, you are finished. You never have to do this again.
 
 ---
