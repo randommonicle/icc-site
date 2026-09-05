@@ -12,6 +12,63 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session (2026-09-05): ICC phone provisioned + swapped, marketability cross-agent review converged, /terms + policy single-source, calendar retargeted. ALL ON A BRANCH, NOTHING PUSHED (batching one deploy).
+
+*Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading — /context unavailable in this harness. No compaction or summarisation warnings seen this session; treated as green. A clean, deliberate stop.**
+
+**This SUPERSEDES the 2026-09-04 (later) entry's next-action "the phone swap (STEP 5)": the swap is DONE, on `feat/phone-01452-swap`, unpushed.**
+
+**Session goal.** Read the handover, act on next steps, evaluate GPT-6 Astra as a cross-agent reviewer, provision the ICC phone, run a marketability review.
+
+**Branch and worktree.** Everything is on **`feat/phone-01452-swap`** (home machine, standard checkout `C:\Users\bengr\Projects\ICC\icc-site`; NO extra git worktrees, `.claude/worktrees/` empty). The branch is **14 commits ahead of `origin/main` and UNPUSHED, by Ben's instruction (batch one Netlify deploy; each push costs a deploy).** `main` = `origin/main` = `07a87d3`, unchanged, still the live deploy (noindex). **Nothing from this session is deployed.**
+
+**What landed (all on the branch, unpushed; at every step `node --test` = 317 pass / 9 skip and `npm run build --prefix site` = 25 pages, green — verified):**
+- **Phone (D-030):** ICC's own **01452 452356** (Tamar Telecommunications, business-owned, voice-only with call whisper) swapped across the whole NAP: site pages, the LocalBusiness `+44` schema, the AI system prompt, the email/PDF/rate-limit fallbacks, the review sign-off, and the tests that assert it. Root `index.html` left as the rollback (Regency keeps 01242 279590). `194711f`. *verified (tests+build); the number is NOT yet test-called (Tamar still allocating).*
+- **Overclaims (A4):** softened across home, about, guides, areas, services, history; the unconditional no-damage claim and competitor generalisations removed. `f3c09fa`, `335b0cb`. *verified.*
+- **`/terms` page (D-031):** satisfaction promise, complaints procedure, payment terms + footer link. `ecaaba7`. *verified.*
+- **Re-clean policy reconciled** to **72 hours from the end of the appointment / photo required / permanent staining excluded** across the prompt, the confirmation email, and `/terms`; the assistant now escalates a post-clean complaint to Mark via `escalate_to_human` (paper trail). `6e493d0`, `d569c37`. *verified (tests+build); NOT ride-tested with a real complaint.*
+- **Single source of truth (L-031):** `shared/config/policy.js` now holds the re-clean and deposit/cancellation wording, consumed by prompt + email + `/terms`. Deposit set to 10% + 7-day cancellation tiers; the email's "liable for the full estimated cost" penalty line dropped. `07475d0`, `93bbab1`. *verified (built `/terms` HTML contains the shared text).*
+- **Calendar:** Mark's sharing guide retargeted from `ben@` to **mark_director@intelligentclean.co.uk** (his director account, the operator who accepts, D-009); the D-009 "Ben-controlled" wording corrected. `a49a33b`, `150d921`. *verified (docs).*
+- **Bot-first booking (D-032):** phone/email booking works but is not advertised; the assistant is the advertised channel. Recorded; `contact.astro` "all bookings via the assistant" corrected to a preferred-route line.
+- **Docs/memory:** D-030/D-031/D-032, L-031, `docs/PHONE_01452_OPTIONS.md`, `docs/MARKETABILITY_REVIEW_2026-09.md`, cross-agent-review scaffolding in `exchange/` (gitignore split), memory `icc-email-addresses`.
+
+**Cross-agent review (GPT-6 Astra).** Converged over 3 rounds each. Transcript machine-local and gitignored at `exchange/REVIEW_marketability_2026-09-05.md`; durable summary at `docs/MARKETABILITY_REVIEW_2026-09.md`. Astra ran as a spoke via the `cross-agent-review` file relay and caught 2 overclaims the hub's first pass missed. The live watcher was stopped at session end.
+
+**In flight / NOT done:**
+- **Nothing pushed.** The branch is a complete, self-consistent batch awaiting Ben's review + one deploy.
+
+**Deferred / owner-side (carried forward, each re-verified against branch state at write time):**
+- **Deploy the batch:** Ben reviews `feat/phone-01452-swap`, merges to `main`, pushes once. Carries: the 01452 number, softened claims, `/terms`, the re-clean/escalation change, the policy single-source. NB do NOT leave a `[skip ci]` commit as the merge tip (L-030).
+- **Test call to 01452 452356** once Tamar finishes allocation, before it goes on GBP or is relied on publicly. *unverified.*
+- **Legal/DP review of `/terms` + the privacy notice** before go-live (GATE 0).
+- **A2 proof gap** (highest-value marketing item, owner-side): operator intro, real work photos, before/after, then reviews/GBP. Mark-supplied; nothing to build.
+- **A5 commercial enquiry action** (optional, Medium): a labelled commercial route into the assistant.
+- **Insurance line** on `/terms` only if/when Mark holds cover (omitted by decision for now).
+- **Cross-business calendar build:** unchanged design in `docs/CALENDAR_INTEGRATION.md`; open work is (1) confirm every calendar/account holding Mark's commitments, (2) verify the freebusy/auth path with a throwaway read, (3) build the dormant slice. Mark shares his Regency free/busy to `mark_director@` per `docs/MARK_CALENDAR_GUIDE.md`.
+- **Release path (`docs/LAUNCH_CUTOVER.md`):** dedicated Mark-owned Resend account (create via Google sign-in with a Mark-owned Workspace address, add Ben as team member), then domain cutover, then my `noindex` removal + `ALLOWED_ORIGINS`.
+- Prior deferrals still open: D-029 two-day split; deposit pay-link (Stripe); Saturday premium; logo tagline artwork.
+
+**Verification still outstanding:** the deploy + post-deploy live checks; the 01452 test call; the DECLINE / admin-fallback live tests (untested since the prior handover).
+
+**Blockers / open questions:** none blocking in-repo work. All next steps are Ben/Mark out-of-repo (deploy, Tamar allocation, legal review, Mark's photos/bio) or the calendar verification.
+
+**Next actions (ordered, each a single first step):**
+1. Ben: review `feat/phone-01452-swap` (14 commits), merge to `main`, push once to deploy the batch to the (still noindex) staging site. Exact command given at the point of running.
+2. Test-call 01452 452356 once Tamar completes allocation.
+3. Calendar: confirm Mark's calendar/account topology, then verify the freebusy/auth path (throwaway read) before building.
+4. Release: create the Mark-owned Resend account, then the domain cutover.
+5. Get Mark's A2 proof material (operator intro, work photos, before/after) onto the site.
+
+**Traps and working agreements (this session):**
+- **Don't push; batch deploys.** Ben pushes once per batch (each push = one Netlify deploy). Give merge/push commands only at the point of running.
+- **Policy single-source (L-031):** the re-clean + deposit/cancellation wording lives ONCE in `shared/config/policy.js`. Never restate it in the prompt/email/page; edit `policy.js`.
+- **Blast-radius grep before changing a duplicated fact:** the phone number, the re-clean policy, and the deposit policy each lived in 3+ places and had drifted (three different re-clean windows were live). Grep the whole repo, fix every occurrence in one pass.
+- **[skip ci] on a push tip skips the whole build (L-030).** Do not merge/push with a `[skip ci]` commit as the tip over the code changes.
+- Ben's shell is PowerShell 5.1 (no `&&`); commits this session were via the Bash tool (Git Bash). No em dashes in prose.
+- GPT-6 Astra (ChatGPT desktop) works as a cross-agent seat over the `exchange/` file relay; kick one seat at a time; the data boundary (public surface only) is in the kickoffs.
+
+---
+
 ## This session (2026-09-04, later): 7626bfc DEPLOYED + verified; privacy pre-review shipped (2 REDs fixed, live); launch runbook written; cross-business calendar item added (research first)
 
 *Diagnoses unverified unless marked.* **Context: Ben reported 30% (green). `/context` is not invokable in this harness, so 30% is Ben's figure. A clean, deliberate stop; pick up cold in a fresh session.**
