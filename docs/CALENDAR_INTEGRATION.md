@@ -9,6 +9,74 @@
 
 ---
 
+## Pre-build verification — do this BEFORE writing the slice
+
+The slice stays UNBUILT until both checks below pass. Order matters: settle the
+topology first (a missed calendar is a silent double-booking blind spot), then
+prove the auth/read path with a real read.
+
+### Check 1 — Mark's calendar topology (ask Mark; resolve every line)
+
+- [ ] **Which app holds the real appointments, Google or Samsung?** Samsung
+  phones default to *Samsung Calendar*, whose events do NOT sync to Google. If
+  Mark's Regency jobs live only in Samsung Calendar, sharing his Google calendar
+  shares an EMPTY calendar and the clash-check silently sees no Regency busy
+  time. This is the highest-risk blind spot. Confirm the jobs are visible in the
+  Google Calendar app (or migrate/mirror Samsung to Google first).
+- [ ] **One Google account or several?** Is the Regency diary in the SAME Google
+  login as his personal calendar, or a different account? Enumerate every Google
+  account that holds clashable commitments.
+- [ ] **Every calendar, not just one.** Within each account, list every calendar
+  holding appointments that could clash with cleaning work (primary, a separate
+  personal/family one, and so on). Each must be shared separately (Part A repeats).
+- [ ] **mark_director@ is separate.** The design assumes Mark's personal/Regency
+  calendar is a DIFFERENT Google account from mark_director@intelligentclean.co.uk
+  (the share target). Confirm it is; if Regency runs on the same Workspace, the
+  share target and identity change.
+- [ ] **No admin lock.** If any calendar is a "work/school" (managed Workspace)
+  calendar, sharing to an outside address may be blocked (Part A's "no Add
+  people" case). Note which, and plan an alternative for those.
+
+Output: a definitive list of {account, calendar name, calendar id} the
+clash-check must read, plus confirmation each is shared free/busy to the chosen
+identity.
+
+**Resolved (2026-09-05, from Mark):**
+- Appointments live in **Google Calendar**, not Samsung Calendar (blind spot cleared).
+- Two calendars only:
+  1. **Regency diary** under **talktoregency@gmail.com** (a personal Gmail; no
+     admin lock). This is the external calendar the clash-check must read
+     free/busy.
+  2. **Intelligent Clean** under **mark_director@intelligentclean.co.uk** (there
+     is no plain `mark@`; it never existed, L-015). ICC's own calendar; the bot
+     writes bookings here, so no external share is needed. The GCP project and
+     service account are created under this same account.
+- The ICC account is a different Google account from Regency (confirmed).
+- Share target: the ICC **service-account email**, once created. Mark shares
+  **talktoregency@gmail.com**'s calendar free/busy to it (Part A steps, swapping
+  the service-account email in for `mark_director@`).
+
+### Check 2 — prove the read path (one-real-ride)
+
+Needs, first: (a) Mark has shared his calendar(s) free/busy to the chosen
+identity, AND (b) a GCP service account exists (new project, enable the Calendar
+API, create the service account, download its JSON key), per Part B's setup list.
+The read CANNOT run until both exist; a share alone is not enough.
+
+Then run the throwaway diagnostic:
+
+    node --env-file=.env scripts/verify-calendar-freebusy.js
+
+with `GCAL_CALENDAR_IDS` = the shared calendar id(s) and `GCAL_SA_KEY_FILE` = the
+service-account JSON key path (optionally `GCAL_OAUTH_TOKEN` to test PATH 3). It
+reads only, never writes, and prints a per-path verdict (freebusy vs events.list
+vs OAuth). Take the path it reports as WORKS into the build; delete the script
+after.
+
+Only once both checks pass do we build the dormant slice (Part B setup step 6).
+
+---
+
 ## Part A. For Mark: share your calendar (from your phone, 2 minutes)
 
 **The one thing that was going wrong:** the sharing settings do not appear when you open **calendar.google.com in the phone's web browser**. You have to use the **Google Calendar app** (the icon with the coloured "31"). Everything below is in the app.

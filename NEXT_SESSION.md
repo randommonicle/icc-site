@@ -12,6 +12,63 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session (2026-09-05, later): cross-business calendar — verify-before-build advanced; GCP service account created under the ICC org, SA-key auth PROVEN, waiting on Mark's calendar share. PHONE DEPLOY BATCH UNTOUCHED.
+
+*Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading — /context unavailable in this harness. No compaction or summarisation warnings seen this session; treated as green. A clean, deliberate stop, waiting on Mark.**
+
+**This ADVANCES the earlier 2026-09-05 (phone) entry's next-action #3 (calendar: confirm topology, then verify the freebusy/auth path before building).** Topology is confirmed, the throwaway read harness is built, and the service-account auth is proven; only Mark's calendar share remains before the real read verdict. **The phone-swap deploy batch (that entry's next-action #1) is UNTOUCHED and still the priority.**
+
+**Session goal.** Read the handover, pick a direction, work the cross-business calendar item's verify-before-build gate.
+
+**Branch and worktree.** Home machine, standard checkout `C:\Users\bengr\Projects\ICC\icc-site`. Still on **`feat/phone-01452-swap`** (tip `2823880`, **15 commits ahead of `origin/main`, unpushed**). **The phone/marketability batch is unchanged — nothing added to it, nothing pushed.** This session's calendar work is UNCOMMITTED working-tree changes on that branch (see In flight), pending Ben's decision on where to commit them.
+
+**What landed (this session, calendar verify-before-build):**
+- **Topology resolved with Mark (verified, from Mark):** appointments are in **Google Calendar** (not Samsung — blind spot cleared); two calendars only — **Regency diary under `talktoregency@gmail.com`** (personal Gmail, no admin lock, the free/busy source the bot must read) and **Intelligent Clean under `mark_director@intelligentclean.co.uk`** (ICC's own; there is no plain `mark@`, per L-015). Recorded in `docs/CALENDAR_INTEGRATION.md` "Pre-build verification".
+- **Auth decision: service-account key, NOT OAuth (Ben's call).** Rationale: ICC is a small non-RICS cleaning business (corrected mid-session; memory `icc-not-rics-regulated`), the SA key is operationally simpler on Netlify (no refresh-token machinery), the security downside is modest. *DECISIONS candidate — not yet recorded.*
+- **GCP set up under the ICC org (verified):** project `icc-calendar` (id `icc-calendar-507721`) created under the `intelligentclean.co.uk` Cloud org; Calendar API enabled; service account **`icc-booking-bot@icc-calendar-507721.iam.gserviceaccount.com`**; a JSON key downloaded and stored **machine-local, outside the repo** in `C:\Users\bengr\secrets\` (filename not recorded here — it embeds the key id).
+- **Org-policy override (verified):** the org enforces Google secure-by-default policies. Two bit this session: (1) project creation needed the Cloud org to be provisioned + `resourcemanager.projects.create` (auto-granted once the org finished creating); (2) `iam.managed.disableServiceAccountKeyCreation` blocked the key download — overridden to **Not enforced on the `icc-calendar` project only** (Override parent's policy → one rule → enforcement Off). *LESSONS candidate.*
+- **Diagnostic harness (verified it runs):** `scripts/verify-calendar-freebusy.js` — a read-only Node-built-ins script testing the three read paths (SA freebusy / SA events.list / OAuth) with a per-path verdict. Guard clauses and a live run both exercised.
+
+**First-hand verified result (I ran it, `GCAL_WINDOW_DAYS=60`, 2026-09-05):** SA **token exchange OK** (key + API + JWT flow all work). `freebusy.query` and `events.list` over `talktoregency@gmail.com` both returned **`notFound`** — expected, because **Mark has not shared his calendar to the SA yet**. So PATH 1's auth mechanism is proven functional; the read verdict is blocked only on Mark's share.
+
+**In flight / NOT done:**
+- **Waiting on Mark:** share `talktoregency@gmail.com` **free/busy** to `icc-booking-bot@icc-calendar-507721.iam.gserviceaccount.com` (Google Calendar app → Settings → that calendar → Add people or groups → the SA email → See only free/busy). Ben has the forwardable steps.
+- **Uncommitted working-tree changes** on `feat/phone-01452-swap` (deploy-neutral — Netlify builds `site/`, these do not change site output):
+  - `docs/CALENDAR_INTEGRATION.md` (modified) — new "Pre-build verification" section: topology checklist + resolved answers + the ordered gate.
+  - `scripts/verify-calendar-freebusy.js` (new, untracked) — the diagnostic.
+  - `NEXT_SESSION.md` (this entry).
+  Where these get committed (new branch / folded into the phone batch / left) is Ben's call — pending.
+
+**Deferred / owner-side:**
+- Everything from the earlier 2026-09-05 (phone) entry still stands: **deploy the phone batch (priority)**, test-call 01452, release/Resend + domain cutover, Mark's A2 photos.
+- **Calendar build (dormant slice):** only after the read verdict. If PATH 1 works (expected), build per `docs/CALENDAR_INTEGRATION.md` Part B (SA key in Netlify env, freebusy clash-check + `events.insert`), dormant behind calendar env vars. NB PATH 2 (`events.list`) will likely 403 under free/busy-only sharing — fine, PATH 1 is the one we need.
+- **DECISIONS.md:** record calendar-auth = SA-key + the project-scoped org-policy override.
+- **LESSONS_LEARNED.md:** the GCP secure-by-default traps (Workspace super-admin ≠ Cloud IAM; SA-key block).
+- **`docs/MARK_CALENDAR_GUIDE.md`:** change the share target from `mark_director@` to the SA email — do this once the read is confirmed working (held to avoid baking it in before verification).
+
+**Verification still outstanding:**
+- The real freebusy read verdict (rerun the diagnostic once Mark shares — command below).
+- Then the DECLINE / admin-fallback live tests and the phone deploy checks, all still open from prior handovers.
+
+**Blockers / open questions:**
+- Mark's calendar share (external; non-blocking for in-repo work).
+- Whether `talktoregency@gmail.com`'s PRIMARY calendar holds the Regency jobs, or a secondary calendar under that account. If the read is empty after sharing, get the secondary calendar's specific id.
+
+**Next actions (ordered, each a single first step):**
+1. When Mark confirms he has shared: rerun the read — `cd C:\Users\bengr\Projects\ICC\icc-site`, then (Git Bash) `GCAL_CALENDAR_IDS="talktoregency@gmail.com" GCAL_SA_KEY_FILE="C:/Users/bengr/secrets/<the icc-calendar-*.json>" GCAL_WINDOW_DAYS=60 node scripts/verify-calendar-freebusy.js`. Expect PATH 1 = WORKS.
+2. If PATH 1 works: update `docs/MARK_CALENDAR_GUIDE.md` to the SA email; record the DECISIONS + LESSONS entries; then build the dormant calendar slice (Part B).
+3. Ben (independent, higher priority): review + merge + push `feat/phone-01452-swap` (15 commits) to deploy the phone/marketability batch to the still-noindex staging site.
+4. Commit this session's calendar changes wherever Ben wants them.
+
+**Traps and working agreements (this session):**
+- **Two separate permission systems:** Google **Workspace** admin (users/mailboxes) grants **zero** Google **Cloud** IAM rights. New GCP orgs are secure-by-default — project creation and SA-key creation are both blocked until an admin unlocks them. Ben is super-admin and self-served both this session.
+- **ICC is NOT RICS-regulated** (memory `icc-not-rics-regulated`). It is a separate part-time cleaning business; judge its trade-offs on their own merits, do not import property-sector framing. (My conflation this session; corrected by Ben.)
+- **Secrets stay out of the repo:** the SA JSON key lives in `C:\Users\bengr\secrets\`, never committed. Do not record the exact key filename in tracked docs (it embeds the key id).
+- **`notFound` on a freebusy call = the calendar is not shared to that identity yet**, not an auth failure. Token-exchange-OK is the auth proof.
+- Phone-batch discipline unchanged: don't push; batch deploys; give merge/push commands only at the point of running.
+
+---
+
 ## This session (2026-09-05): ICC phone provisioned + swapped, marketability cross-agent review converged, /terms + policy single-source, calendar retargeted. ALL ON A BRANCH, NOTHING PUSHED (batching one deploy).
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading — /context unavailable in this harness. No compaction or summarisation warnings seen this session; treated as green. A clean, deliberate stop.**
