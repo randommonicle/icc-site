@@ -419,4 +419,4 @@ ICC's own distinct number is **01452 452356** (Gloucester), provisioned with **T
 
 **Open before public use.** The one unverified item is a test call for post-dial delay, deferred until Tamar completes full allocation of the number. Make that call before the number goes on the Google Business Profile or anywhere public.
 
-**Relationships and status.** Implements the "ICC's own number" requirement of D-016 (private address, service-area NAP) and clears the phone gate (GATE 0) of the launch runbook; complements D-025 (SMS via The SMS Works). The repo swap is on branch `feat/phone-01452-swap` (runbook STEP 5), verified green (tests + build) but not yet deployed.
+**Relationships and status.** Implements the "ICC's own number" requirement of D-016 (private address, service-area NAP) and clears the phone gate (GATE 0) of the launch runbook; complements D-025 (SMS via The SMS Works). The repo swap is on branch `feat/phone-01452-swap` (runbook STEP 5), verified green (tests + build) but not yet deployed. The Tamar account is business-owned (D-009).
