@@ -10,6 +10,7 @@
 // public-liability insurance wording (deliberately omitted until confirmed, L-009/
 // D-015), the cancellation notice period, and deposit-refund terms. See D-031.
 import BaseLayout from '../layouts/BaseLayout.astro';
+import policy from '../../../shared/config/policy.js';
 ---
 <BaseLayout
   title="Terms and Conditions | Intelligent Carpet Cleaning"
@@ -34,24 +35,15 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       <li>A flat out-of-area surcharge applies outside Cheltenham, Gloucester and Winchcombe, and is shown before you book.</li>
     </ul>
 
-    <h2>Booking and deposit</h2>
-    <ul>
-      <li>A 10% deposit secures your booking and is applied to your final bill.</li>
-      <li>If we have to cancel or cannot attend, your deposit is refunded in full.</li>
-      <li>Standard daytime bookings are confirmed automatically. A booking that would finish later in the day is held and confirmed by Mark personally before it is final.</li>
-    </ul>
+    <h2>Deposit and cancellation</h2>
+    <p>{policy.depositSentence()}</p>
+    <p>Standard daytime bookings are confirmed automatically. A booking that would finish later in the day is held and confirmed by Mark personally before it is final. Please give us as much notice as you can if you need to rearrange.</p>
 
     <h2>Payment</h2>
     <ul>
       <li>For domestic work, the balance is due on completion of the clean.</li>
       <li>Where we invoice you, including commercial and contract work, payment is due within 14 days of the invoice date.</li>
       <li>We may charge interest on overdue invoices in line with the Bank of England base rate, calculated daily from the due date until payment is received.</li>
-    </ul>
-
-    <h2>Cancellations and rescheduling</h2>
-    <ul>
-      <li>Please give us at least 48 hours' notice if you need to cancel or rearrange, so we can offer the slot to someone else.</li>
-      <li>If we cannot gain access at the agreed time, or an appointment is missed without notice, we may retain the deposit to cover the time set aside.</li>
     </ul>
 
     <h2>Access, parking and preparation</h2>
@@ -69,7 +61,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     </ul>
 
     <h2>Our satisfaction promise</h2>
-    <p>If you are not happy with your clean, let us know within 72 hours of the end of your appointment <a href="/book">through our assistant</a>, with a photo of the problem, and we will return once to put it right at no extra charge. This does not cover pre-existing permanent staining or damage that was present before the clean. This is in addition to your legal rights and does not affect them.</p>
+    <p>{policy.reCleanSentence()} This is in addition to your legal rights and does not affect them.</p>
 
     <h2>Liability</h2>
     <ul>

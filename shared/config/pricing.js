@@ -44,7 +44,8 @@ const custom_lines = [
   "Commercial: tailored pricing",
 ];
 
-// 10% non-refundable deposit at booking (used by the server quote, Slice 3).
+// 10% deposit at booking (used by the server quote, Slice 3). Deposit/cancellation
+// and re-clean terms live in shared/config/policy.js (single source).
 const deposit_rate = 0.1;
 
 function priceLine(it) {
