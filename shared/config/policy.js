@@ -41,6 +41,9 @@ const CANCELLATION = { statutoryDays: 14 };
 // but reg 36 only allows that where the booking flow captured the customer's express
 // request to begin + an acknowledgement the right is lost on completion. The flow does
 // not capture that yet; wire it into the confirm_booking path before relying on it.
+// HIGH PRIORITY REVIEW within 2 months of go-live (Ben, 2026-09-06; cross-agent flag
+// GEMPRO): keep the wording as-is until then, then either build the capture above or
+// soften this paragraph. See docs/LEGAL_REVIEW_TERMS_2026-09.md T-1.
 function cancellationRightParagraphs() {
   const d = CANCELLATION.statutoryDays;
   return [

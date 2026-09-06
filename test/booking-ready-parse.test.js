@@ -100,6 +100,32 @@ test("returns null (never throws) on a malformed payload", () => {
   assert.strictEqual(extractBookingReady(bad), null);
 });
 
+test("rejects an empty object immediately after the marker (GEMPRO finding 1)", () => {
+  // A stray/empty leading brace must not be handed on as the booking (silent wrong-data);
+  // it returns null so the wiring shows the honest fallback instead of an empty booking.
+  assert.strictEqual(extractBookingReady("BOOKING_READY:{}"), null);
+  assert.strictEqual(extractBookingReady('BOOKING_READY: {} {"name":"Ben","date":"2026-09-14"}'), null);
+});
+
+test("does not parse a payload that is not immediately after the marker (GEMPRO finding 1)", () => {
+  // Stray text/braces before the object are not the model's real format; return null
+  // rather than locking onto the wrong braces.
+  assert.strictEqual(extractBookingReady('BOOKING_READY: almost {nope} {"name":"Ben"}'), null);
+});
+
+test("a bare prose mention of the marker is not a booking (GEMPRO finding 2)", () => {
+  // No immediate brace, so extraction returns null and the wiring treats it as ordinary
+  // chat, not a failed booking with a spurious "call us" dead-end.
+  assert.strictEqual(extractBookingReady("Once you confirm, I'll use the BOOKING_READY: step next."), null);
+});
+
+test("book.astro gates the failure fallback on the immediate-brace pattern (GEMPRO findings 1/2)", () => {
+  assert.ok(
+    bookAstro.includes("bookingAttempted=/BOOKING_READY:\\s*\\{/"),
+    "the fallback must fire only on a real attempt (marker immediately followed by {)"
+  );
+});
+
 test("book.astro no longer uses the truncating .match(/BOOKING_READY:/) capture", () => {
   assert.ok(
     !bookAstro.includes(".match(/BOOKING_READY:"),

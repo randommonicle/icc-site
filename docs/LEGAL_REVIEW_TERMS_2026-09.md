@@ -42,6 +42,18 @@ professional. Status of the findings:
   14 days plus an acknowledgement that the right is lost on completion. The clause
   states it; the flow does not yet capture it. `TODO(T-1/express-request-capture)`.
 
+**T-1 review flag [HIGH, owner-tracked].** A cross-agent review (GEMPRO, 2026-09-06)
+pressed that the fourth cancellation paragraph (a charge for part-performed work + loss
+of the right on completion) is enforceable only if the booking flow captures the
+customer's express request to begin within the 14 days plus an acknowledgement the right
+is lost — which it does not. Publishing it as-is therefore overstates ICC's rights and
+carries a misleading-action risk (CPUT). **Ben's decision (2026-09-06): keep the wording
+as-is, and review it as a HIGH priority within 2 months of go-live** (first live booking) —
+by then either build the express-request capture or soften the paragraph. The site is
+pre-launch as of 2026-09-06, so the two months run from go-live, not from now; if go-live
+is around now that is roughly November 2026. Set an out-of-repo calendar reminder once the
+go-live date is fixed (L-007 — a repo note alone is only read on session-open).
+
 **Legal frame (consumer, England & Wales).** Consumer Rights Act 2015 (CRA);
 Consumer Contracts (Information, Cancellation and Additional Charges) Regulations
 2013 (CCRs); Consumer Protection from Unfair Trading Regulations 2008 (CPUT); ADR

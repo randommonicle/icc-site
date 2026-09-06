@@ -53,6 +53,6 @@ test("both /terms and the confirmation email render the cancellation right", () 
   const root = path.join(__dirname, "..");
   const terms = fs.readFileSync(path.join(root, "site", "src", "pages", "terms.astro"), "utf8");
   const chat = fs.readFileSync(path.join(root, "server", "netlify", "functions", "chat.js"), "utf8");
-  assert.match(terms, /cancellationRightParagraphs\(\)/, "/terms must render the cancellation right");
-  assert.match(chat, /cancellationRightParagraphs\(\)/, "the confirmation email must render the cancellation right");
+  assert.match(terms, /Your right to cancel<\/h2>\s*\{policy\.cancellationRightParagraphs\(\)/, "/terms must render the clause under its heading (GEMPRO finding 4)");
+  assert.match(chat, /Your right to cancel:<\/strong>\s*\$\{policy\.cancellationRightParagraphs\(\)/, "the email T&C block must render the clause after its label (GEMPRO finding 4)");
 });
