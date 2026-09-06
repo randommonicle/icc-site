@@ -54,7 +54,7 @@ import Icon from '../components/Icon.astro';
         </div>
         <div class="chat-input-area">
           <label for="imageUpload" style="width:38px;height:38px;background:rgba(26,138,122,0.15);border:1px solid rgba(26,138,122,0.3);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:16px;transition:background 0.2s;" title="Upload carpet photo"><Icon name="camera" size={18} color="var(--teal)" /></label>
-          <input type="file" id="imageUpload" accept="image/*" aria-label="Upload a photo of your carpet" style="display:none" onchange="handleImageUpload(event)" />
+          <input type="file" id="imageUpload" accept="image/*" aria-label="Upload a photo of your carpet" style="position:absolute;width:1px;height:1px;padding:0;margin:0;overflow:hidden;clip:rect(0,0,0,0);border:0;" onchange="handleImageUpload(event)" />
           <textarea class="chat-input" id="chatInput" aria-label="Type your message to the carpet cleaning assistant" placeholder="Ask about quotes, carpet types, stains, or upload a photo..." rows="1" onkeydown="handleKeyDown(event)" oninput="autoResize(this);onInputActivity();"></textarea>
           <button class="chat-send-btn" id="sendBtn" aria-label="Send message" onclick="sendMessage()"><Icon name="send" size={18} /></button>
         </div>

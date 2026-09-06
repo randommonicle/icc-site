@@ -132,3 +132,12 @@ test("book.astro's inline script parses", () => {
   assert.ok(m, "book.astro has an inline script block");
   assert.doesNotThrow(() => { new Function(m[1]); }, "inline script must be syntactically valid");
 });
+
+test("the photo upload input stays keyboard-reachable, not display:none", () => {
+  // display:none removes the file input from the tab order, so keyboard-only users
+  // cannot open the picker (WCAG 2.1.1). It must use the visually-hidden pattern so it
+  // stays focusable while the styled <label> remains the visible trigger.
+  const m = bookAstro.match(/id="imageUpload"[^>]*style="([^"]*)"/);
+  assert.ok(m, "the imageUpload input must exist with an inline style");
+  assert.doesNotMatch(m[1], /display:\s*none/, "keep the visually-hidden pattern, not display:none");
+});
