@@ -125,6 +125,26 @@ test("createDepositCheckout throws if Stripe returns no url", async () => {
   });
 });
 
+test("createDepositCheckoutForJob converts pounds to integer pence and builds redirect URLs", async () => {
+  await withEnv({ STRIPE_SECRET_KEY: "sk_test_x", PUBLIC_SITE_URL: "https://icc.example" }, async () => {
+    let captured;
+    const fakeFetch = async (url, init) => {
+      captured = { url, init };
+      return { ok: true, json: async () => ({ id: "cs_1", url: "https://pay/cs_1" }) };
+    };
+    const out = await provider.createDepositCheckoutForJob(
+      { jobId: "job-9", depositPounds: 23.5, customerEmail: "c@d.com", dateLabel: "2026-10-01" },
+      { fetch: fakeFetch }
+    );
+    assert.deepEqual(out, { url: "https://pay/cs_1", id: "cs_1" });
+    const decoded = decodeURIComponent(captured.init.body);
+    assert.match(decoded, /\[unit_amount\]=2350/); // 23.5 pounds -> 2350 pence
+    assert.match(decoded, /success_url=https:\/\/icc\.example\/\?deposit=paid/);
+    assert.match(decoded, /cancel_url=https:\/\/icc\.example\/book/);
+    assert.equal(captured.init.headers["Idempotency-Key"], "deposit-job-9-2350");
+  });
+});
+
 // --- webhook signature verification ---------------------------------------
 
 function sign(body, secret, ts) {

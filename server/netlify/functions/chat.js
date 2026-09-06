@@ -63,6 +63,7 @@ const policy = require("../../../shared/config/policy.js");
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const { escalationToMessageDraft } = require("../../../shared/messages.js");
 const { depositPayButtonHtml } = require("../../../shared/emailSnippets.js");
+const { isPaymentConfigured, createDepositCheckoutForJob } = require("./paymentProvider.js");
 // D-027: the shared provisional-decision core supplies the action-token mint + expiry
 // so handleBooking, bookingAction and bookingAdmin all compute them identically.
 const { mintActionToken, actionTokenExpiry } = require("./bookingDecision.js");
@@ -177,12 +178,15 @@ Collect in this order, one question at a time:
 10. Preferred date (must be from the AVAILABLE BOOKING DATES list in the PER-CONVERSATION CONTEXT block, Monday to Saturday only)
 11. Preferred start time (choose one of the available start times for that day listed in the Hours section above; the last start on any day is ${tradingHours.formatClock(tradingHours.last_start)} and the earliest depends on the day)
 
-Once you have all details, calculate the total estimated time needed (minimum 1 hour per room, round up, add 1 hour buffer). Tell the customer the estimated duration, total price, and the 10% deposit amount. Then ask them to confirm they want to proceed.
+Once you have all details, calculate the total estimated time needed (minimum 1 hour per room, round up, add 1 hour buffer). Tell the customer the estimated duration, total price, and the 10% deposit amount. Build the total by adding up the relevant items from the PRICING list, and note each item's code (shown in [brackets]) and quantity, because you will list them in the quote_lines field of the booking block so our system can re-check the price. Never mention the item codes to the customer. Then ask them to confirm they want to proceed.
 
 If that total comes to more than ${tradingHours.max_slots} hours, the job is too large to complete in a single visit. Do NOT quote a booking or output a BOOKING_READY block for it. Instead call escalate_to_human (reason: customer_request) with a short summary of the job in the question field (this oversize hand-off is the one deliberate exception to the "do not escalate ordinary bookings" rule), and tell the customer, warmly: "That's a larger job than we can fit into a single visit. I'll pass your details to Mark, who'll be in touch to arrange it across two days at a time that suits you." Still take their name and contact details so Mark can reach them.
 
 When they confirm, output a special booking confirmation block in this EXACT format on its own line:
-BOOKING_READY:{"name":"[full name]","phone":"[phone]","email":"[email]","address":"[full address]","postcode":"[postcode]","date":"[YYYY-MM-DD]","start_time":"[HH:MM]","slots_needed":[number of 1-hour slots],"rooms":"[description of rooms]","carpet_types":"[carpet types]","concerns":"[any concerns or stains]","furniture_moving":[true/false],"pets":[true/false],"estimated_price":"[price]","deposit":"[10% amount]","recommended_method":"[Texatherm low-moisture / Texatherm wet extraction / combination]","ai_assessment":"[brief professional assessment of carpet type and recommended approach]","rams":"[see RAMS instructions below]"}
+BOOKING_READY:{"name":"[full name]","phone":"[phone]","email":"[email]","address":"[full address]","postcode":"[postcode]","date":"[YYYY-MM-DD]","start_time":"[HH:MM]","slots_needed":[number of 1-hour slots],"rooms":"[description of rooms]","carpet_types":"[carpet types]","concerns":"[any concerns or stains]","furniture_moving":[true/false],"pets":[true/false],"quote_lines":[{"code":"[item code]","qty":[number]}],"estimated_price":"[price]","deposit":"[10% amount]","recommended_method":"[Texatherm low-moisture / Texatherm wet extraction / combination]","ai_assessment":"[brief professional assessment of carpet type and recommended approach]","rams":"[see RAMS instructions below]"}
+
+QUOTE_LINES FIELD INSTRUCTIONS:
+The quote_lines array must list every priced item behind the quote you gave, each as {"code":"...","qty":N}, using ONLY the item codes from the PRICING list above (the values in [brackets]). Do NOT include the out_of_area surcharge - our system adds that automatically from the postcode. Our system recomputes the total and the 10% deposit from these lines and treats that as the figure of record, so they must add up to the price you told the customer.
 
 RAMS FIELD INSTRUCTIONS:
 The rams field must contain a plain-English risk assessment tailored to this specific job. Use \\n to separate each line within the JSON string. Include only hazards relevant to this job. Format exactly as follows:
@@ -1177,12 +1181,26 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   const customerOpener = provisional
     ? "Thank you for your request. As your clean would finish later in the afternoon, Mark will confirm the time with you and be in touch shortly to arrange your deposit. Here's a summary of what you've asked for:"
     : "Thank you for booking with Intelligent Carpet Cleaning. Here is a summary of your appointment:";
-  // TODO(D-004/D-026 deposit-link): for an AUTO-CONFIRMED booking only (a provisional
-  // booking gets its pay link in the accept email after Mark accepts, bookingAction.js),
-  // set this to a server-created Stripe deposit Checkout Session URL once the deposit
-  // amount is server-derived. Null today, so the email shows no button and keeps the
-  // "Mark will be in touch" wording (dormant-until-configured, D-004 addendum).
-  const customerDepositPayUrl = null;
+  // Deposit pay-link (D-004): auto-confirmed bookings only (a provisional booking gets its
+  // link in the accept email after Mark accepts, bookingAction.js). Created only when payment
+  // is configured AND we have a server-derived deposit (structured pricing) AND the row is in
+  // Postgres (so the webhook can reconcile it). Fail-safe: any error just omits the button and
+  // keeps the "Mark will be in touch" wording.
+  let customerDepositPayUrl = null;
+  if (!provisional && usePostgres && currentBookingId && isPaymentConfigured() && serverQuote && serverQuote.deposit > 0) {
+    try {
+      const created = await createDepositCheckoutForJob({
+        jobId: currentBookingId,
+        depositPounds: serverQuote.deposit,
+        customerEmail: booking.email,
+        dateLabel: booking.date,
+      });
+      customerDepositPayUrl = created.url;
+      await supabase.from("jobs").update({ stripe_checkout_session_id: created.id }).eq("id", currentBookingId).eq("deposit_status", "unpaid");
+    } catch (e) {
+      console.log("Deposit checkout creation failed (email will omit the pay link):", e.message);
+    }
+  }
   const customerEmail = {
     from: customerFrom,
     reply_to: customerReplyTo,

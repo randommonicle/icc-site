@@ -63,7 +63,7 @@ function actionTokenExpiry(slotDate) {
 const JOB_COLS =
   "id,status,confirmation_state,operator_decided_at,operator_action_token_hash," +
   "operator_action_token_expires_at,operator_action_token_used_at,customer_id," +
-  "slot_date,start_hour,start_minute,slots_needed,rooms,address,price_display,customers(name,email)";
+  "slot_date,start_hour,start_minute,slots_needed,rooms,address,price_display,deposit_ex_vat,customers(name,email)";
 
 async function loadJob(supabase, id) {
   const { data, error } = await supabase.from("jobs").select(JOB_COLS).eq("id", id).limit(1);

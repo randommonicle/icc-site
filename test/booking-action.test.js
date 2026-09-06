@@ -366,6 +366,41 @@ test("handlePost threads the deposit pay URL into the sent accept email", async 
   assert.match(content.html, /href="https:\/\/pay\.example\/deposit\/1"/);
 });
 
+test("handlePost creates a deposit checkout on accept when payment is configured (D-004)", async () => {
+  const prevKey = process.env.STRIPE_SECRET_KEY;
+  process.env.STRIPE_SECRET_KEY = "sk_test_x";
+  try {
+    const fake = makeSupabase({ job: baseJob({ deposit_ex_vat: 25 }) });
+    const checkout = spy({ url: "https://pay.example/cs_x", id: "cs_x" });
+    const { d } = await run(fake, { job: "job-1", token: TOKEN, action: "accept" }, { createDepositCheckout: checkout });
+    assert.equal(checkout.calls.length, 1, "checkout created once");
+    assert.deepEqual(checkout.calls[0][0], {
+      jobId: "job-1", depositPounds: 25, customerEmail: "sarah@example.com", dateLabel: "2026-09-10",
+    });
+    const content = d.sendEmailFn.calls[0][1];
+    assert.match(content.html, /href="https:\/\/pay\.example\/cs_x"/);
+  } finally {
+    if (prevKey === undefined) delete process.env.STRIPE_SECRET_KEY;
+    else process.env.STRIPE_SECRET_KEY = prevKey;
+  }
+});
+
+test("handlePost skips the deposit checkout when payment is not configured (dormant)", async () => {
+  const prevKey = process.env.STRIPE_SECRET_KEY;
+  delete process.env.STRIPE_SECRET_KEY;
+  try {
+    const fake = makeSupabase({ job: baseJob({ deposit_ex_vat: 25 }) });
+    const checkout = spy({ url: "https://pay.example/cs_x", id: "cs_x" });
+    const { d } = await run(fake, { job: "job-1", token: TOKEN, action: "accept" }, { createDepositCheckout: checkout });
+    assert.equal(checkout.calls.length, 0, "no checkout created when dormant");
+    const content = d.sendEmailFn.calls[0][1];
+    assert.doesNotMatch(content.html, /Pay your deposit securely/);
+  } finally {
+    if (prevKey === undefined) delete process.env.STRIPE_SECRET_KEY;
+    else process.env.STRIPE_SECRET_KEY = prevKey;
+  }
+});
+
 // --- handler method discipline ---------------------------------------------
 
 test("handler: GET is 405, OPTIONS is 200 (POST-only mutation surface)", async () => {

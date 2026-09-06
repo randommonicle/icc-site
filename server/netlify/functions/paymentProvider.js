@@ -92,6 +92,31 @@ async function createDepositCheckout(input, opts = {}) {
   return { url: data.url, id: data.id };
 }
 
+// Build and create a deposit Checkout Session for a specific job. Centralises the
+// amount conversion (pounds -> integer pence), the description, the success/cancel
+// redirect URLs and a job-derived Idempotency-Key, so both booking paths (auto-confirm
+// in chat.js, provisional-accept in bookingAction.js) create the session identically.
+// depositPounds MUST be the server-derived figure (jobs.deposit_ex_vat). Returns
+// { url, id }; throws on a bad amount or a Stripe error, so the caller fails safe
+// (sends the email without a pay button). fetchImpl is injectable via opts for tests.
+async function createDepositCheckoutForJob(input, opts = {}) {
+  const { jobId, depositPounds, customerEmail, dateLabel, origin } = input || {};
+  const base = String(origin || process.env.PUBLIC_SITE_URL || "https://www.intelligentclean.co.uk").replace(/\/+$/, "");
+  const amountPence = Math.round(Number(depositPounds) * 100);
+  return createDepositCheckout(
+    {
+      amountPence,
+      customerEmail,
+      description: `Deposit for your carpet clean${dateLabel ? " on " + dateLabel : ""}`,
+      successUrl: `${base}/?deposit=paid`,
+      cancelUrl: `${base}/book`,
+      jobId,
+      idempotencyKey: `deposit-${jobId}-${amountPence}`,
+    },
+    opts
+  );
+}
+
 // Verify a Stripe webhook signature and return the parsed event, or throw.
 //
 // Stripe signs `${timestamp}.${rawBody}` with the endpoint secret (HMAC-SHA256) and
@@ -147,5 +172,6 @@ module.exports = {
   activeProvider,
   isPaymentConfigured,
   createDepositCheckout,
+  createDepositCheckoutForJob,
   constructWebhookEvent,
 };

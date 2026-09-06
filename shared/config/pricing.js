@@ -49,7 +49,7 @@ const custom_lines = [
 const deposit_rate = 0.1;
 
 function priceLine(it) {
-  return `${it.label}: ${it.prefix || ""}£${it.price}${it.suffix || ""}`;
+  return `[${it.code}] ${it.label}: ${it.prefix || ""}£${it.price}${it.suffix || ""}`;
 }
 
 // Price for a known item code (used by the confirmation email/PDF and the server
@@ -62,7 +62,7 @@ function priceOf(code) {
 
 // Generates the PRICING block of the assistant system prompt.
 function pricingBlock() {
-  const header = "PRICING (all prices are the final price the customer pays - no VAT is added):";
+  const header = "PRICING (all prices are the final price the customer pays - no VAT is added). The code in [brackets] before each item is its internal item code for the BOOKING_READY quote_lines field - never say these codes to the customer:";
   const lines = items.map(priceLine).concat(custom_lines);
   return [header, ...lines].join("\n");
 }

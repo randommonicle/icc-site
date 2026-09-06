@@ -33,6 +33,7 @@ const {
   buildDeclineEmail,
   messageRow,
 } = require("./bookingDecision.js");
+const { isPaymentConfigured, createDepositCheckoutForJob } = require("./paymentProvider.js");
 
 function json(statusCode, headers, obj) {
   return { statusCode, headers, body: JSON.stringify(obj) };
@@ -63,11 +64,9 @@ function tokenMatches(presentedToken, storedHashHex) {
 // sendEmailFn.
 async function handlePost(event, headers, deps) {
   const { supabase, resendKey } = deps;
-  // TODO(D-004/D-026 deposit-link): once Stripe is live and the deposit amount is
-  // server-derived (never the AI's free-text figure), create a deposit Checkout Session
-  // here (idempotent, stored on the job) and pass its URL so the accept email carries a
-  // one-click pay link. Null today (dormant-until-configured, D-004 addendum).
-  const depositPayUrl = deps.depositPayUrl || null;
+  // Deposit pay-link (D-004): created after the accept CAS below (it needs the job's
+  // server-derived deposit). deps.depositPayUrl / deps.createDepositCheckout override for tests.
+  let depositPayUrl = deps.depositPayUrl || null;
 
   if (!supabase) return json(503, headers, { error: "Supabase not configured" });
 
@@ -121,6 +120,26 @@ async function handlePost(event, headers, deps) {
   }
 
   const newState = action === "accept" ? "operator_confirmed" : "operator_declined";
+
+  // Deposit pay-link (D-004): on ACCEPT, create the Stripe Checkout Session for the job's
+  // server-derived deposit and thread its URL into the accept email. Dormant and fail-safe:
+  // skipped unless payment is configured and the job has a numeric deposit, and any error
+  // just omits the button (the CAS has already committed the acceptance).
+  const createCheckout = deps.createDepositCheckout || createDepositCheckoutForJob;
+  if (action === "accept" && !depositPayUrl && isPaymentConfigured() && Number(job.deposit_ex_vat) > 0) {
+    try {
+      const created = await createCheckout({
+        jobId: id,
+        depositPounds: job.deposit_ex_vat,
+        customerEmail: (job.customers && job.customers.email) || null,
+        dateLabel: job.slot_date,
+      });
+      depositPayUrl = created.url;
+      await supabase.from("jobs").update({ stripe_checkout_session_id: created.id }).eq("id", id).eq("deposit_status", "unpaid");
+    } catch (e) {
+      console.log("deposit checkout creation failed (accept email will omit the pay link):", e.message);
+    }
+  }
 
   // Claim-then-send lives in the shared core: the winning CAS above is the claim, so at
   // most one notice per decision, and the core ALWAYS logs a row (visible + retryable).
