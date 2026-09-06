@@ -16,6 +16,8 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading — /context unavailable in this harness. No compaction/summarisation warnings seen; treated as green. Deliberate wrap: Ben asked to deploy then hand over.**
 
+> **FIRST TASK NEXT SESSION (Ben's instruction): the post-deploy booking RIDE.** The parse fix is live and the fixed code is confirmed serving, but NO real booking has completed end-to-end since the fix — do this before anything else. With Ben: place one real booking on the noindex site with a throwaway email, confirm `check_availability` then `confirm_booking` both fire and it reaches a real confirmation, confirm the `jobs` row has `deposit_ex_vat`/`estimated_price_ex_vat` populated, then DELETE the test job by SQL (Ben — `scripts/delete-booking.js` is Blobs-only, it will NOT clean the Postgres row). Full detail in Verification and next-action #1 below.
+
 **SUPERSEDES the 2026-09-06 entry's next-actions #1 (Ben run the FF deploy — DONE, that 23-commit batch is live) and #2 (post-deploy structured-pricing ride — DONE and it FAILED, surfacing the bug below; the ride is RE-OPEN post-fix, see Verification).**
 
 **Session goal.** Read the handover, do the post-deploy structured-pricing ride, act on what it found; fold in low-risk wins; deploy; hand over.
