@@ -13,6 +13,7 @@
 // CommonJS to match the functions and the plain-Node `node --test` runner.
 
 const serviceArea = require("../../../shared/config/serviceArea.js");
+const pricing = require("../../../shared/config/pricing.js");
 
 // --- Pure mappers ----------------------------------------------------------
 
@@ -68,20 +69,42 @@ function depositFromNotes(notes) {
   return m ? m[1].trim() : null;
 }
 
+// Server-authoritative quote from the assistant's structured line items (D-004
+// structured pricing). Returns pricing.quote()'s result — the figure of record for
+// the deposit charge and the customer-facing price — or null when the booking has no
+// usable quote_lines (the flow then falls back to the display string and creates no
+// pay-link). PURE and NON-THROWING: an unknown code or bad quantity returns null
+// rather than breaking the booking, so the deposit is server-derived only when the
+// lines are clean. Out-of-area is resolved from the same postcode the row uses, so
+// the surcharge here and on the row agree.
+function serverQuoteForBooking(booking) {
+  const b = booking || {};
+  const lines = b.quote_lines;
+  if (!Array.isArray(lines) || lines.length === 0 || lines.length > 50) return null;
+  const outOfArea = serviceArea.isOutOfArea(resolvePostcode(b) || "");
+  try {
+    return pricing.quote(lines, { outOfArea });
+  } catch (e) {
+    return null;
+  }
+}
+
 // Map a validated booking (the BOOKING_READY payload) to a `jobs` insert row.
 // customer_id is added by insertBooking after the customers upsert (kept out here
 // so the mapper is pure). status is 'booked' — a confirmed booking holds the slot.
-// estimated_price_ex_vat / deposit_ex_vat stay NULL (legacy column names; Mark is
-// not VAT-registered, so there is no VAT component): the payload carries only a
-// display string ("£475") and price_display is the verbatim authoritative figure.
-// The numeric columns would be populated from structured line items.
-// TODO(slice5x/structured-pricing): populate the ex-VAT / deposit numerics once
-// the booking carries structured line items (e.g. via /api/v1/quote).
+// estimated_price_ex_vat / deposit_ex_vat are the SERVER-computed figure of record
+// (D-004 structured pricing): when the BOOKING_READY payload carries quote_lines,
+// serverQuoteForBooking re-quotes them here and the numerics are populated, so the
+// deposit charge and the display both use this number, never the assistant's
+// free-text estimate. With no usable lines they stay NULL and price_display keeps the
+// assistant's display string, exactly as before. (Legacy column names; no VAT, as
+// Mark is not VAT-registered.)
 function bookingToJobRow(booking, opts) {
   const b = booking || {};
   const o = opts || {};
   const postcode = resolvePostcode(b);
   const outOfArea = serviceArea.isOutOfArea(postcode || "");
+  const q = serverQuoteForBooking(b); // the server figure of record when quote_lines are present
   // D-027: persist the half-hour start. start_time is "HH:MM"; only :00 and :30
   // occur in the offered cadence, and the DB checks start_minute IN (0,30) as the
   // backstop (validateBooking is the real gate). span_minutes is a generated column
@@ -110,9 +133,9 @@ function bookingToJobRow(booking, opts) {
     recommended_method: method, // enum value or null
     ai_assessment: b.ai_assessment ?? null,
     rams: b.rams ?? null,
-    estimated_price_ex_vat: null,
-    out_of_area_surcharge_ex_vat: outOfArea ? serviceArea.out_of_area_surcharge : 0, // legacy column name; flat surcharge, no VAT
-    deposit_ex_vat: null,
+    estimated_price_ex_vat: q ? q.total : null,
+    out_of_area_surcharge_ex_vat: q ? q.out_of_area_surcharge : (outOfArea ? serviceArea.out_of_area_surcharge : 0), // legacy column name; flat surcharge, no VAT
+    deposit_ex_vat: q ? q.deposit : null,
     // TODO(D-027/saturday-premium): when the booking date is a Saturday, apply the
     // weekend premium (tradingHours.weekend_premium) to the customer price here once
     // Mark sets the figure. Deferred by D-027 — the hook returns null today, so no
@@ -243,6 +266,7 @@ module.exports = {
   resolvePostcode,
   buildNotes,
   depositFromNotes,
+  serverQuoteForBooking,
   bookingToJobRow,
   jobRowToAdminRecord,
   insertBooking,

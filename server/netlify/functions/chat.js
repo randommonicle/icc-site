@@ -67,7 +67,7 @@ const { depositPayButtonHtml } = require("../../../shared/emailSnippets.js");
 // so handleBooking, bookingAction and bookingAdmin all compute them identically.
 const { mintActionToken, actionTokenExpiry } = require("./bookingDecision.js");
 // Slice 5b (D-021): the Postgres booking store (used only under BOOKINGS_STORE).
-const { insertBooking, setJobCalLink, availabilityFromJobs } = require("./bookingsStore.js");
+const { insertBooking, setJobCalLink, availabilityFromJobs, serverQuoteForBooking } = require("./bookingsStore.js");
 // Shared Netlify Blobs store + per-IP rate limiter (extracted from this file so
 // bookingAction.js reuses the same limiter, not a divergent copy). rateLimit is
 // re-exported below for test/hardening.test.js.
@@ -874,6 +874,15 @@ function depositLabel(value){
   return (typeof value === "string" && value.trim()) ? value : "To be confirmed";
 }
 
+// Format a numeric amount as a GBP display string ("£475", "£47.50"). Used to render
+// the SERVER-computed quote and deposit (structured pricing) so the customer-facing
+// figure matches the persisted numeric and any deposit charge exactly.
+function formatGBP(n){
+  const v = Number(n);
+  if(!Number.isFinite(v)) return null;
+  return "£" + (Number.isInteger(v) ? String(v) : v.toFixed(2));
+}
+
 // Customer-facing email identity (review finding A4; UK GDPR Arts.13/14). A
 // privacy-notice link and a monitored Reply-To let a customer see who holds their
 // data and reach a real mailbox, even when the From is a send-only/sandbox
@@ -918,6 +927,17 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
       headers,
       body: JSON.stringify({ error: validationError })
     };
+  }
+
+  // Structured pricing (D-004): when the assistant supplied line items, the SERVER
+  // re-quote is the figure of record — the customer sees, and any deposit charge uses,
+  // the same server number, never the assistant's free-text estimate. With no usable
+  // lines this is a no-op and the display strings fall through unchanged (no numerics
+  // are persisted by bookingToJobRow, and no deposit pay-link is created downstream).
+  const serverQuote = serverQuoteForBooking(booking);
+  if (serverQuote) {
+    booking.estimated_price = formatGBP(serverQuote.total);
+    booking.deposit = formatGBP(serverQuote.deposit);
   }
 
   // Normalise the optional deposit once, up front, so the stored record, the

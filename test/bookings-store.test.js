@@ -129,6 +129,54 @@ test("bookingToJobRow keeps price_display verbatim and leaves ex-VAT/deposit num
   assert.strictEqual(row.deposit_ex_vat, null);
 });
 
+// --- Structured pricing (D-004): server-authoritative quote ----------------
+
+test("serverQuoteForBooking returns null without usable quote_lines", () => {
+  assert.strictEqual(store.serverQuoteForBooking(SAMPLE), null); // SAMPLE carries none
+  assert.strictEqual(store.serverQuoteForBooking(Object.assign({}, SAMPLE, { quote_lines: [] })), null);
+  assert.strictEqual(store.serverQuoteForBooking(Object.assign({}, SAMPLE, { quote_lines: "nope" })), null);
+});
+
+test("serverQuoteForBooking computes the server total and a 10% deposit from line items", () => {
+  const q = store.serverQuoteForBooking(Object.assign({}, SAMPLE, {
+    postcode: "GL52 1AB",
+    quote_lines: [{ code: "large_room", qty: 1 }, { code: "hallway", qty: 1 }, { code: "stairs_to_13", qty: 1 }],
+  }));
+  // 115 + 55 + 65 = 235; deposit = 10% = 23.5; in-area, so no surcharge
+  assert.strictEqual(q.total, 235);
+  assert.strictEqual(q.deposit, 23.5);
+  assert.strictEqual(q.out_of_area_surcharge, 0);
+});
+
+test("serverQuoteForBooking adds the out-of-area surcharge from the postcode", () => {
+  const q = store.serverQuoteForBooking(Object.assign({}, SAMPLE, {
+    postcode: "GL5 4AA", address: "Stroud",
+    quote_lines: [{ code: "base_room", qty: 1 }],
+  }));
+  // 75 + 15 surcharge = 90; deposit = 9
+  assert.strictEqual(q.total, 90);
+  assert.strictEqual(q.deposit, 9);
+  assert.strictEqual(q.out_of_area_surcharge, 15);
+});
+
+test("serverQuoteForBooking returns null (graceful) on an unknown code", () => {
+  assert.strictEqual(
+    store.serverQuoteForBooking(Object.assign({}, SAMPLE, { quote_lines: [{ code: "not_a_real_code", qty: 1 }] })),
+    null
+  );
+});
+
+test("bookingToJobRow populates the ex-VAT + deposit numerics from quote_lines", () => {
+  const row = bookingToJobRow(Object.assign({}, SAMPLE, {
+    postcode: "GL52 1AB",
+    quote_lines: [{ code: "large_room", qty: 1 }, { code: "hallway", qty: 1 }],
+  }), {});
+  // 115 + 55 = 170; deposit 17
+  assert.strictEqual(row.estimated_price_ex_vat, 170);
+  assert.strictEqual(row.deposit_ex_vat, 17);
+  assert.strictEqual(row.out_of_area_surcharge_ex_vat, 0);
+});
+
 test("bookingToJobRow derives out_of_area + surcharge from the postcode (D-011)", () => {
   const core = bookingToJobRow(Object.assign({}, SAMPLE, { postcode: "GL52 1AB" }), {});
   assert.strictEqual(core.out_of_area, false);
