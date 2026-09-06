@@ -7,6 +7,8 @@
 
 **Status update (2026-09-05):** the share/identity target is **mark_director@intelligentclean.co.uk** (Mark's director account, D-009, the operator who does the accepting), superseding the `ben@` default used in Part A's prose below. The Mark-facing steps are canonical in `docs/MARK_CALENDAR_GUIDE.md`. The auth mechanism (OAuth-as-ICC vs a service account) is still to be verified before building (Part B). This assumes Mark's Regency/personal calendar lives in a different Google account from `mark_director@`; confirm that when he shares.
 
+**Status update (2026-09-06):** Auth is now **decided: a service-account key** (D-033). The service account **icc-booking-bot@icc-calendar-507721.iam.gserviceaccount.com** exists under the ICC Cloud org and its token exchange is proven working; the free/busy read verdict is the only thing outstanding, pending Mark's share. **The share target is the service-account email, not `mark_director@`** (the 2026-09-05 line above is superseded on that point). **Correction to Part A below:** calendar sharing is done on a **computer at calendar.google.com**, not the phone app (which has no sharing option); the earlier app-based steps were wrong and cost a wasted attempt. Canonical, corrected steps: `docs/MARK_CALENDAR_GUIDE.md`. The concrete, ready-to-run build plan is **Part C** below, gated behind the read verdict.
+
 ---
 
 ## Pre-build verification — do this BEFORE writing the slice
@@ -77,30 +79,24 @@ Only once both checks pass do we build the dormant slice (Part B setup step 6).
 
 ---
 
-## Part A. For Mark: share your calendar (from your phone, 2 minutes)
+## Part A. For Mark: share your calendar
 
-**The one thing that was going wrong:** the sharing settings do not appear when you open **calendar.google.com in the phone's web browser**. You have to use the **Google Calendar app** (the icon with the coloured "31"). Everything below is in the app.
+**Canonical steps live in [MARK_CALENDAR_GUIDE.md](MARK_CALENDAR_GUIDE.md).** They
+are not duplicated here: two copies are exactly what drifted and produced the
+wrong app-based steps that cost a wasted attempt. The essentials, corrected:
 
-If you don't have the app yet, install "Google Calendar" from the Play Store first (Ben set this up on your phone at the meeting).
-
-**Steps:**
-
-1. Open the **Google Calendar app**.
-2. Tap the **three lines** (☰) in the top-left corner.
-3. Scroll down and tap **Settings**.
-4. Tap the name of **your calendar** (usually your name or your email address, the one your appointments are in).
-5. Tap **Add people or groups** (under the "Share with specific people" heading).
-6. Type in **mark_director@intelligentclean.co.uk** and tap it when it appears.
-7. Where it asks for permission, choose **"See only free/busy (hide details)"**.
-8. Tap **Save** (or **Send**) in the top corner.
-
-That's it. Ben gets an email, clicks one link, and it's done.
-
-**If you keep appointments in more than one calendar** (for example a separate personal one), do steps 4 to 8 again for each one.
-
-**What Ben can and cannot see:** because you chose "See only free/busy," the system sees **only that you are busy at a time**, never what the appointment is, who it is with, or any note. No personal detail leaves your phone. That is deliberate.
-
-**If step 5 has no "Add people" option:** that calendar is a work or school one that an administrator has locked. Tell Ben and he'll sort an alternative.
+- **Sharing is done on a computer at calendar.google.com**, signed in as the
+  account that owns the diary (**`talktoregency@gmail.com`**). The Google Calendar
+  **phone app has no calendar-sharing option at all**, and the phone browser's
+  "Desktop site" mode does not work reliably for it. That is the fix to the whole
+  cycle; the old "use the app" instruction was backwards.
+- **Share target: the service-account email**
+  `icc-booking-bot@icc-calendar-507721.iam.gserviceaccount.com` (D-033), **not**
+  `mark_director@`. Permission: **See only free/busy (hide details)**, so only
+  busy/free is visible, never event detail. No personal detail leaves the diary.
+- If Regency jobs sit on a **secondary** calendar under that account, share that
+  one too and capture its **Calendar ID** (Settings and sharing → Integrate
+  calendar → Calendar ID) for the clash-check.
 
 ---
 
@@ -135,12 +131,70 @@ That's it. Ben gets an email, clicks one link, and it's done.
 1. Create the "Intelligent Clean" calendar under the ICC Google account; note its **calendar ID** (Settings → the calendar → "Integrate calendar" → Calendar ID).
 2. GCP: new project → enable Calendar API → create a service account → download the JSON key.
 3. Share the Intelligent calendar with the service account email ("Make changes to events").
-4. Ask Mark to share his calendar with that same service account email as "See only free/busy" (Part A, swap Ben's email for the service-account email if you prefer the bot to read directly; sharing to Ben's account also works if you go the OAuth-as-ICC route).
+4. Ask Mark to share his calendar with that same service-account email as "See only free/busy" (Part A / MARK_CALENDAR_GUIDE.md). D-033 fixes the service-account path as the plan, so OAuth-as-ICC is a fallback only, not a choice to make here.
 5. Put the calendar ID + the service-account JSON into Netlify env; reference the calendar ID for `events.insert` and both calendar IDs for the clash-check.
 6. Build the slice dormant behind the presence of the calendar env vars (the house pattern), redeploy to activate (L-018).
 
+## Part C. Concrete build plan for the dormant clash-check slice (D-033)
+
+**Gate.** Do not start until `scripts/verify-calendar-freebusy.js` reports PATH 1
+(or PATH 2) = WORKS against `talktoregency@gmail.com` with the SA key. Everything
+below assumes that verdict. Build the **read** half first (drop clashing slots);
+the **write** half (mirror bookings to Mark's phone) is a later sub-slice.
+
+**Locked decisions.**
+- Auth: service-account key (D-033), `icc-booking-bot@icc-calendar-507721.iam.gserviceaccount.com`;
+  JSON key machine-local in `C:\Users\bengr\secrets\`, injected into Netlify env,
+  parsed server-side, never logged.
+- Read: PATH 1 `freebusy.query` first; PATH 2 `events.list` fallback if PATH 1 is
+  flaky (the gotcha above).
+- Write (later sub-slice): `events.insert` into the ICC "Intelligent Clean"
+  calendar under `mark_director@`.
+
+**Env vars (the dormant switch; the slice is inert until the read pair is set).**
+- `GCAL_SA_KEY_JSON` — the service-account JSON (string or base64). Server-side only.
+- `GCAL_FREEBUSY_CALENDAR_IDS` — comma-separated: `talktoregency@gmail.com` (+ any
+  secondary Regency calendar id) + the ICC calendar id, so ICC's own bookings also
+  block.
+- `GCAL_WRITE_CALENDAR_ID` — the ICC calendar id (write sub-slice only).
+- The read slice activates when `GCAL_SA_KEY_JSON` + `GCAL_FREEBUSY_CALENDAR_IDS`
+  are both present (house pattern, L-018). Absent = today's behaviour, no calendar.
+
+**Files.**
+- `shared/calendar/googleCalendar.js` (new) — the read client: SA JWT → token (lift
+  the proven code from `scripts/verify-calendar-freebusy.js`),
+  `getBusyIntervals(calendarIds, timeMin, timeMax)` returning normalised busy
+  intervals, with the PATH 1 → PATH 2 fallback. No Netlify coupling, so it is
+  unit-testable with a fake `fetch`.
+- `shared/config/calendar.js` (new) — parse/validate the env vars; expose
+  `isEnabled()` and the parsed ids, shaped like `pricing`/`serviceArea`.
+- `server/netlify/functions/chat.js` (+ its availability/slot module) — when
+  enabled, drop candidate slots overlapping a busy interval (Part B step 2).
+  **Fail-safe:** on any calendar error or timeout, log and fall back to the
+  existing availability logic (never block bookings on a calendar outage), and
+  show the customer nothing alarming.
+
+**Tests (`test/calendar-clash.test.js`, new; injected fake `fetch`, no live Google in CI).**
+- `getBusyIntervals` maps a freebusy response to intervals.
+- PATH 1 returning 403 triggers the PATH 2 `events.list` fallback.
+- An overlapping candidate is dropped, a non-overlapping one kept; boundary touch
+  at interval start/end.
+- Gate off → no calendar calls made, availability path untouched.
+- The read throwing → bookings still offered from the base logic (the fail-safe).
+
+**Rollout.**
+1. Land the code with the env gate OFF → behaviour-neutral deploy, tests green.
+2. Set the two read env vars in Netlify, redeploy to activate (L-018), then the
+   one-real-ride: attempt a booking over a slot Mark is known busy and confirm it
+   is not offered.
+3. Later: the ICC write calendar + `events.insert` + `GCAL_WRITE_CALENDAR_ID`.
+4. Then delete `scripts/verify-calendar-freebusy.js`, record the read verdict and
+   chosen path as a D-033 addendum, and set this doc's status to "built".
+
+---
+
 ### References
 
-- Share a calendar on Android: [Google Calendar Help](https://support.google.com/calendar/answer/37082?hl=en&co=GENIE.Platform%3DAndroid)
+- Share a calendar (on a computer): [Google Calendar Help](https://support.google.com/calendar/answer/37082)
 - Free/busy query: [developers.google.com](https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query)
 - API reference (events.insert etc.): [developers.google.com](https://developers.google.com/workspace/calendar/api/v3/reference)
