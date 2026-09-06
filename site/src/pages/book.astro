@@ -62,7 +62,7 @@ import Icon from '../components/Icon.astro';
           <div style="display:flex;align-items:center;gap:8px;background:rgba(26,138,122,0.08);border:1px solid rgba(26,138,122,0.2);border-radius:8px;padding:8px 12px;">
             <img id="imagePreviewThumb" style="width:48px;height:48px;object-fit:cover;border-radius:6px;" src="" alt="" />
             <div style="flex:1;font-size:0.8rem;color:var(--text-mid);" id="imagePreviewName">Image ready to send</div>
-            <button onclick="clearImage()" style="background:none;border:none;cursor:pointer;color:var(--text-light);font-size:1rem;"><Icon name="x" size={16} /></button>
+            <button onclick="clearImage()" aria-label="Remove photo" style="background:none;border:none;cursor:pointer;color:var(--text-light);font-size:1rem;"><Icon name="x" size={16} /></button>
           </div>
         </div>
       </div>
