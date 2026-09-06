@@ -29,9 +29,11 @@ professional. Status of the findings:
   right, how to cancel, the express-request-to-start route for appointments inside 14
   days, the deposit interaction, and that the statutory right prevails over the
   commercial charge (this also resolves the T-1/T-3 conflict at the wording level).
-- **T-2 [OPEN — owner decision]** Still "available on request". Needs Ben/Mark to pick
-  an address to publish, or to accept the gap deliberately. Not a code change until the
-  address exists. Tension with D-016 stands.
+- **T-2 [DECIDED — accept the gap]** Kept "available on request", at go-live too. Mark's
+  home address is the only geographical address available, and publishing it would put a
+  home address on /terms and in every confirmation email. Deliberate owner risk-acceptance
+  for a small sole trader; implement Mark's address only if challenged. Recorded as a
+  D-016 addendum (6 Sep 2026). No code change.
 - **T-3/T-4/T-5 [ACCEPTED as-is]** Deposit retention framing kept (10%, "reasonable
   fee"), now subordinate to the T-1 statutory right; ADR line and commercial statutory
   interest not added. Revisit only if a dispute or B2B invoicing makes them live.
