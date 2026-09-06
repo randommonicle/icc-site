@@ -70,6 +70,13 @@
   to = "/.netlify/functions/v1-quote"
   status = 200
 
+# D-004 deposit pay-link — Stripe posts payment events here. Signature-authorised
+# (STRIPE_WEBHOOK_SECRET), POST-only. Dormant until the Stripe env vars are set.
+[[redirects]]
+  from = "/api/stripe-webhook"
+  to = "/.netlify/functions/stripe-webhook"
+  status = 200
+
 [[redirects]]
   from = "/admin"
   to = "/admin.html"
