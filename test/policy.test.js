@@ -30,3 +30,29 @@ test("policy sentences carry the canonical, single-sourced figures", () => {
   assert.match(reClean, new RegExp(`${policy.RECLEAN.windowHours} hours`));
   assert.match(reClean, /permanent staining/);
 });
+
+test("the statutory cancellation right is complete and single-sourced (GATE 0 T-1)", () => {
+  const paras = policy.cancellationRightParagraphs();
+  assert.ok(Array.isArray(paras) && paras.length >= 3, "expected the cancellation right as paragraphs");
+  const text = paras.join(" ");
+  // The window is stated from the single numeric source, so words and value cannot drift.
+  assert.match(text, new RegExp(`${policy.CANCELLATION.statutoryDays} days`));
+  assert.match(text, /right to cancel/i);
+  assert.match(text, /distance contract/i);
+  assert.match(text, /deposit/i, "must explain how the deposit interacts with the right");
+  assert.match(text, /precedence/i, "the statutory right must be stated to prevail over the commercial charges");
+});
+
+test("both /terms and the confirmation email render the cancellation right", () => {
+  // Reg 13 (pre-contract) and reg 16 (durable medium) both require the disclosure, so
+  // the clause must reach the page AND the email. Static source checks in the
+  // chat-client-parity style: they fail loudly if a surface drops the wiring, which is
+  // the exact class of miss that shipped the BOOKING_READY silent-drop (L-008).
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const root = path.join(__dirname, "..");
+  const terms = fs.readFileSync(path.join(root, "site", "src", "pages", "terms.astro"), "utf8");
+  const chat = fs.readFileSync(path.join(root, "server", "netlify", "functions", "chat.js"), "utf8");
+  assert.match(terms, /cancellationRightParagraphs\(\)/, "/terms must render the cancellation right");
+  assert.match(chat, /cancellationRightParagraphs\(\)/, "the confirmation email must render the cancellation right");
+});

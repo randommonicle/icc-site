@@ -1240,6 +1240,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
             <p style="margin:0 0 10px;font-size:12px;font-weight:bold;color:#1a3a5c;">Terms and Conditions</p>
             <p style="margin:0 0 8px;font-size:11px;color:#718096;line-height:1.6;"><strong>Pricing:</strong> The price quoted is an estimate based on the information and any photographs provided at the time of booking. In the vast majority of cases this will be the final price. If on arrival the condition differs significantly from what was described, any variation will be explained and agreed with you before any additional work is carried out. No additional charges will be applied without your explicit approval.</p>
             <p style="margin:0 0 8px;font-size:11px;color:#718096;line-height:1.6;"><strong>Deposit and cancellation:</strong> ${policy.depositSentence()}</p>
+            <p style="margin:0 0 8px;font-size:11px;color:#718096;line-height:1.6;"><strong>Your right to cancel:</strong> ${policy.cancellationRightParagraphs().join(" ")}</p>
             <p style="margin:0 0 8px;font-size:11px;color:#718096;line-height:1.6;"><strong>Re-clean guarantee:</strong> ${policy.reCleanSentence()}</p>
             <p style="margin:0;font-size:11px;color:#718096;line-height:1.6;">These terms do not affect your statutory rights.</p>
           </div>

@@ -1,7 +1,9 @@
 ---
-// Terms and Conditions page. DRAFT (2026-09-05), pending a professional legal /
-// data-protection review before go-live (launch runbook GATE 0). Mirrors the
-// privacy.astro layout. Specifics set by Ben 2026-09-05: satisfaction re-clean
+// Terms and Conditions page. Owner-approved consumer terms; Ben decided against a
+// separate solicitor review (2026-09-06), so the GATE 0 first-pass wording is the
+// live wording. The statutory cancellation right (GATE 0 T-1) is rendered here and in
+// the confirmation email from shared/config/policy.js. Mirrors the privacy.astro
+// layout. Specifics set by Ben 2026-09-05: satisfaction re-clean
 // within 72h of the END of the appointment (photo evidence required, permanent
 // staining excluded), via the assistant; complaints acknowledged within 3 working
 // days, resolved within
@@ -38,6 +40,9 @@ import policy from '../../../shared/config/policy.js';
     <h2>Deposit and cancellation</h2>
     <p>{policy.depositSentence()}</p>
     <p>Standard daytime bookings are confirmed automatically. A booking that would finish later in the day is held and confirmed by Mark personally before it is final. Please give us as much notice as you can if you need to rearrange.</p>
+
+    <h2>Your right to cancel</h2>
+    {policy.cancellationRightParagraphs().map((p) => <p>{p}</p>)}
 
     <h2>Payment</h2>
     <ul>

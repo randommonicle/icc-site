@@ -19,6 +19,27 @@ pending this professional review (GATE 0 in the launch runbook).
 page is marked DRAFT). It gates **go-live** (removing `noindex` + the domain
 cutover). Priority order for go-live: **T-1**, then **T-2**, then the rest.
 
+**Update (6 September 2026).** Ben decided against a separate solicitor review, so
+this first-pass is the owner-approved wording that goes live, not a worklist for a
+professional. Status of the findings:
+- **T-1 [DONE]** A "Your right to cancel" clause is now single-sourced in
+  `shared/config/policy.js` (`cancellationRightParagraphs()`) and rendered on `/terms`
+  and in the confirmation email (the reg 16 durable medium), on branch
+  `fix/booking-ready-parse`. Covered by `test/policy.test.js`. It states the 14-day
+  right, how to cancel, the express-request-to-start route for appointments inside 14
+  days, the deposit interaction, and that the statutory right prevails over the
+  commercial charge (this also resolves the T-1/T-3 conflict at the wording level).
+- **T-2 [OPEN — owner decision]** Still "available on request". Needs Ben/Mark to pick
+  an address to publish, or to accept the gap deliberately. Not a code change until the
+  address exists. Tension with D-016 stands.
+- **T-3/T-4/T-5 [ACCEPTED as-is]** Deposit retention framing kept (10%, "reasonable
+  fee"), now subordinate to the T-1 statutory right; ADR line and commercial statutory
+  interest not added. Revisit only if a dispute or B2B invoicing makes them live.
+- **Deferred mechanism:** to actually charge for part-performed work under reg 36, the
+  booking flow would need to capture the customer's express request to start within the
+  14 days plus an acknowledgement that the right is lost on completion. The clause
+  states it; the flow does not yet capture it. `TODO(T-1/express-request-capture)`.
+
 **Legal frame (consumer, England & Wales).** Consumer Rights Act 2015 (CRA);
 Consumer Contracts (Information, Cancellation and Additional Charges) Regulations
 2013 (CCRs); Consumer Protection from Unfair Trading Regulations 2008 (CPUT); ADR
