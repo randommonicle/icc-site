@@ -12,6 +12,62 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session (2026-09-06): Stripe deposit pay-link built end-to-end + dormant (D-004); structured pricing; GATE 0 legal review; calendar-share cycle fixed. WHOLE STACK DEPLOYING THIS SESSION (23-commit fast-forward to main).
+
+*Diagnoses in this note are unverified unless marked.* **Wrap-up context: 52% (yellow), read by Ben via /context.** Deliberate wrap: deploy the batch, then hand over.
+
+**SUPERSEDES the 2026-09-05 (later) entry's next-actions #3 (Ben deploy the phone batch) and #4 (commit the calendar changes): both done this session — calendar work committed, and the whole stack is deploying now. That entry's calendar read verdict (#1/#2) is STILL open (Mark's share pending).**
+
+**Session goal.** Fix the calendar-share cycle Mark hit; then, on Ben's direction: pre-deploy review, GATE 0 legal pass, calendar build plan, and build + wire the Stripe deposit pay-link. Deploy everything and hand over.
+
+**Branch and worktree.** Home machine, standard checkout `C:\Users\bengr\Projects\ICC\icc-site`, branch **`feat/calendar-clash-check`** (tip `88a0612`), **23 commits ahead of `origin/main` (`07a87d3`), clean fast-forward** (verified: `git fetch` shows origin/main unmoved; `git merge-base --is-ancestor origin/main <branch>` = yes). Tree clean. **Tests 353/344 pass, 0 fail; `npm run build --prefix site` green** (verified this session).
+
+**What landed (this session, newest first; all on the branch, unpushed until the deploy):**
+- `88a0612` feat(payments): emit quote_lines + wire deposit pay-link, dormant (D-004). Prompt emits `quote_lines`; both email paths (chat.js auto-confirm, bookingAction.js provisional-accept) create a Checkout Session for the server deposit and thread the URL; `loadJob` selects `deposit_ex_vat`. *verified (tests+build).*
+- `35984b3` feat(payments): server-authoritative deposit from quote_lines. `serverQuoteForBooking` re-quotes; `deposit_ex_vat`/`estimated_price_ex_vat` persisted (existing columns). *verified (tests).*
+- `489cf09` feat(payments): deposit pay-link core — `paymentProvider.js` adapter, `stripe-webhook.js`, migration `20260906120000`, `/api/stripe-webhook` redirect. Dormant behind `STRIPE_SECRET_KEY`. *verified (tests + local `supabase db reset` applied the migration; catalog query confirmed columns/enum/index).*
+- `4bc33a3` docs(legal): GATE 0 first-pass — `docs/LEGAL_REVIEW_TERMS_2026-09.md` + T-1 on the LAUNCH_CUTOVER GATE 0 checklist.
+- `3c4ac1a` docs(calendar): corrected MARK_CALENDAR_GUIDE + CALENDAR_INTEGRATION Part A to desktop-web sharing; added Part C build plan; recorded L-033/L-034.
+- `3c9bd2a` fix(policy): derive deposit % from `pricing.deposit_rate` + `test/policy.test.js`. *verified (tests); behaviour-neutral (still renders "10%").*
+- Below these, 17 unpushed commits from prior sessions (the phone/marketability batch + the calendar verify harness) ALSO deploy in this fast-forward.
+
+**In flight / NOT done:** nothing half-coded (tree clean). The DEPLOY is the pending action — FF merge + `git push origin main` handed to Ben in the session chat. Stripe is fully BUILT but dormant (no keys set).
+
+**Deferred items (with anchors):**
+- **Stripe switch-on (test mode):** apply migration `20260906120000` to the HOSTED DB (Ben; validated on local only), set `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` in Netlify (all scopes, L-018), add the Stripe webhook endpoint `/api/stripe-webhook` for `checkout.session.completed`, redeploy, then the test-card ride. Guide: `docs/STRIPE_SETUP.md`.
+- **Email wording:** when the pay button is live, revisit the "Mark will be in touch to arrange your deposit" line so it is not redundant with the button (D-004). Anchor: grep `Mark will be in touch to arrange` in `server/netlify/functions/chat.js`.
+- **Refunds + balance/invoicing (D-026):** later slices, not built.
+- **Calendar:** Mark still to share `talktoregency@gmail.com` free/busy to `icc-booking-bot@icc-calendar-507721.iam.gserviceaccount.com` from a computer (L-033); then rerun `scripts/verify-calendar-freebusy.js`; then build the dormant slice per `docs/CALENDAR_INTEGRATION.md` Part C.
+- **GATE 0 legal:** T-1 (statutory cancellation clause) + T-2 (geographical address) before go-live — `docs/LEGAL_REVIEW_TERMS_2026-09.md`.
+- **Phone:** test-call 01452 452356 once Tamar allocates. **Release:** Mark-owned Resend, domain cutover, noindex removal. **A2:** Mark's work photos.
+
+**Verification still outstanding:**
+- **The deploy + post-deploy ride:** confirm the Netlify deploy goes green, then do ONE real booking on the (noindex) staging site — structured pricing is the one live behavioural change this deploy makes, so prove a booking still completes and the quote/deposit render correctly. *unverified — first task next session.*
+- **Stripe:** nothing proven end-to-end; all unit-tested with fakes. The test-card ride is the first real proof of the seams.
+- **Migration:** validated on LOCAL Docker only; NOT applied to the hosted DB (needed before Stripe switch-on, NOT before this deploy — the deployed structured-pricing code writes only pre-existing columns).
+- Calendar read verdict (pending Mark). DECLINE / admin-fallback live tests (untested since prior handovers).
+
+**Blockers / open questions:**
+- Mark's calendar share (external, non-blocking for in-repo work).
+- Structured pricing: the assistant's spoken quote must match its `quote_lines`, or the customer sees the price settle at booking (the server figure wins). Monitor after deploy.
+
+**Next actions (ordered, each a single first step):**
+1. Ben: run the FF deploy (commands in chat: `git checkout main` → `git merge --ff-only feat/calendar-clash-check` → `git push origin main`) and watch the Netlify deploy to green.
+2. Post-deploy: place one real test booking on the staging site; confirm it completes and the quote/deposit are right (the structured-pricing live-ride), then delete the test job.
+3. Stripe switch-on when ready: apply the migration to the hosted DB, set the two keys, add the webhook, redeploy, test-card ride (`docs/STRIPE_SETUP.md`).
+4. Calendar: rerun `scripts/verify-calendar-freebusy.js` once Mark shares.
+5. Solicitor pass on `/terms` (T-1 priority) before go-live.
+
+**Traps and working agreements (this session):**
+- **Never paste the Stripe secret key into chat; Netlify env only.** Ben applies hosted schema migrations himself (the auto-mode classifier blocks my schema writes); validate on local Docker first.
+- **The deposit amount is server-derived, never the assistant's free-text figure** — now enforced via structured pricing (`quote_lines` → `pricing.quote`). Do not regress this before taking real money.
+- Google Calendar sharing is desktop-web only (L-033); grep every copy when correcting a duplicated fact (L-034).
+- ICC is NOT RICS-regulated — judge its trade-offs on their own merits.
+- Netlify reads env only on a redeploy (L-018); a `[skip ci]` tip skips the WHOLE build (L-030) — the tip `88a0612` is a normal feat commit, safe.
+- PowerShell 5.1: no `&&` in pasted lines (use `;`, or one command per line).
+
+---
+
 ## This session (2026-09-05, later): cross-business calendar — verify-before-build advanced; GCP service account created under the ICC org, SA-key auth PROVEN, waiting on Mark's calendar share. PHONE DEPLOY BATCH UNTOUCHED.
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading — /context unavailable in this harness. No compaction or summarisation warnings seen this session; treated as green. A clean, deliberate stop, waiting on Mark.**
