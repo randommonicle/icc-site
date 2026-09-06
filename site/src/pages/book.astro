@@ -385,6 +385,38 @@ function appendImageMessage(src, name){
   container.scrollTop = container.scrollHeight;
 }
 
+/* __BOOKING_READY_EXTRACTOR__ */
+// Extract the JSON object after a BOOKING_READY: marker, tolerating the nested
+// quote_lines array (D-004) and any prose the model adds after the payload. It is a
+// brace-depth scan that ignores braces inside strings, and returns the parsed booking
+// or null when the marker is absent or the payload will not parse. The previous
+// non-greedy capture /BOOKING_READY: followed by (\{[\s\S]*?\}) stopped at the first
+// inner brace and silently dropped every structured-pricing booking
+// (test/booking-ready-parse.test.js).
+function extractBookingReady(text){
+  const at=text.indexOf("BOOKING_READY:");
+  if(at===-1) return null;
+  const start=text.indexOf("{",at);
+  if(start===-1) return null;
+  let depth=0,inStr=false,esc=false;
+  for(let i=start;i<text.length;i++){
+    const ch=text[i];
+    if(esc){esc=false;continue;}
+    if(ch==="\\"){esc=true;continue;}
+    if(ch==='"'){inStr=!inStr;continue;}
+    if(inStr) continue;
+    if(ch==="{"){depth++;}
+    else if(ch==="}"){
+      depth--;
+      if(depth===0){
+        try{return JSON.parse(text.slice(start,i+1));}catch(e){return null;}
+      }
+    }
+  }
+  return null;
+}
+/* __END_BOOKING_READY_EXTRACTOR__ */
+
 async function processBooking(booking){
   try{
     const availRes = await fetch("/api/chat",{
@@ -547,17 +579,23 @@ async function sendMessage(){
       // The model appends a CONVERSATION_END marker once the customer has said
       // goodbye; detect it, strip it from the visible text, and close the chat.
       const conversationEnded=/CONVERSATION_END/.test(reply);
-      const bookingMatch=reply.match(/BOOKING_READY:(\{[\s\S]*?\})/);
-      if(bookingMatch){
-        try{
-          const booking=JSON.parse(bookingMatch[1]);
-          const cleanReply=reply.replace(/BOOKING_READY:\{[\s\S]*?\}/,"").replace(/CONVERSATION_END/g,"").trim();
-          if(cleanReply) appendMessage("bot",cleanReply,citations);
-          appendMessage("bot","One moment, confirming your slot...");
-          await processBooking(booking);
-        }catch(e){
-          appendMessage("bot",reply.replace(/BOOKING_READY:[\s\S]*$/,"").replace(/CONVERSATION_END/g,"").trim(),citations);
-        }
+      const booking=extractBookingReady(reply);
+      const bookingAt=reply.indexOf("BOOKING_READY:");
+      if(booking){
+        // Show only what the model said before the marker; the payload and any premature
+        // "all booked in" prose after it are dropped, because processBooking appends the
+        // real, server-confirmed outcome.
+        const cleanReply=reply.slice(0,bookingAt).replace(/CONVERSATION_END/g,"").trim();
+        if(cleanReply) appendMessage("bot",cleanReply,citations);
+        appendMessage("bot","One moment, confirming your slot...");
+        await processBooking(booking);
+      } else if(bookingAt!==-1){
+        // The model tried to book (marker present) but the payload would not parse. Never
+        // silently drop it (the old catch did): show the pre-marker text and tell the
+        // customer how to finish, so a parse failure is a visible dead-end, not a silent one.
+        const cleanReply=reply.slice(0,bookingAt).replace(/CONVERSATION_END/g,"").trim();
+        if(cleanReply) appendMessage("bot",cleanReply,citations);
+        appendMessage("bot","Sorry, I couldn't finish confirming that automatically. Please call 01452 452356 or email hello@intelligentclean.co.uk and we'll get your booking sorted straight away.");
       } else {
         const cleanReply=reply.replace(/CONVERSATION_END/g,"").trim();
         if(cleanReply) appendMessage("bot",cleanReply,citations);
