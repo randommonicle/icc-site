@@ -12,6 +12,65 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session (2026-09-07): post-deploy ride caught a HIGH booking regression (structured pricing shipped the booking flow BROKEN); fixed + hardened via a Gemini cross-agent review; GATE 0 T-1 cancellation right shipped; a11y folds. 7-commit batch DEPLOYED to main + verified live.
+
+*Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading — /context unavailable in this harness. No compaction/summarisation warnings seen; treated as green. Deliberate wrap: Ben asked to deploy then hand over.**
+
+**SUPERSEDES the 2026-09-06 entry's next-actions #1 (Ben run the FF deploy — DONE, that 23-commit batch is live) and #2 (post-deploy structured-pricing ride — DONE and it FAILED, surfacing the bug below; the ride is RE-OPEN post-fix, see Verification).**
+
+**Session goal.** Read the handover, do the post-deploy structured-pricing ride, act on what it found; fold in low-risk wins; deploy; hand over.
+
+**Branch and worktree.** Home machine, standard checkout `C:\Users\bengr\Projects\ICC\icc-site`. Branch **`fix/booking-ready-parse`** (7 commits) fast-forward-merged to `main` and PUSHED: `main` = `origin/main` = **`6aeb118`**. **Netlify built it (verified live: `/book/` serves `extractBookingReady` x3 + `bookingAttempted` x2; `/terms` serves the cancellation clause; `X-Robots-Tag: noindex` intact; home/about no longer leak `TODO(trust-stats)`).** Tree clean. Tests 361 pass / 0 fail (9 skip); `npm run build --prefix site` green.
+
+**THE BUG (verified).** The 2026-09-06 structured-pricing deploy shipped the booking flow BROKEN. The client parsed `BOOKING_READY:{…}` with a non-greedy regex `/BOOKING_READY:(\{[\s\S]*?\})/` that truncates at the first inner brace; D-004's nested `quote_lines` array made the capture invalid JSON, `JSON.parse` threw, `processBooking` never ran — every structured-pricing booking silently failed to confirm (no slot held, no emails, customer dead-ended at "confirming your slot"). *Verified on a live ride: only 5 `/api/chat` POSTs, no `check_availability`/`confirm_booking`.* Unit tests + build were green because only the server handler (`handleBooking`) is tested, never the browser-side parse. Recorded as the L-008 addendum.
+
+**What landed (7 commits on `6aeb118`, newest first; all tests+build verified; deploy verified live):**
+- `6aeb118` fix(a11y): photo upload keyboard-reachable (visually-hidden, not `display:none`) + guard test. *verified (local build: input `display:block`, tabIndex 0, focusable).*
+- `2ec82a9` fix(a11y): `aria-label` the remove-photo button; convert leaked `TODO(trust-stats)` HTML comments to Astro `{/* */}` (were in View Source on home/about). *verified live.*
+- `e7cb570` fix(booking): harden `extractBookingReady` (require `/BOOKING_READY:\s*\{/`, reject empty object; gate the failure fallback on the same pattern) + strengthen cross-surface tests. From the cross-agent review. *verified.*
+- `9d7f274` docs(decisions): accept the CCRs geographical-address gap (T-2), D-016 addendum.
+- `5572ffd` feat(terms): statutory 14-day cancellation right (GATE 0 T-1), single-sourced in `shared/config/policy.js` `cancellationRightParagraphs()`, rendered on `/terms` + the confirmation email. *verified (built /terms contains it).*
+- `0a4d589` docs(lessons): L-008 addendum — the shipped BOOKING_READY silent drop.
+- `6e9bf12` fix(booking): brace-aware BOOKING_READY parse so quote_lines bookings confirm + `test/booking-ready-parse.test.js` (extracts the REAL inline fn and runs it). *verified.*
+
+**Cross-agent review (Gemini = handle GEMPRO).** Adversarial review of the parse fix + T-1 over `exchange/REVIEW_batch_2026-09-06.md` (gitignored scratch; ARTIFACT staged there). Converged. Gemini found 4 valid issues: (1) extractor grabbed the first `{` after the marker → a stray/empty leading brace mis-parses; (2) the failure fallback fired on any prose mention of the token; (3) the part-performance clause overstates ICC's rights (no express-request capture built) — a misleading-action risk; (4) weak source-string cross-surface test. 1/2/4 fixed in `e7cb570`; 3 is Ben's keep-as-is call (below).
+
+**Ben's decisions this session:**
+- **T-1 para 4 (part-performance) KEPT as-is** despite the GEMPRO misleading-action flag, as an owner risk-acceptance, WITH a HIGH-priority review flagged **within 2 months of go-live**. Anchors: `TODO(T-1/express-request-capture)` in `shared/config/policy.js`; `docs/LEGAL_REVIEW_TERMS_2026-09.md` T-1. No solicitor review of /terms at all — the GATE 0 first-pass wording is the live wording.
+- **T-2 geographical address: keep "available on request", at go-live too** (small sole trader, accept the gap; publish Mark's address only if challenged). D-016 addendum.
+
+**In flight / NOT done:** nothing half-coded (tree clean). The handover commit is the only pending write (will be `[skip ci]`, safe — all code already deployed + built, L-030).
+
+**Deferred items (with anchors):**
+- **T-1 express-request capture — HIGH, review within 2 months of go-live.** `TODO(T-1/express-request-capture)` in `shared/config/policy.js`; `docs/LEGAL_REVIEW_TERMS_2026-09.md` T-1. Build the capture or soften para 4 by then.
+- **`index.html` rollback is STALE** — beyond the intentionally-kept old 01242 phone, it still has the old non-greedy parse bug (`index.html:811`) and stale `[to confirm]` privacy placeholders. Not a viable fallback. Decide: fix it, or de-designate/remove it (and `test/chat-client-parity.test.js` reads it). Not folded this session.
+- Minor: `£15` surcharge repeated as prose in 5 area guides (`site/src/content/areas/*.md`, agrees today, latent drift); one empty catch at `admin.html:359` (operator-only).
+- Pre-existing: Stripe switch-on (apply migration `20260906120000` to the HOSTED DB + set keys + webhook, `docs/STRIPE_SETUP.md`); calendar (Mark's share then `scripts/verify-calendar-freebusy.js`); phone test-call 01452 452356; D-029 two-day split; Saturday premium.
+
+**Verification still outstanding:**
+- **THE POST-DEPLOY BOOKING RIDE — top task, unverified.** The parse fix is deployed and the fixed code is confirmed serving, but NO real booking has completed end-to-end since the fix. First task next session: with Ben, place one real booking on the noindex site with a throwaway email, confirm `check_availability` then `confirm_booking` both fire and it reaches a real confirmation, then confirm the `jobs` row has `deposit_ex_vat`/`estimated_price_ex_vat` populated (the structured-pricing half never yet proven, the bug killed the flow before it), then DELETE the test job by SQL. *The fix is proven at unit + deployment level only.*
+- Stripe end-to-end (dormant). Calendar read (pending Mark).
+
+**Blockers / open questions:**
+- The full ride needs a throwaway test email + **Ben's SQL cleanup**: bookings write to Postgres `jobs`, and `scripts/delete-booking.js` only cleans the legacy Netlify Blobs store, so it will NOT delete a live test booking. No admin-UI delete for jobs (erasure is `human_handoff`-only).
+
+**Next actions (ordered, each a single first step):**
+1. Do the post-deploy booking ride with Ben (throwaway email); then delete the test `jobs` row by SQL.
+2. Once go-live is dated, set an out-of-repo calendar reminder for the T-1 para-4 review (+2 months) — a repo note is only read on session-open (L-007).
+3. Decide `index.html`'s fate (fix vs de-designate as rollback).
+4. Stripe switch-on when ready (`docs/STRIPE_SETUP.md`).
+5. Calendar: rerun `scripts/verify-calendar-freebusy.js` once Mark shares.
+
+**Traps and working agreements (this session):**
+- **Unit-green + build-green is NOT deploy-safe for a client seam.** The parse bug shipped because only the server handler was tested. Test the browser-side parse directly (we now extract the real inline fn via markers and run it in `node --test`). L-008 addendum.
+- **A non-greedy brace regex breaks the moment the JSON gains nesting** — use a brace-aware scan and require the marker's brace to be immediate (`/BOOKING_READY:\s*\{/`).
+- **Cross-agent review earns its cost:** GEMPRO caught 3 real hardening points + 1 legal flag the primary pass missed. `exchange/` relay, one handle per seat, converge-or-two-positions.
+- **`scripts/delete-booking.js` is Blobs-only;** a live Postgres test booking needs a SQL delete by Ben.
+- Ben's shell PowerShell 5.1 (no `&&`); commits via the Bash tool (Git Bash). No em dashes; British English.
+- Netlify reads env only on redeploy (L-018); a `[skip ci]` tip skips the WHOLE build (L-030) — the deployed tip `6aeb118` is a normal commit; THIS handover commit is `[skip ci]`, safe because all code is already deployed and built.
+
+---
+
 ## This session (2026-09-06): Stripe deposit pay-link built end-to-end + dormant (D-004); structured pricing; GATE 0 legal review; calendar-share cycle fixed. WHOLE STACK DEPLOYING THIS SESSION (23-commit fast-forward to main).
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: 52% (yellow), read by Ben via /context.** Deliberate wrap: deploy the batch, then hand over.
