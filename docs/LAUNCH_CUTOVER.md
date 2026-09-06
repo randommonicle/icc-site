@@ -33,6 +33,7 @@ Owners: **[B]** Ben, **[M]** Mark (account owner, D-009), **[C]** code (me).
 ```
 GATE 0  Prerequisites that must clear before going public
   ├─ Privacy notice: human data-protection review           [M/B]  gates STEP 3
+  ├─ /terms legal review: statutory cancel clause (T-1)      [M/B]  gates STEP 3
   ├─ ICO registration number (ZC230232 — DONE, in privacy.astro)   ✓
   └─ ICC's own 01452 phone provisioned (action A1)          [B]    gates STEP 5/6
 
@@ -48,6 +49,10 @@ STEP 1 (Resend) and STEP 2 (domain) both touch 123reg DNS but are independent of
 other. STEP 3 is the moment the site becomes findable, so it must not run before the
 privacy review is done. Local ranking (STEP 6) is the real lever for a service-area
 business and is gated on the phone, so treat the phone as the top pacing item.
+The `/terms` legal review sits alongside the privacy review under GATE 0 and is
+captured in [LEGAL_REVIEW_TERMS_2026-09.md](LEGAL_REVIEW_TERMS_2026-09.md); T-1
+(the statutory 14-day distance-cancellation clause, absent today) is the priority
+item and, like the privacy review, gates STEP 3.
 
 ---
 
