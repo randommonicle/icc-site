@@ -141,3 +141,48 @@ test("the photo upload input stays keyboard-reachable, not display:none", () => 
   assert.ok(m, "the imageUpload input must exist with an inline style");
   assert.doesNotMatch(m[1], /display:\s*none/, "keep the visually-hidden pattern, not display:none");
 });
+
+// --- index.html rollback: BOOKING_READY parser parity (added 2026-09-07) ----
+// The retained index.html rollback silently kept the pre-fix non-greedy BOOKING_READY
+// parser after book.astro was hardened on 2026-09-07 — exactly the drift this file
+// exists to catch, which the emailStatus-only check above could not see (it never read
+// the parser). These lock the rollback's parser to book.astro's and run index.html's
+// actual extractor against the nested quote_lines payload that broke in production.
+const EXTRACTOR_RE = /\/\* __BOOKING_READY_EXTRACTOR__ \*\/([\s\S]*?)\/\* __END_BOOKING_READY_EXTRACTOR__ \*\//;
+const indexHtmlSrc = fs.readFileSync(path.join(repoRoot, "index.html"), "utf8");
+
+test("index.html's BOOKING_READY extractor is byte-identical to book.astro's (rollback parser parity)", () => {
+  const inBook = bookAstro.match(EXTRACTOR_RE);
+  const inIndex = indexHtmlSrc.match(EXTRACTOR_RE);
+  assert.ok(inBook, "book.astro must wrap extractBookingReady in the parity markers");
+  assert.ok(inIndex, "index.html (the rollback) must carry the same marker-wrapped extractor");
+  assert.strictEqual(
+    inIndex[1],
+    inBook[1],
+    "the rollback's parser has drifted from book.astro — port the change into index.html, or delete index.html per this file's header comment"
+  );
+});
+
+test("index.html's extractor parses a nested quote_lines payload (extract-and-run)", () => {
+  const m = indexHtmlSrc.match(EXTRACTOR_RE);
+  assert.ok(m, "index.html must carry the marker-wrapped extractor");
+  const extractBookingReady = new Function(m[1] + "\nreturn extractBookingReady;")();
+  const payload =
+    'Confirming now.\n\nBOOKING_READY:{"name":"Ben Test","slots_needed":4,' +
+    '"quote_lines":[{"code":"large_room","qty":1},{"code":"stairs_to_13","qty":1}],' +
+    '"estimated_price":"£280","deposit":"£28"}\n\nYou are all booked in.';
+  const b = extractBookingReady(payload);
+  assert.ok(b, "must return a parsed booking, not null");
+  assert.strictEqual(b.name, "Ben Test");
+  assert.ok(Array.isArray(b.quote_lines) && b.quote_lines.length === 2, "quote_lines must survive intact");
+  assert.strictEqual(extractBookingReady("BOOKING_READY:{}"), null, "an empty object must be rejected");
+  assert.strictEqual(extractBookingReady("no marker here at all"), null, "no marker must return null");
+});
+
+test("index.html no longer uses the truncating .match(/BOOKING_READY:/) capture", () => {
+  assert.ok(
+    !indexHtmlSrc.includes(".match(/BOOKING_READY:"),
+    "the rollback must use extractBookingReady(), not the non-greedy regex that shipped the 2026-09-06 outage"
+  );
+  assert.ok(indexHtmlSrc.includes("extractBookingReady("), "index.html must call extractBookingReady()");
+});
