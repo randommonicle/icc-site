@@ -12,6 +12,58 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session (2026-09-07, later): read the handover; NO code changed. Resolved next-action #3 (index.html rollback) to a recommendation + staged a cross-agent review of it (could NOT run it — computer-use control denied while Ben was away); prepared the #1 ride's cleanup SQL. Tree clean, 361 pass.
+
+*Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading — /context unavailable in this harness. No compaction/summarisation warnings seen; treated green. Ben handed the session the reins (permissions bypassed) while away, with explicit constraints: do NOT push, do NOT delete anything from git, keep local only. This session is analysis + staging + prep: no behavioural code change, no push, no deletion. One local `[skip ci]` commit (this handover); review the wording before any push.**
+
+**What I did NOT do, and why.** The #1 task (the post-deploy booking RIDE) is a "with Ben" task: it fires a real confirmation email to Mark (operator) + the customer, and writes a live Postgres `jobs` row that only a SQL delete can clean (`scripts/delete-booking.js` is Blobs-only; the Supabase MCP is unauthed in this harness). Firing a live booking I cannot clean up, unsupervised, was the wrong call — I prepared it instead (SQL below). I attempted the cross-agent review Ben asked for, but the computer-use screen-control consent for ChatGPT + Antigravity was **denied** (no one to approve the card while Ben was away); I did not retry. I made no unsupervised code changes to the regulated-adjacent codebase.
+
+**Verified this session (primary source):**
+- Tree clean; `node --test` = 370 tests, **361 pass / 0 fail / 9 skip** — matches the prior entry, baseline green.
+- The prior handover's two `index.html` claims are ACCURATE: the non-greedy parse bug at `index.html:811` (also `:815`/`:820`), and the Phase-0 DRAFT privacy notice with `[to confirm: ...]` placeholders (`index.html:364-420`).
+- The SERVED client (`site/src/pages/book.astro`) is sound: I traced the whole response path (parser, `CONVERSATION_END`, citations, `provisional`, `emailStatus` both halves, validated `calLink`, honest error/catch fallbacks). No other L-008-class silent seam found; the recent batch + `booking-ready-parse.test.js` + `chat-client-parity.test.js` lock the seams.
+
+**Next-action #3 — index.html's fate: RECOMMENDATION = DE-DESIGNATE it as the rollback (Ben's call; NOT executed).** Evidence (all on `main`, verified today):
+- Not served — `netlify.toml:5-6` publishes `site/dist`; `CLAUDE.md:43/131/194`. Nothing loads it, so it gives no signal when it rots.
+- Known-broken as a rollback — `index.html:811` is the exact non-greedy `BOOKING_READY` parser that caused the 2026-09-06 outage; flipping it live reintroduces it.
+- Would regress the privacy notice — `index.html:364-420` is a Phase-0 DRAFT with placeholders; the served `site/src/pages/privacy.astro:9` has them removed. Rolling back swaps a go-live notice for a placeholder draft (UK GDPR accuracy, not cosmetics).
+- Parity is notional — `test/chat-client-parity.test.js` checks `index.html` for ONE field (`emailStatus`, lines 81-92); parser/citations/provisional are asserted against `book.astro` only, so it cannot catch parser drift, and did not.
+- It drifts, provably — PR#49 dropped features for a month (test header lines 2-9); the names removal reached `index.html` (`DECISIONS.md:219`) but the parse fix did not.
+- A better rollback exists — Netlify deploy-history "publish deploy", or `git revert` + redeploy of a known-good `site/` build. `index.html`-as-rollback duplicates the platform, worse.
+- Never actually decided — the designation is a carried-forward default from D-001 (`DECISIONS.md:18`), not a weighed call.
+
+Honest counter-case (so Ben can decide now): the only scenario where serving `index.html` beats a Netlify/git rollback is a total `site/` build-toolchain failure where no prior deploy is safe to re-publish, which is not reachable on Netlify (it serves already-built immutable deploys, no rebuild). The keep-case is weak. Third option if a fallback client is wanted cheaply: a CI guard forcing `index.html`'s parser to track `book.astro` (mirror the marker-extractor test against it) so it cannot silently rot, at the cost of dual-maintenance for a file nothing loads. **My recommendation: de-designate.** Given the no-git-deletion rule this session, that means at minimum stop calling it "the rollback" in `CLAUDE.md` + the parity-test header and record the decision; keep or bin the file itself when Ben chooses. If accepted this is a DECISIONS.md entry (it finalises the D-001 default) — prompt to write it. (`index.html`'s old 01242 number is deliberate, `DECISIONS.md:418` — separate concern, leave it.)
+
+**Cross-agent review — STAGED, NOT RUN.** Opener: `exchange/REVIEW_index-html-rollback_2026-09-07.md` (challenger-Claude: I put up "de-designate", spokes attack; 4 specific attacks incl. steelman-the-keep-case). Ready-to-paste kickoffs for both seats: `exchange/KICKOFF_index-html-rollback_2026-09-07.md` (ASTRA = GPT/ChatGPT desktop; GEMPRO = Gemini/Antigravity). Both gitignored scratch. To run: give each app folder access, paste its block, fire ONE at a time (PROTOCOL §3). If Ben grants computer-use next session (or relays), I can drive it.
+
+**#1 RIDE — cleanup SQL ready (FK-verified in `supabase/migrations/20260605115456_init.sql`; Ben runs it against the HOSTED DB via the aws-1-eu-west-2 session pooler).** Replace the email with the throwaway used. Order matters: `jobs.customer_id → customers` is ON DELETE RESTRICT, so delete jobs first; `job_photos`/`job_assessments` cascade, `invoices` is RESTRICT (a fresh test booking has none), `messages.job_id` set-null.
+```sql
+-- 1. VERIFY (expect exactly one row):
+select j.id, j.slot_date, j.start_hour, j.start_minute, j.status,
+       j.estimated_price_ex_vat, j.deposit_ex_vat, c.email, c.name
+from jobs j join customers c on c.id = j.customer_id
+where c.email = 'THROWAWAY@EXAMPLE.COM';
+-- 2. Delete the test job(s):
+delete from jobs where customer_id in (select id from customers where email = 'THROWAWAY@EXAMPLE.COM');
+-- 3. Delete the throwaway customer (optional):
+delete from customers where email = 'THROWAWAY@EXAMPLE.COM';
+```
+The ride is also the first proof of the structured-pricing half: confirm the `jobs` row has `deposit_ex_vat`/`estimated_price_ex_vat` populated (that path has never completed end-to-end).
+
+**Deferred / carried forward (unchanged unless noted):** T-1 express-request capture (HIGH, +2 months of go-live); `£15` prose repeated in 5 area guides (single-sourcing into static markdown needs a design call — flagged, not fixed); `admin.html:359` empty catch (operator-only, minor); Stripe switch-on (`docs/STRIPE_SETUP.md`); calendar (Mark's share, then `scripts/verify-calendar-freebusy.js`); solicitor pass on `/terms` (T-1).
+
+**Next actions (ordered):**
+1. Do the post-deploy booking ride with Ben (throwaway email); then run the cleanup SQL above.
+2. Decide index.html: accept de-designate (record a DECISIONS entry + soften `CLAUDE.md`/the parity-test header) or keep + add the CI parser-guard. Fire the staged cross-agent review first if the second opinions are wanted.
+3. Stripe switch-on when ready; calendar once Mark shares; solicitor on `/terms`.
+
+**Traps / working agreements (this session):**
+- Computer-use screen control needs a live human to approve its consent card; "permissions bypassed" does NOT cover it. Autonomous cross-agent driving is blocked without that approval; the file relay still needs Ben to paste the kickoffs (or grant control).
+- The served client is proven at unit + deploy level only; the RIDE is still the sole proof of the live seam (L-008).
+- No code changed, nothing pushed, nothing deleted (Ben's constraints); one local `[skip ci]` handover commit, review before pushing.
+
+---
+
 ## This session (2026-09-07): post-deploy ride caught a HIGH booking regression (structured pricing shipped the booking flow BROKEN); fixed + hardened via a Gemini cross-agent review; GATE 0 T-1 cancellation right shipped; a11y folds. 7-commit batch DEPLOYED to main + verified live.
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading — /context unavailable in this harness. No compaction/summarisation warnings seen; treated as green. Deliberate wrap: Ben asked to deploy then hand over.**
