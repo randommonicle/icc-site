@@ -186,3 +186,35 @@ test("index.html no longer uses the truncating .match(/BOOKING_READY:/) capture"
   );
   assert.ok(indexHtmlSrc.includes("extractBookingReady("), "index.html must call extractBookingReady()");
 });
+
+// --- index.html rollback: privacy-notice parity (added 2026-09-07) -----------
+// L-035 again, for the privacy notice: index.html shipped a Phase-0 DRAFT with [to confirm]
+// placeholders while privacy.astro was the go-live version. Ported 2026-09-07. The notice
+// cannot be byte-identical (Astro layout vs plain HTML), so guard the facts that would be
+// materially wrong if the rollback's copy went stale, not the wrapper.
+const privacyAstroSrc = fs.readFileSync(path.join(repoRoot, "site", "src", "pages", "privacy.astro"), "utf8");
+
+test("index.html's privacy notice ships no unfilled placeholders", () => {
+  // '[to confirm' is the correct pattern; 'to confirm]' gave a false negative on the real
+  // placeholders, which read '[to confirm: ...]'.
+  assert.ok(!indexHtmlSrc.includes("[to confirm"), "the rollback must not ship a draft privacy notice with placeholders");
+});
+
+test("index.html's privacy notice carries the go-live controller + ICO facts", () => {
+  for (const fact of ["ZC230232", "Mark McClymont"]) {
+    assert.ok(privacyAstroSrc.includes(fact), `privacy.astro (the source of truth) must state ${fact}`);
+    assert.ok(indexHtmlSrc.includes(fact), `the index.html rollback notice must also state ${fact}`);
+  }
+});
+
+test("index.html's privacy 'Last updated' date matches the served notice", () => {
+  const m = privacyAstroSrc.match(/Last updated:\s*(\d{1,2} \w+ \d{4})/);
+  assert.ok(m, "privacy.astro must carry a 'Last updated: <date>' line");
+  assert.ok(indexHtmlSrc.includes("Last updated: " + m[1]), `the rollback notice's 'Last updated' must match privacy.astro (${m[1]})`);
+});
+
+test("index.html carries ICC's own phone number, not the old Regency line", () => {
+  // Ben's call, 2026-09-07: the rollback shows ICC's 01452, not Regency's 01242 (D-034).
+  assert.ok(!indexHtmlSrc.includes("01242"), "the rollback must not carry the old 01242 Regency number anywhere");
+  assert.ok(indexHtmlSrc.includes("01452 452356"), "the rollback must carry ICC's 01452 452356");
+});
