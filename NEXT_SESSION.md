@@ -12,6 +12,45 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session (2026-09-08): the #1 post-deploy booking RIDE ran and PASSED end-to-end (Ben present, driven via the in-app browser). Structured-pricing seam proven live. Solicitor pass on /terms retired (D-035). Stripe Test-mode switch-on STARTED (in progress).
+
+*Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading, /context unavailable in this harness. No compaction warnings seen; treated green. Ben present at the keyboard ("all permissions granted"), running the DB steps himself.**
+
+**THE RIDE PASSED (primary source, verified this session).** The post-deploy booking ride, unproven since the 2026-09-06 parse-bug fix and the #1 task across the last two handovers, completed end-to-end on the noindex site (`super-frangollo-c3a14a.netlify.app/book/`). Driven as a customer via the in-app browser, so no computer-use consent was needed and the prior session's "control denied" blocker did not apply. A small in-area job (1 High Street, Cheltenham GL50, 10m2 polypropylene, 1 slot, Wed 16 Sep 09:30, auto-confirm) was placed with throwaway `ben.graham240689+icctest@gmail.com`. Verified:
+- `check_availability` fired and read trading hours correctly (Tue 10:30, Wed 09:30). `extractBookingReady` parsed `BOOKING_READY` (the exact bug that shipped broken, now proven fixed in prod). `confirm_booking` returned `success:true, provisional:false` (clean auto-confirm).
+- Ground-truth network response: `emailStatus {operator:true, customer:true}`, Resend ids `markEmail 85d214d7-eca8-44d4-9bbe-59dab6bb49e5`, `customerEmail 3d6e2290-1915-443a-9ec5-c6f33102b9ea`.
+- **The structured-pricing half persisted** (never proven before): jobs row `58325417-6780-4859-80a6-e961f55c4379`, `status booked`, `slot_date 2026-09-16`, `09:30`, `estimated_price_ex_vat 75.00`, `deposit_ex_vat 7.50` (SELECT via the Supabase SQL editor, Ben ran it).
+- **Customer email verified in the inbox**: from `hello@intelligentclean.co.uk` (real domain, so Resend sending domain is verified), correct £75 / £7.50, the T-1 statutory cancellation clause present, and the dormant-Stripe "Mark will contact you about deposit payment" line.
+- **Cleanup done**: the test job + customer deleted by SQL (live-data-surgery protocol: a `begin…rollback` dry run first showed job_left 0 / customer_left 0, then `begin…commit` applied). Deleting the `booked` row releases the slot, because `availabilityFromJobs` reads occupancy from `jobs` where status in (booked, in_progress); there is no separate hold table.
+
+**L-008 (unit-green is not deploy-safe) is now closed at the live seam.** No new lesson; the ride confirms the fix works end-to-end. Prompt: a one-line LESSONS note that the ride finally closed L-008's open verification would be fair.
+
+**Ben's decisions this session:**
+- **No solicitor pass on /terms; the current wording is accepted as-is (owner risk-acceptance). The T-1 solicitor-review item is CLOSED, not a blocker to go-live.** Recorded D-035. This closes the solicitor question only; it does not unblock LIVE Stripe on its own, which stays gated on actual go-live (domain cutover + noindex removal). *TO CONFIRM with Ben: whether this also retires the separate T-1 express-request-capture / para-4 review (HIGH, within 2 months of go-live), or just the solicitor pass.*
+- **Stripe: set it up in Test mode now.** Live payment-taking stays a go-live step.
+
+**Stripe Test-mode switch-on, STARTED (hand-off state):**
+- Dormant code is already deployed live: `/api/stripe-webhook` returns 405 on GET (POST-only, so deployed). Dormancy gate is `STRIPE_SECRET_KEY` (`paymentProvider.js isPaymentConfigured()`).
+- **Prerequisite: apply migration `20260906120000_jobs_deposit_payment.sql` to the HOSTED DB** (handover said local-only; it is additive and safe on live rows). It MUST go in before the keys: once `STRIPE_SECRET_KEY` is set, `chat.js:1199` and `bookingAction.js:138` write `stripe_checkout_session_id` and filter on `deposit_status` on every confirm, so a missing migration makes bookings fail at confirm, the exact regression class the ride just closed.
+- **Three Netlify env vars in one pass (all scopes, L-018), then redeploy:** `STRIPE_SECRET_KEY=sk_test_…`, `STRIPE_WEBHOOK_SECRET=whsec_…`, and **`PUBLIC_SITE_URL=https://super-frangollo-c3a14a.netlify.app`**. The third is NOT in `docs/STRIPE_SETUP.md` (gap, prompt to add it): the auto-confirm path `chat.js:1192` does not pass `origin` to `createDepositCheckoutForJob`, so the Checkout success/cancel URL falls back to `PUBLIC_SITE_URL` and then the prod parking page; on staging that dead-ends the post-payment redirect (the payment + webhook still fire). At go-live set `PUBLIC_SITE_URL` to the production domain (or thread `origin` through chat.js, a latent code gap).
+- Webhook URL to register in Stripe (test): `https://super-frangollo-c3a14a.netlify.app/api/stripe-webhook`, event `checkout.session.completed`.
+- Account: create under Mark's business email (D-009), Test mode, add Ben; reveal `sk_test_…` and hold it (never in chat, into Netlify only at the go moment). Test card `4242 4242 4242 4242`. After switch-on: a test-card ride (booking → pay-link email → pay → webhook marks `deposit_status paid`), then SQL cleanup as above.
+
+**One thing to confirm (not verified):** `OPERATOR_EMAIL` is `mark_director@intelligentclean.co.uk` in the local `.env` (and memory), so the operator copy of the ride booking most likely landed in **Mark's** inbox as "ICC TEST (ignore)". This was not confirmed against the live Netlify env (the code default is `ben.graham240689@gmail.com`). Either tell Mark to ignore it, or confirm both copies landed in Ben's own inbox.
+
+**Next actions (ordered):**
+1. Finish Stripe Test-mode switch-on: migration to hosted (pre-check + verify) → webhook in Stripe → the 3 Netlify vars → redeploy → test-card ride → cleanup.
+2. Confirm the T-1 express-request-capture item's status (retire or keep) after D-035.
+3. Calendar once Mark shares; then the go-live sequence (domain cutover, noindex removal, then LIVE Stripe).
+
+**Traps / working agreements (this session):**
+- The in-app browser drives the booking chat fine with no computer-use consent; the prior "control denied" blocker was computer-use-specific.
+- Migration before keys (failure mode above). `create type` is not idempotent, so wrap the migration in `begin…commit` and lead with a catalog pre-check.
+- Never paste `sk_…` / `whsec_…` into chat; Netlify env only, all scopes, redeploy to pick up (L-018).
+- No behavioural code changed this session. The doc commit is `[skip ci]`; review the wording before pushing.
+
+---
+
 ## This session (2026-09-07, later): read the handover; NO code changed. Resolved next-action #3 (index.html rollback) to a recommendation + staged a cross-agent review of it (could NOT run it — computer-use control denied while Ben was away); prepared the #1 ride's cleanup SQL. Tree clean, 361 pass.
 
 **UPDATE (same session, after Ben replied "1 send to gmail / 2 keep it / 3 agree"):** Ben chose to KEEP index.html, so I made it a genuine rollback. Executed: ported `book.astro`'s brace-aware `extractBookingReady` into `index.html` byte-identically plus the honest failure fallback (keeping the deliberate 01242 number), and added a byte-identical parity guard and an extract-and-run test to `test/chat-client-parity.test.js` so the rollback cannot silently drift from the served client again. Local commit `35ad6b0` on `main`, unpushed. Verified: 373 tests, 364 pass / 0 fail / 9 skip; `npm run build --prefix site` green. STILL OUTSTANDING for `index.html` to be a fully viable rollback: its Phase-0 DRAFT privacy notice (`index.html:364-420`) still needs the go-live wording that `privacy.astro` already carries (go-live legal wording, Ben's call, not done). The "de-designate, NOT executed" framing below is SUPERSEDED by this keep-and-fix. This summary was also emailed to ben.graham240689@gmail.com.
