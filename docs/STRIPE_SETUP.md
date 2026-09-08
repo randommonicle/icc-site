@@ -53,10 +53,16 @@ dashboard immediately.
    "Add endpoint", paste the URL, select the event **`checkout.session.completed`**
    → then copy the **Signing secret** `whsec_…` it shows.
 
-7. **When I say go**, add both to **Netlify → Site settings → Environment
+7. **When I say go**, add these three to **Netlify → Site settings → Environment
    variables** (add for **all scopes**, never a single scope, L-018):
    - `STRIPE_SECRET_KEY` = the `sk_test_…` key
    - `STRIPE_WEBHOOK_SECRET` = the `whsec_…` signing secret
+   - `PUBLIC_SITE_URL` = the site's own origin (Test mode:
+     `https://super-frangollo-c3a14a.netlify.app`; at go-live, the production
+     domain). **Required:** the auto-confirm booking path does not pass a request
+     origin, so the Checkout success/cancel URLs fall back to this. Without it they
+     point at the production parking page and the post-payment redirect dead-ends
+     (D-036).
    Then **trigger a redeploy** (Deploys → Trigger deploy). Netlify functions only
    read env vars from a fresh deploy, so the keys are inert until you redeploy.
 

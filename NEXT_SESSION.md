@@ -12,7 +12,7 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
-## This session (2026-09-08): the #1 post-deploy booking RIDE ran and PASSED end-to-end (Ben present, driven via the in-app browser). Structured-pricing seam proven live. Solicitor pass on /terms retired (D-035). Stripe Test-mode switch-on STARTED (in progress).
+## This session (2026-09-08): the #1 booking RIDE PASSED end-to-end AND the Stripe Test-mode deposit pay-link was switched on and PROVEN end-to-end (Ben present, in-app browser). Structured-pricing seam proven live. Solicitor /terms pass retired (D-035). Stripe test switch-on recorded (D-036). One self-corrected misdiagnosis (L-036).
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading, /context unavailable in this harness. No compaction warnings seen; treated green. Ben present at the keyboard ("all permissions granted"), running the DB steps himself.**
 
@@ -29,25 +29,32 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 - **No solicitor pass on /terms; the current wording is accepted as-is (owner risk-acceptance). The T-1 solicitor-review item is CLOSED, not a blocker to go-live.** Recorded D-035. This closes the solicitor question only; it does not unblock LIVE Stripe on its own, which stays gated on actual go-live (domain cutover + noindex removal). *TO CONFIRM with Ben: whether this also retires the separate T-1 express-request-capture / para-4 review (HIGH, within 2 months of go-live), or just the solicitor pass.*
 - **Stripe: set it up in Test mode now.** Live payment-taking stays a go-live step.
 
-**Stripe Test-mode switch-on, STARTED (hand-off state):**
-- Dormant code is already deployed live: `/api/stripe-webhook` returns 405 on GET (POST-only, so deployed). Dormancy gate is `STRIPE_SECRET_KEY` (`paymentProvider.js isPaymentConfigured()`).
-- **Prerequisite: apply migration `20260906120000_jobs_deposit_payment.sql` to the HOSTED DB** (handover said local-only; it is additive and safe on live rows). It MUST go in before the keys: once `STRIPE_SECRET_KEY` is set, `chat.js:1199` and `bookingAction.js:138` write `stripe_checkout_session_id` and filter on `deposit_status` on every confirm, so a missing migration makes bookings fail at confirm, the exact regression class the ride just closed.
-- **Three Netlify env vars in one pass (all scopes, L-018), then redeploy:** `STRIPE_SECRET_KEY=sk_test_…`, `STRIPE_WEBHOOK_SECRET=whsec_…`, and **`PUBLIC_SITE_URL=https://super-frangollo-c3a14a.netlify.app`**. The third is NOT in `docs/STRIPE_SETUP.md` (gap, prompt to add it): the auto-confirm path `chat.js:1192` does not pass `origin` to `createDepositCheckoutForJob`, so the Checkout success/cancel URL falls back to `PUBLIC_SITE_URL` and then the prod parking page; on staging that dead-ends the post-payment redirect (the payment + webhook still fire). At go-live set `PUBLIC_SITE_URL` to the production domain (or thread `origin` through chat.js, a latent code gap).
-- Webhook URL to register in Stripe (test): `https://super-frangollo-c3a14a.netlify.app/api/stripe-webhook`, event `checkout.session.completed`.
-- Account: create under Mark's business email (D-009), Test mode, add Ben; reveal `sk_test_…` and hold it (never in chat, into Netlify only at the go moment). Test card `4242 4242 4242 4242`. After switch-on: a test-card ride (booking → pay-link email → pay → webhook marks `deposit_status paid`), then SQL cleanup as above.
+**Stripe Test-mode deposit pay-link, DONE and PROVEN end-to-end (D-036).** Rode the full chain: booking → Stripe Checkout Session created (Stripe API log 200) → pay-link button in the customer email (`depositPayButtonHtml`, `chat.js:1234`) → test card `4242…` paid on Stripe hosted Checkout → `checkout.session.completed` webhook verified its signature and marked the row `deposit_status paid`, `deposit_paid_at` set, `stripe_payment_intent_id pi_3UDVYk…` (SQL-confirmed on the `+stripetest` job). Steps done this session:
+- Migration `20260906120000_jobs_deposit_payment.sql` applied to the HOSTED DB (catalog pre-check showed not-applied; wrapped `begin…commit`; verify passed: enum `unpaid/paid/refunded` + 4 columns + partial unique index).
+- Webhook registered in Stripe (Test): `…/api/stripe-webhook`, event `checkout.session.completed`; signing secret into Netlify.
+- Netlify env (all deploy contexts): `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `PUBLIC_SITE_URL=https://super-frangollo-c3a14a.netlify.app`; redeployed. `PUBLIC_SITE_URL` is REQUIRED because `chat.js:1192` does not pass `origin` (now documented in `docs/STRIPE_SETUP.md`); swap it to the production domain at go-live.
+- **Netlify storage note:** the Stripe keys are stored NON-secret (the "Contains secret values" flag is OFF), matching how `SUPABASE_SERVICE_ROLE_KEY`/`RESEND_API_KEY` are already stored. The secret-flagged per-context setup actually WORKED (proven), so re-enabling the flag is optional; decide it properly with the LIVE key at go-live (D-036).
+
+**Misdiagnosis, self-corrected (L-036).** For several rounds I read the missing `customerDepositPayUrl` in the `confirm_booking` JSON as "Stripe broken" and sent Ben through unnecessary env-var churn. That URL is NEVER in the response; it lives only in the customer email (`chat.js:1234`). Stripe's own API log proved the sessions were created (200) from the FIRST attempt, before any env change. Lesson: verify the actual user-facing surface (email, Stripe log, DB row), not an API response that does not carry the artifact.
+
+**Follow-ups now that deposits are live (not blockers, flagged for the next session):**
+- The customer email says BOTH "Mark will be in touch to arrange your deposit payment" (`chat.js:1232`) AND shows a Pay button (`chat.js:1234`), contradictory now the button is live (D-004). Trim the line before go-live.
+- The on-screen confirmation card still says "Mark will be in touch" with no pay button, because the pay-link is not threaded into the response. Decide whether to surface it on the card (small code change to add `customerDepositPayUrl` to the response).
+- Test rows cleaned (`+stripetest` paid, `+stripe2` unpaid), 0/0 verified; Stripe test data left as-is (no real money moved). Note: Mark's operator inbox likely holds three "ICC TEST (ignore)" booking emails from this session.
 
 **One thing to confirm (not verified):** `OPERATOR_EMAIL` is `mark_director@intelligentclean.co.uk` in the local `.env` (and memory), so the operator copy of the ride booking most likely landed in **Mark's** inbox as "ICC TEST (ignore)". This was not confirmed against the live Netlify env (the code default is `ben.graham240689@gmail.com`). Either tell Mark to ignore it, or confirm both copies landed in Ben's own inbox.
 
 **Next actions (ordered):**
-1. Finish Stripe Test-mode switch-on: migration to hosted (pre-check + verify) → webhook in Stripe → the 3 Netlify vars → redeploy → test-card ride → cleanup.
+1. Customer-facing deposit wording: trim the redundant "Mark will be in touch" line in the confirmation email, and decide the on-screen card pay-link, now the Stripe button is live (D-004).
 2. Confirm the T-1 express-request-capture item's status (retire or keep) after D-035.
-3. Calendar once Mark shares; then the go-live sequence (domain cutover, noindex removal, then LIVE Stripe).
+3. Calendar once Mark shares; then the go-live sequence: domain cutover, noindex removal, swap `PUBLIC_SITE_URL` to the production domain, then LIVE Stripe (live keys + live webhook; decide the secret-flag/masking for the live key).
 
 **Traps / working agreements (this session):**
-- The in-app browser drives the booking chat fine with no computer-use consent; the prior "control denied" blocker was computer-use-specific.
-- Migration before keys (failure mode above). `create type` is not idempotent, so wrap the migration in `begin…commit` and lead with a catalog pre-check.
-- Never paste `sk_…` / `whsec_…` into chat; Netlify env only, all scopes, redeploy to pick up (L-018).
-- No behavioural code changed this session. The doc commit is `[skip ci]`; review the wording before pushing.
+- Verify the actual user-facing surface (email, Stripe log, DB row), not an API response that does not carry the artifact (L-036).
+- Migration before keys: `create type` is not idempotent, so wrap the migration in `begin…commit` and lead with a catalog pre-check.
+- Never paste `sk_…` / `whsec_…` into chat; Netlify env only, redeploy to pick up (L-018). On Ben's Netlify tier the "Contains secret values" flag forces per-context values and blocks same-value-for-all, so the project stores its keys non-secret instead.
+- The in-app browser drives the booking chat fine (no computer-use consent). The chat send button MOVES down as the textarea grows on a long paste; click it by its current on-screen position.
+- Repo changes this session are docs-only, pushed with `[skip ci]` (no deploy). All Stripe/booking work was Netlify + Stripe + hosted-DB config, not code.
 
 ---
 
