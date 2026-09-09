@@ -12,6 +12,57 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session (2026-09-09): D-004 deposit-wording contradiction closed across all 3 surfaces; T-1 retired (D-037); repositioning DECIDED as KEEP the carpet name + add services (D-038); two enquiry-led specialist-service pages built. 5 commits, ALL LOCAL/UNPUSHED, nothing deployed (deliberate batch, Ben's steer).
+
+*Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading — /context unavailable in this harness. No compaction/summarisation warnings seen; deliberate wrap (Ben: "good place to stop, bank it all"). Treated green.**
+
+**Session goal.** Read the handover, choose next steps, act. Landed: closed the two D-004 deposit-wording follow-ups, retired the T-1 legal item, decided the services/branding direction, built the first specialist-service pages.
+
+**Branch and worktree.** `main`, standard worktree `C:\Users\bengr\Projects\ICC\icc-site` (the Desktop `icc-site` is the empty stub). Two stale local branches — `feat/calendar-clash-check` (0 commits ahead of main, no unique work) and `feat/phone-01452-swap` — ignore or delete.
+
+**What landed (5 commits, LOCAL + UNPUSHED, nothing deployed; "verified" = `node --test` + `npm run build --prefix site` ran green at each).**
+- `15bc88e` fix(email): the deposit email bullet now derives from the same pay-link as the button via a new `depositInstructionLine()` (`shared/emailSnippets.js`), so a live Pay button can't sit beside "Mark will be in touch". Verified unit + build. UNVERIFIED at live seam (unpushed, no ride).
+- `d195980` docs: record D-037 (retire T-1) + D-038 (as first drafted) + repoint the `policy.js` TODO. Docs.
+- `dfaaf14` fix(booking): the on-screen confirmation card shows a guarded https "Pay your deposit securely" button + matching footer when the server threads `depositPayUrl` into the confirm_booking response, else keeps "Mark will be in touch". Byte-identical in `book.astro` + `index.html` (D-034 twin); parity guard extended. Verified unit/parity + build. UNVERIFIED at live seam.
+- `59638c0` docs: CORRECT D-038 to KEEP the "Intelligent Carpet Cleaning" name (no rebrand/rename); log deferred per-service bots; ROADMAP marked in progress. Docs.
+- `35b4cd6` feat(site): `/services/decontamination-fogging` + `/services/pressure-washing` enquiry-led pages, a "Beyond Carpets" hub on Services, a `droplets` icon. Verified build green (27 pages) + 372 tests. NOT visually previewed.
+
+**In flight.** No half-written code (tree clean). Awaiting Ben's sign-off on the sensitive decontamination copy before deploy: the `useCases` array's "Specialist & crime-scene decontamination" entry, the healthcare entry, and the ozone-safety paragraph in `site/src/pages/services/decontamination-fogging.astro` (all quoted verbatim in this session's chat).
+
+**Deferred items (with anchors).**
+- **Assistant pointer line** — one factual line telling non-carpet enquiries to ring Mark; assistant stays carpet-only (D-019/D-038). Not started; own small commit + test. Anchor: `STATIC_SYSTEM_PROMPT`, `server/netlify/functions/chat.js:94`.
+- **Home-page link to specialist services** — the two pages are only reachable via /services today. Ben to decide if surfaced on home.
+- **Per-service triage/quote bots** — deferred future phase (D-038 final para; ROADMAP:41). Feasible as a per-service mode on chat.js; qualify-and-hand-to-Mark, not instant-price; needs a vetted citable KB + guardrails per higher-stakes domain.
+- **Calendar free/busy clash-check** — PARKED by Ben ("not needed right now"). NOT greenfield: it is D-005 + D-033, auth done + token exchange verified, full build plan `docs/CALENDAR_INTEGRATION.md` Part C, gated on running `scripts/verify-calendar-freebusy.js` once Mark's calendar is live. Mark will consolidate Regency + personal into the one phone calendar (single free/busy source). After the gate passes: build Part C, record a D-033 addendum, set the doc status to "built".
+- **T-1 residual** (D-037): capturing the express-request acknowledgement at the confirm step is a cheap future add, not scheduled. Anchor: the D-037 comment above `cancellationRightParagraphs()`, `shared/config/policy.js`.
+
+**Verification still outstanding.**
+- The batch is UNPUSHED, so nothing is proven at the live seam. On deploy, run a booking ride on the noindex site to confirm (a) the email deposit line/button and (b) the on-screen card pay button render live (L-008, the sole proof of the live seam).
+- The two service pages are build-green but NOT visually rendered. Preview before the batch deploys.
+
+**Blockers / open questions.**
+- Ben's sign-off/edit on the sensitive decontamination copy (especially whether to name "crime scene" at all).
+- Name KEPT: "Intelligent Carpet Cleaning" (D-038). GBP categories (Sanitation / Pressure washing) remain Mark-owned per `docs/LAUNCH_GBP_PROFILE.md`.
+- The whole batch deploy is HELD pending Ben's go (he wants to bank more first). push to main = deploy.
+
+**Next actions (ordered).**
+1. Preview the two new pages (Astro dev server) and get Ben's sign-off on the sensitive copy.
+2. Write the assistant pointer line (`chat.js:94` prompt) as its own commit + a test.
+3. On Ben's go: push the batch (= deploy), then run the post-deploy booking ride (deposit email + card pay button) on the noindex site.
+4. Optionally surface specialist services on the home page.
+5. Resume the calendar clash-check (D-033) once Mark's calendar is live: run `scripts/verify-calendar-freebusy.js`, then build per `docs/CALENDAR_INTEGRATION.md` Part C.
+
+Supersedes the 2026-09-08 next-actions: #1 (deposit wording) done here, #2 (T-1) retired (D-037); #3 (calendar + go-live) carried forward, calendar now parked.
+
+**Traps / working agreements (this session).**
+- **Do NOT push. Batching.** Ben wants as much as possible in one deploy. push to main = deploy.
+- Multi-line commit messages: write to a scratch file and `git commit -F <file>`. The Bash tool is POSIX sh; a PowerShell here-string (`@'...'@`) leaked a literal `@` into a commit subject this session (amended on `15bc88e`).
+- Claims discipline on the new pages (D-015/L-009): "certified" NOT "accredited"; ozone = equipment, not a certified-ozone claim; no efficacy/kill %; no named biocide; crime-scene = decontamination, NOT forensic/trauma cleaning. Cite Mark's cert in words, not the image (it names his separate Cheltenham and Regency Cleaners Ltd; the training is his personally). Insurance confirmed by Ben.
+- The calendar was nearly re-scoped as new work; it is already D-033 with a build plan and verified auth. Grep DECISIONS before treating anything as greenfield.
+- Keep the name (D-038): no rename, so no ~108-ref brand sweep and no GBP/structured-data NAP disruption.
+
+---
+
 ## This session (2026-09-08): the #1 booking RIDE PASSED end-to-end AND the Stripe Test-mode deposit pay-link was switched on and PROVEN end-to-end (Ben present, in-app browser). Structured-pricing seam proven live. Solicitor /terms pass retired (D-035). Stripe test switch-on recorded (D-036). One self-corrected misdiagnosis (L-036).
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading, /context unavailable in this harness. No compaction warnings seen; treated green. Ben present at the keyboard ("all permissions granted"), running the DB steps himself.**
