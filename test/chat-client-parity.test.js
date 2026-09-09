@@ -91,6 +91,22 @@ test("both booking clients surface an operator-email failure, not only the custo
   }
 });
 
+test("both booking clients surface the deposit pay-link the server sends, and keep the fallback (D-004)", () => {
+  // The server threads depositPayUrl into the confirm_booking response only when a live
+  // https Stripe checkout link exists. Both the live client and the retained rollback must
+  // render a pay action and word the footer to match, and both must fall back to "Mark will
+  // be in touch" when no link is sent. A client that ignores depositPayUrl leaves the
+  // on-screen card telling the customer Mark will arrange payment while the email already
+  // shows a Pay button — the contradiction D-004's card follow-up closes.
+  assert.match(chatFn, /depositPayUrl:\s*customerDepositPayUrl/, "chat.js must send depositPayUrl in the booking response");
+  const indexHtml = fs.readFileSync(path.join(repoRoot, "index.html"), "utf8");
+  for (const [name, src] of [["book.astro", bookAstro], ["index.html", indexHtml]]) {
+    assert.match(src, /bookData\.depositPayUrl/, name + " must read bookData.depositPayUrl off the response");
+    assert.match(src, /Pay your deposit securely/, name + " must render the pay action when a link is sent");
+    assert.match(src, /Mark will be in touch to arrange your deposit/, name + " must keep the fallback wording when no link is sent");
+  }
+});
+
 test("citations render as DOM nodes, never innerHTML (L-003)", () => {
   const start = bookAstro.indexOf("function renderCitations(");
   assert.ok(start > -1, "renderCitations must exist");

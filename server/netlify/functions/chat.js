@@ -1287,6 +1287,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
           ? (provisional ? "Booking held — Mark will confirm the time." : "Booking confirmed. Confirmation emails sent.")
           : "Booking recorded, but a notification email failed to send.",
         calLink,
+        depositPayUrl: customerDepositPayUrl,
         markEmail: markData,
         customerEmail: customerData,
         emailStatus: { operator: operatorEmailed, customer: customerEmailed }
@@ -1297,7 +1298,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, provisional, message: "Booking recorded but email sending failed.", calLink, error: err.message, emailStatus: { operator: false, customer: false } })
+      body: JSON.stringify({ success: true, provisional, message: "Booking recorded but email sending failed.", calLink, depositPayUrl: customerDepositPayUrl, error: err.message, emailStatus: { operator: false, customer: false } })
     };
   }
 }

@@ -731,9 +731,28 @@ async function processBooking(booking){
     }
     bub.appendChild(document.createElement("br"));
     bub.appendChild(document.createElement("br"));
+    // Deposit pay link (D-004): the server threads depositPayUrl into the response only
+    // when a live https Stripe checkout link exists (auto-confirm + structured pricing).
+    // Show a pay button and word the footer to match; otherwise keep the "Mark will be in
+    // touch" fallback. Mirrors emailSnippets.depositInstructionLine so the on-screen card
+    // and the confirmation email never contradict. https-only, DOM nodes only (L-003).
+    const payUrl = (typeof bookData.depositPayUrl === "string" && bookData.depositPayUrl.startsWith("https://")) ? bookData.depositPayUrl : null;
+    if(payUrl){
+      const pa = document.createElement("a");
+      pa.href = payUrl;
+      pa.target = "_blank";
+      pa.rel = "noopener";
+      pa.style.cssText = "display:inline-block;background:#1a8a7a;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-size:0.85rem;margin-top:6px;";
+      pa.textContent = "Pay your deposit securely";
+      bub.appendChild(pa);
+      bub.appendChild(document.createElement("br"));
+      bub.appendChild(document.createElement("br"));
+    }
     const footer = document.createElement("span");
     footer.style.cssText = "font-size:0.82rem;color:#718096;";
-    footer.textContent = "Mark will be in touch to arrange your deposit of " + (booking.deposit||"") + ". Questions? Call 01452 452356.";
+    footer.textContent = payUrl
+      ? "Pay your deposit of " + (booking.deposit||"") + " using the button above to secure your slot. Questions? Call 01452 452356."
+      : "Mark will be in touch to arrange your deposit of " + (booking.deposit||"") + ". Questions? Call 01452 452356.";
     bub.appendChild(footer);
     const t = document.createElement("div");
     t.className = "msg-time";
