@@ -36,14 +36,15 @@ function depositSentence() {
 const CANCELLATION = { statutoryDays: 14 };
 
 // Paragraphs, so /terms renders one <p> each and the email joins them into one block.
-// TODO(T-1/express-request-capture): the fourth paragraph promises a proportionate
-// charge for part-performed work if the customer asks us to start inside the 14 days,
-// but reg 36 only allows that where the booking flow captured the customer's express
-// request to begin + an acknowledgement the right is lost on completion. The flow does
-// not capture that yet; wire it into the confirm_booking path before relying on it.
-// HIGH PRIORITY REVIEW within 2 months of go-live (Ben, 2026-09-06; cross-agent flag
-// GEMPRO): keep the wording as-is until then, then either build the capture above or
-// soften this paragraph. See docs/LEGAL_REVIEW_TERMS_2026-09.md T-1.
+// T-1/express-request-capture — RETIRED, kept as-is (D-037, 2026-09-09). The fourth
+// paragraph promises a proportionate charge for part-performed work if the customer
+// asks us to start inside the 14 days. Reg 36 only allows that charge where the flow
+// captured the customer's express request to begin + an acknowledgement the right is
+// lost on completion, which the booking flow does not record. Ben accepted this as-is
+// (owner risk-acceptance, extends D-035): the wording is correct on its face and
+// legitimately protects Mark; only the operational record of the express request is
+// absent. If ever closing the gap, capture that acknowledgement at the confirm step
+// rather than rewriting this paragraph. See D-037 and docs/LEGAL_REVIEW_TERMS_2026-09.md T-1.
 function cancellationRightParagraphs() {
   const d = CANCELLATION.statutoryDays;
   return [
