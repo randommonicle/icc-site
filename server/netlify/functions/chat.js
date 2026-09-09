@@ -62,7 +62,7 @@ const policy = require("../../../shared/config/policy.js");
 // Slice 5a (D-020): the operational-backend client + the pure handoff-row builder.
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const { escalationToMessageDraft } = require("../../../shared/messages.js");
-const { depositPayButtonHtml } = require("../../../shared/emailSnippets.js");
+const { depositPayButtonHtml, depositInstructionLine } = require("../../../shared/emailSnippets.js");
 const { isPaymentConfigured, createDepositCheckoutForJob } = require("./paymentProvider.js");
 // D-027: the shared provisional-decision core supplies the action-token mint + expiry
 // so handleBooking, bookingAction and bookingAdmin all compute them identically.
@@ -1185,7 +1185,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   // link in the accept email after Mark accepts, bookingAction.js). Created only when payment
   // is configured AND we have a server-derived deposit (structured pricing) AND the row is in
   // Postgres (so the webhook can reconcile it). Fail-safe: any error just omits the button and
-  // keeps the "Mark will be in touch" wording.
+  // depositInstructionLine() falls back to the "Mark will be in touch" wording.
   let customerDepositPayUrl = null;
   if (!provisional && usePostgres && currentBookingId && isPaymentConfigured() && serverQuote && serverQuote.deposit > 0) {
     try {
@@ -1229,7 +1229,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
             <ul style="font-size:13px;color:#4a5568;margin:8px 0;padding-left:20px;">
               <li>Clear small items, ornaments and lightweight furniture from carpeted areas</li>
               <li>Keep pets away from the work area during the clean and until carpets are dry</li>
-              <li>Mark will be in touch to arrange your deposit payment to confirm the slot</li>
+              <li>${depositInstructionLine(customerDepositPayUrl)}</li>
             </ul>
           </div>${depositPayButtonHtml(customerDepositPayUrl)}
           <div style="margin-top:15px;text-align:center;">

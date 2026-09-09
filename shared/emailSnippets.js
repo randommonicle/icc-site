@@ -22,8 +22,9 @@ function escapeAttr(s) {
 // DORMANT-until-configured (the house pattern): returns "" when there is no link, so
 // until the payment link is live AND the deposit amount is server-derived (never the
 // AI assistant's free-text figure — see D-004 addendum / TODO(slice5x/structured-
-// pricing)), the email shows no button and keeps its existing "Mark will be in touch
-// to arrange your deposit" wording. Only an absolute https link renders — a customer-
+// pricing)), the email shows no button, and depositInstructionLine() (its sibling)
+// supplies the "Mark will be in touch" fallback wording. Only an absolute https link
+// renders — a customer-
 // or model-supplied value, or any non-https scheme, is refused (defence in depth,
 // mirroring the citation-url http(s) guard).
 function depositPayButtonHtml(url) {
@@ -43,4 +44,19 @@ function depositPayTextLine(url) {
   return `Pay your deposit securely: ${url}`;
 }
 
-module.exports = { depositPayButtonHtml, depositPayTextLine };
+// The customer-facing deposit instruction line, derived from the SAME url as
+// depositPayButtonHtml so the button and the words can never contradict (D-004).
+// Before this, the button was conditional on the url while the "Mark will be in touch"
+// bullet was hardcoded, so a live pay button could sit directly beside a line telling
+// the customer Mark would arrange payment. Deriving both from one input closes that.
+// Same https-only guard as the button: a link renders the pay-now instruction; no link
+// (dormant Stripe, a provisional booking, or a checkout-creation failure) gives the
+// "Mark will be in touch" fallback. Purely instructional; the deposit POLICY
+// (percentage, refundability, notice) stays single-sourced in policy.depositSentence().
+function depositInstructionLine(url) {
+  return (typeof url === "string" && /^https:\/\//i.test(url))
+    ? "Please pay your deposit using the button below to secure your slot."
+    : "Mark will be in touch to arrange your deposit payment to confirm the slot.";
+}
+
+module.exports = { depositPayButtonHtml, depositPayTextLine, depositInstructionLine };

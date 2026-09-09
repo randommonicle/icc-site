@@ -6,7 +6,8 @@
 //
 // Dormant until configured (the house pattern, smsProvider.js / supabaseClient.js):
 // with no STRIPE_SECRET_KEY, isPaymentConfigured() is false and the booking flow
-// creates no pay link and keeps its existing "Mark will be in touch" wording. Keys
+// creates no pay link, so depositInstructionLine() keeps the "Mark will be in touch"
+// fallback wording (shared/emailSnippets.js). Keys
 // are SERVER-SIDE ONLY (Architecture rule 1). Card data never touches ICC: the
 // customer pays on Stripe's hosted Checkout page (D-004, no card data stored).
 // CommonJS for the Netlify functions and the plain-Node `node --test` runner.
