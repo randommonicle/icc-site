@@ -180,6 +180,10 @@ async function handlePost(event, headers, deps) {
 }
 
 // GET /api/v1/invoices[?job_id=...] — list invoices (admin-gated), for the dashboard.
+// 'overdue' is a DERIVED status, not stored: Stripe's truth for an unpaid finalised
+// invoice is 'open' (we store 'sent'), so we compute overdue at read time from due_at.
+// Without this an unpaid invoice past its due date would read as 'sent' (the enum value
+// and the contract both promise 'overdue', so a reader must actually produce it).
 async function handleGet(event, headers, deps) {
   const { supabase } = deps;
   if (!supabase) return json(503, headers, { error: "Supabase not configured" });
@@ -188,7 +192,11 @@ async function handleGet(event, headers, deps) {
   if (jobId) q = q.eq("job_id", jobId);
   const { data, error } = await q.limit(500);
   if (error) return json(500, headers, { error: "Could not load invoices." });
-  return json(200, headers, { invoices: data || [] });
+  const now = deps.now ? new Date(deps.now) : new Date();
+  const invoices = (data || []).map((row) =>
+    row.status === "sent" && row.due_at && new Date(row.due_at) < now ? { ...row, status: "overdue" } : row
+  );
+  return json(200, headers, { invoices });
 }
 
 exports.handler = async function (event) {

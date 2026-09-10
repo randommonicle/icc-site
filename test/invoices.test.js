@@ -172,3 +172,19 @@ test("handleGet lists invoices, optionally filtered by job_id", async () => {
   assert.strictEqual(res.status, 200);
   assert.strictEqual(res.body.invoices.length, 2);
 });
+
+test("handleGet derives 'overdue' for a sent invoice past its due date (not stored)", async () => {
+  const rows = [
+    { id: "inv-1", status: "sent", due_at: "2026-09-01T00:00:00Z" }, // past due -> overdue
+    { id: "inv-2", status: "sent", due_at: "2026-12-01T00:00:00Z" }, // future due -> stays sent
+    { id: "inv-3", status: "paid", due_at: "2026-09-01T00:00:00Z" }, // paid stays paid even if past due
+    { id: "inv-4", status: "draft", due_at: null },                  // draft untouched
+  ];
+  const sb = fakeSupabase(() => ({ data: rows, error: null }));
+  const res = await parse(await inv.handleGet({ httpMethod: "GET", queryStringParameters: {} }, HEADERS, { supabase: sb, now: "2026-09-10T00:00:00Z" }));
+  const byId = Object.fromEntries(res.body.invoices.map((r) => [r.id, r.status]));
+  assert.strictEqual(byId["inv-1"], "overdue");
+  assert.strictEqual(byId["inv-2"], "sent");
+  assert.strictEqual(byId["inv-3"], "paid");
+  assert.strictEqual(byId["inv-4"], "draft");
+});

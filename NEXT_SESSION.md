@@ -33,7 +33,8 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 **Ben must do (out-of-repo) for invoicing to work on hosted, when ready (NOT now, batch held):**
 - Apply migration `20260910120000` to the HOSTED DB himself (auto-mode blocks agent schema writes; the inline post-apply catalog verification is in the file). Safe on the empty `invoices` table.
-- Invoicing stays DORMANT until `STRIPE_SECRET_KEY` is set + the Stripe account/webhook exist (D-009); the same Stripe account as the deposit work (D-036).
+- **Migration BEFORE the Stripe key (migration-before-keys, same trap as the deposit slice).** The endpoint gates on `STRIPE_SECRET_KEY`, not on the migration, so if the key were set before the migration is applied, `create` would fail at the insert with a missing-column error rather than a clean "not configured". Apply the migration first.
+- Invoicing stays DORMANT until `STRIPE_SECRET_KEY` is set + the Stripe account/webhook exist (D-009); the same Stripe account as the deposit work (D-036). (`overdue` is derived at read time from `due_at`, not stored; `provider` is intentionally single-rail `'stripe'` for now.)
 
 **Remaining in phase 1 (planned, not built).**
 - **Beta 2e — invoice admin UI** in `admin.html` (create draft / review amount / send / show status on completed job cards) + the accounting export (D-026 build note 6). NOT built: `admin.html` behaviour is login-gated so I cannot verify it here; it is the natural next piece to make invoicing operator-usable. `TODO(backend-phase1/invoice-orphan)` (reconcile a Stripe draft whose local insert failed) is also open.

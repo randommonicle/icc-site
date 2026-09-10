@@ -143,4 +143,3 @@ exports.handler = async function (event) {
 
 exports.handlePost = handlePost;
 exports.rawBodyOf = rawBodyOf;
-exports.reflectInvoiceEvent = reflectInvoiceEvent;
