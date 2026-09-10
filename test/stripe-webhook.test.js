@@ -18,19 +18,23 @@ function sign(body) {
 function eventFor(body) {
   return { httpMethod: "POST", isBase64Encoded: false, body, headers: { "stripe-signature": sign(body) } };
 }
-// Chainable fake mimicking supabase.from().update().eq().eq().select() -> {data,error}.
+// Chainable fake mimicking supabase.from().update().eq().neq().select() -> {data,error}.
 function fakeSupabase(result) {
   const calls = { filters: [] };
   const api = {
     from(t) { calls.from = t; return api; },
     update(f) { calls.update = f; return api; },
     eq(c, v) { calls.filters.push([c, v]); return api; },
+    neq(c, v) { calls.filters.push(["neq:" + c, v]); return api; },
     select(s) { calls.select = s; return Promise.resolve(result); },
   };
   return { api, calls };
 }
 function completedBody(object) {
   return JSON.stringify({ type: "checkout.session.completed", data: { object } });
+}
+function invoiceBody(type, object) {
+  return JSON.stringify({ type, data: { object } });
 }
 
 test("handlePost returns 503 when the webhook secret is unset (dormant)", async () => {
@@ -88,4 +92,52 @@ test("handlePost ignores an unpaid session and unrelated event types without wri
   res = await webhook.handlePost(eventFor(bodyOther), headers, { supabase: other.api, webhookSecret: SECRET, now: TS });
   assert.equal(res.statusCode, 200);
   assert.equal(other.calls.update, undefined, "unrelated event writes nothing");
+});
+
+// D-026 invoice lifecycle reflection ----------------------------------------
+
+test("invoice.paid marks the invoice paid with a compare-and-set guard", async () => {
+  const { api, calls } = fakeSupabase({ data: [{ id: "inv-1" }], error: null });
+  const body = invoiceBody("invoice.paid", { id: "in_1", number: "ICC-0001", hosted_invoice_url: "https://pay/in_1" });
+  const res = await webhook.handlePost(eventFor(body), headers, { supabase: api, webhookSecret: SECRET, now: TS });
+  assert.equal(res.statusCode, 200);
+  assert.equal(JSON.parse(res.body).applied, 1);
+  assert.equal(calls.from, "invoices");
+  assert.equal(calls.update.status, "paid");
+  assert.ok(calls.update.paid_at, "paid_at stamped");
+  assert.ok(calls.filters.some(([c, v]) => c === "provider_invoice_id" && v === "in_1"), "keyed by provider invoice id");
+  assert.ok(calls.filters.some(([c, v]) => c === "neq:status" && v === "paid"), "CAS: only when not already paid");
+});
+
+test("invoice.paid replay updating 0 rows still 200s (idempotent)", async () => {
+  const { api } = fakeSupabase({ data: [], error: null });
+  const body = invoiceBody("invoice.paid", { id: "in_1" });
+  const res = await webhook.handlePost(eventFor(body), headers, { supabase: api, webhookSecret: SECRET, now: TS });
+  assert.equal(res.statusCode, 200);
+  assert.equal(JSON.parse(res.body).applied, 0);
+});
+
+test("invoice.finalized reflects sent + number + hosted url", async () => {
+  const { api, calls } = fakeSupabase({ data: [{ id: "inv-1" }], error: null });
+  const body = invoiceBody("invoice.finalized", { id: "in_1", number: "ICC-0002", hosted_invoice_url: "https://pay/in_1" });
+  const res = await webhook.handlePost(eventFor(body), headers, { supabase: api, webhookSecret: SECRET, now: TS });
+  assert.equal(res.statusCode, 200);
+  assert.equal(calls.update.status, "sent");
+  assert.equal(calls.update.number, "ICC-0002");
+  assert.equal(calls.update.payment_url, "https://pay/in_1");
+  assert.ok(!calls.filters.some(([c]) => c === "neq:status"), "no CAS guard on finalize");
+});
+
+test("invoice.voided reflects void", async () => {
+  const { api, calls } = fakeSupabase({ data: [{ id: "inv-1" }], error: null });
+  const res = await webhook.handlePost(eventFor(invoiceBody("invoice.voided", { id: "in_1" })), headers, { supabase: api, webhookSecret: SECRET, now: TS });
+  assert.equal(res.statusCode, 200);
+  assert.equal(calls.update.status, "void");
+});
+
+test("invoice.payment_failed is ignored without a write", async () => {
+  const { api, calls } = fakeSupabase({ data: [], error: null });
+  const res = await webhook.handlePost(eventFor(invoiceBody("invoice.payment_failed", { id: "in_1" })), headers, { supabase: api, webhookSecret: SECRET, now: TS });
+  assert.equal(res.statusCode, 200);
+  assert.equal(calls.update, undefined, "payment_failed writes nothing");
 });

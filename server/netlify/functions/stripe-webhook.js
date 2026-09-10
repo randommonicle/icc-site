@@ -1,11 +1,12 @@
 // Stripe webhook (`/api/stripe-webhook`) — marks a job's deposit paid when the
-// customer completes the hosted Checkout (D-004). The SIGNATURE is the only auth: we
-// verify the Stripe-Signature header against STRIPE_WEBHOOK_SECRET in constant time
-// and reject anything that does not match (constructWebhookEvent). No per-IP rate
-// limit here on purpose — an unsigned flood fails the signature check cheaply and
-// writes nothing, whereas rate-limiting Stripe's rotating IPs would risk dropping real
-// events (guard-the-spend-paths: the signature is the named primary control, and the
-// DB is touched only after it passes).
+// customer completes the hosted Checkout (D-004), and reflects invoice lifecycle
+// events onto the local `invoices` row (D-026: paid / finalized / voided /
+// uncollectible). The SIGNATURE is the only auth: we verify the Stripe-Signature
+// header against STRIPE_WEBHOOK_SECRET in constant time and reject anything that does
+// not match (constructWebhookEvent). No per-IP rate limit here on purpose — an unsigned
+// flood fails the signature check cheaply and writes nothing, whereas rate-limiting
+// Stripe's rotating IPs would risk dropping real events (guard-the-spend-paths: the
+// signature is the named primary control, and the DB is touched only after it passes).
 //
 // Idempotent: marking paid is a compare-and-set UPDATE (... where deposit_status =
 // 'unpaid'), so Stripe's at-least-once retries never double-apply (L-028: the claim is
@@ -76,8 +77,53 @@ async function handlePost(event, headers, deps) {
     return json(200, headers, { ok: true, applied: (data || []).length });
   }
 
+  // D-026 invoice lifecycle: reflect the rail's state onto our invoices row.
+  if (typeof stripeEvent.type === "string" && stripeEvent.type.startsWith("invoice.")) {
+    return reflectInvoiceEvent(supabase, stripeEvent, headers);
+  }
+
   // Any other event type: acknowledge so Stripe stops re-sending it.
   return json(200, headers, { ok: true, ignored: stripeEvent.type });
+}
+
+// Map a Stripe invoice.* event onto the local invoices row, keyed by provider_invoice_id
+// (unique). invoice.paid is a compare-and-set (... where status <> 'paid') so an
+// at-least-once replay never re-stamps paid_at; the others set the reflected status. An
+// event for an invoice we do not have (applied 0) is acknowledged, not retried.
+async function reflectInvoiceEvent(supabase, stripeEvent, headers) {
+  const obj = (stripeEvent.data && stripeEvent.data.object) || {};
+  const providerInvoiceId = obj.id;
+  const type = stripeEvent.type;
+  if (!providerInvoiceId) return json(200, headers, { ok: true, ignored: `${type} with no invoice id` });
+
+  let patch;
+  let idempotent = false;
+  if (type === "invoice.paid") {
+    patch = { status: "paid", paid_at: new Date().toISOString() };
+    if (obj.number) patch.number = obj.number;
+    if (obj.hosted_invoice_url) patch.payment_url = obj.hosted_invoice_url;
+    idempotent = true; // guard: only when not already paid
+  } else if (type === "invoice.finalized") {
+    patch = { status: "sent" };
+    if (obj.number) patch.number = obj.number;
+    if (obj.hosted_invoice_url) patch.payment_url = obj.hosted_invoice_url;
+  } else if (type === "invoice.voided") {
+    patch = { status: "void" };
+  } else if (type === "invoice.marked_uncollectible") {
+    patch = { status: "uncollectible" };
+  } else {
+    // invoice.payment_failed etc.: nothing to reflect (overdue is derived from due_at).
+    return json(200, headers, { ok: true, ignored: type });
+  }
+
+  let q = supabase.from("invoices").update(patch).eq("provider_invoice_id", providerInvoiceId);
+  if (idempotent) q = q.neq("status", "paid");
+  const { data, error } = await q.select("id");
+  if (error) {
+    console.log("stripe-webhook: invoice reflect failed:", error.message);
+    return json(500, headers, { error: "Could not record invoice event" });
+  }
+  return json(200, headers, { ok: true, applied: (data || []).length });
 }
 
 exports.handler = async function (event) {
@@ -97,3 +143,4 @@ exports.handler = async function (event) {
 
 exports.handlePost = handlePost;
 exports.rawBodyOf = rawBodyOf;
+exports.reflectInvoiceEvent = reflectInvoiceEvent;
