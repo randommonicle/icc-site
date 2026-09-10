@@ -70,6 +70,13 @@
   to = "/.netlify/functions/v1-quote"
   status = 200
 
+# D-026 invoicing — platform-owned invoicing on Stripe, admin-gated (requireAdmin).
+# Under /api/v1 so the field app is a client (D-003/D-012). Dormant until STRIPE_SECRET_KEY.
+[[redirects]]
+  from = "/api/v1/invoices"
+  to = "/.netlify/functions/invoices"
+  status = 200
+
 # D-004 deposit pay-link — Stripe posts payment events here. Signature-authorised
 # (STRIPE_WEBHOOK_SECRET), POST-only. Dormant until the Stripe env vars are set.
 [[redirects]]
