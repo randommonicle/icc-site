@@ -58,6 +58,7 @@
   .status-pending{background:rgba(200,168,75,0.15);color:#8a6d0a;}
   .status-confirmed{background:rgba(26,138,122,0.15);color:var(--teal);}
   .status-completed{background:rgba(26,58,92,0.1);color:var(--navy);}
+  .status-cancelled{background:rgba(180,60,60,0.12);color:#a23b3b;}
   .booking-card-body{display:none;padding:1.25rem;}
   .booking-card-body.open{display:block;}
   .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;}
@@ -154,6 +155,9 @@
       <button class="filter-btn active" onclick="filterBookings('all',this)">All</button>
       <button class="filter-btn" onclick="filterBookings('upcoming',this)">Upcoming</button>
       <button class="filter-btn" onclick="filterBookings('today',this)">Today</button>
+      <button class="filter-btn" onclick="filterBookings('outstanding',this)">Outstanding</button>
+      <button class="filter-btn" onclick="filterBookings('completed',this)">Completed</button>
+      <button class="filter-btn" onclick="filterBookings('cancelled',this)">Cancelled</button>
     </div>
 
     <div class="bookings-grid" id="bookingsGrid">
@@ -491,10 +495,14 @@ async function provisionalAction(id, action, btn){
 function updateStats(bookings){
   const today = new Date().toISOString().split("T")[0];
   const weekEnd = new Date(Date.now() + 7*24*60*60*1000).toISOString().split("T")[0];
-  const upcoming = bookings.filter(b => b.date >= today);
-  const thisWeek = bookings.filter(b => b.date >= today && b.date <= weekEnd);
+  // A cancelled job is neither pipeline nor revenue; exclude it from the active views.
+  // (Est. Revenue still parses the price display string; a numeric field is exposed in
+  // the P&L slice, TODO(backend-phase1/pnl) in docs/BACKEND_PHASE1_PLAN.md.)
+  const active = bookings.filter(b => jobStatusCategory(b) !== "cancelled");
+  const upcoming = active.filter(b => b.date >= today);
+  const thisWeek = active.filter(b => b.date >= today && b.date <= weekEnd);
   let revenue = 0;
-  bookings.forEach(b => {
+  active.forEach(b => {
     const match = (b.estimated_price||"").match(/[\d,]+/);
     if(match) revenue += parseFloat(match[0].replace(",",""));
   });
@@ -504,6 +512,17 @@ function updateStats(bookings){
   document.getElementById("statRevenue").textContent = revenue > 0 ? "\u00a3"+revenue.toLocaleString() : "-";
 }
 
+// Map a record to a status bucket for the status filters and the stats. Real jobs
+// carry jobs.status (D-021/D-025/D-027); legacy Blobs bookings carry none, so they
+// only ever match the date-based filters (all/upcoming/today), never the status ones.
+function jobStatusCategory(b){
+  const s = b.job_status;
+  if(s === "completed") return "completed";
+  if(s === "cancelled") return "cancelled";
+  if(s === "booked" || s === "in_progress" || s === "enquiry") return "outstanding";
+  return "legacy";
+}
+
 function filterBookings(filter, btn){
   document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
   btn.classList.add("active");
@@ -511,6 +530,9 @@ function filterBookings(filter, btn){
   if(filter === "all") renderBookings(allBookings);
   else if(filter === "upcoming") renderBookings(allBookings.filter(b => b.date >= today));
   else if(filter === "today") renderBookings(allBookings.filter(b => b.date === today));
+  else if(filter === "outstanding") renderBookings(allBookings.filter(b => jobStatusCategory(b) === "outstanding"));
+  else if(filter === "completed") renderBookings(allBookings.filter(b => jobStatusCategory(b) === "completed"));
+  else if(filter === "cancelled") renderBookings(allBookings.filter(b => jobStatusCategory(b) === "cancelled"));
 }
 
 function renderBookings(bookings){
@@ -530,10 +552,13 @@ function esc(s){
 function buildCard(b, i){
   const initials = b.name ? b.name.split(" ").map(w=>w[0]).join("").substring(0,2).toUpperCase() : "?";
   const today = new Date().toISOString().split("T")[0];
-  // Prefer the real jobs.status (D-025) when present; fall back to the date-derived
-  // label for legacy Blobs records that carry no status.
+  // Prefer the real jobs.status when present (D-021/D-025/D-027); only legacy Blobs
+  // rows with no status fall back to the date-derived label.
   let status, statusLabel;
   if(b.job_status === "completed"){ status = "completed"; statusLabel = "Completed"; }
+  else if(b.job_status === "cancelled"){ status = "cancelled"; statusLabel = "Cancelled"; }
+  else if(b.job_status === "in_progress"){ status = "confirmed"; statusLabel = "In progress"; }
+  else if(b.job_status === "booked"){ status = "confirmed"; statusLabel = "Booked"; }
   else { status = b.date < today ? "completed" : b.date === today ? "confirmed" : "pending";
          statusLabel = b.date < today ? "Past" : b.date === today ? "Today" : "Upcoming"; }
 

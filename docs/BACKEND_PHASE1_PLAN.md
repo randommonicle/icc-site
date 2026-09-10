@@ -53,7 +53,7 @@ D-026 (`DECISIONS.md:334-336`) deliberately split "invoicing = platform owns" fr
 
 Ordered by what is decided and what unblocks the rest. Each beta is its own small commit(s) with tests, staged with a checkpoint-log entry below.
 
-### Beta 1 — Jobs status dashboard  (safe, no external dep) — [ ]
+### Beta 1 — Jobs status dashboard  (safe, no external dep) — [x]
 - **Files:** `admin.html` (add a status filter axis: outstanding vs completed vs cancelled, alongside the existing date filters; fix `updateStats` to derive revenue from job data and respect status; status badges on cards). Optionally `server/netlify/functions/bookings.js` (accept a `status` query param for server-side filtering; the field app will want this).
 - **Tests:** `admin-html-syntax.test.js` (guards the edit); `bookings.js` tests if the endpoint changes.
 - **Out of scope:** job-photo storage; the dead `enquiry`/`in_progress` statuses (field app); a full `/api/v1/jobs` endpoint (note as follow-up).
@@ -94,4 +94,6 @@ Job-photo storage (bucket not stood up); field-app UI; live Stripe money (go-liv
 
 ## Checkpoint log (append one entry per commit, staged with it)
 
-_Unit opened 2026-09-10. No commits landed yet; entries follow as each beta commit lands._
+_Unit opened 2026-09-10._
+
+- **Beta 1 — jobs status dashboard** (this commit). `admin.html` only. Added Outstanding / Completed / Cancelled status filters keyed off the real `jobs.status` (new pure `jobStatusCategory(b)` helper), a `.status-cancelled` badge, status-accurate card labels for booked / in_progress / cancelled, and excluded cancelled jobs from the Upcoming / This Week / Revenue stats. Legacy Blobs rows (no `job_status`) match only the date filters, by design. **Deviation:** kept the existing revenue display-string parse (a numeric revenue field is deferred to the P&L slice, `TODO(backend-phase1/pnl)` planted in `admin.html`); did not add a `/api/v1/jobs` endpoint (follow-up for the field app). **Verify:** `node --test` green incl. the `admin-html-syntax` guard; full dashboard behaviour is login-gated, so Ben confirms live.
