@@ -12,6 +12,53 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session (2026-09-10): D-038 assistant pointer line BUILT + tested + committed (the last deferred code item in the held batch); both specialist-service pages previewed and verified rendering; sensitive decon copy sign-off packaged for Ben. 2 commits (1 code + this handover), LOCAL/UNPUSHED, batch still HELD, nothing deployed.
+
+*Diagnoses in this note are unverified unless marked.* **Wrap-up context: /context unavailable in this harness (desktop Code tab, non-interactive) — no reading taken, recorded as a gap not an estimate. No compaction/summarisation warnings seen. Ben's steer: "no adversarial reviews at this time, read handover and move onto next steps / most available logical outcomes; two Opus sub-agents permitted if needed; all permissions granted." No sub-agents used (the work did not warrant them; declining for a change this size is the correct call). No adversarial/cross-agent review run, per that steer; the one Opus-5 advisor consult below is the strong-reviewer tool, not a cross-agent seat.**
+
+**Session goal.** Read the handover, act on the next logical steps without hitting a human/deploy gate. Landed action #2 (the assistant pointer line) and the doable half of action #1 (preview + package the copy sign-off).
+
+**Batch state (verified this session).** `main` is **7 commits ahead of `origin/main` (`e3bd73a`)**, 0 behind, clean fast-forward, no open PRs. So the 2026-09-09 batch is genuinely undeployed, exactly as its handover said. Newest→oldest: `849fcf5` (this session's pointer line), `e4192c1` (2026-09-09 handover, `[skip ci]`), `35b4cd6`, `59638c0`, `dfaaf14`, `d195980`, `15bc88e`. This handover commit adds an 8th.
+
+**⚠ DEPLOY TRAP — the tip must NOT be `[skip ci]` when Ben pushes.** The batch contains undeployed CODE, but the 2026-09-09 handover tip `e4192c1` was `[skip ci]`, which per L-030 skips the WHOLE Netlify build. If that had been pushed as the tip, the code would have landed on GitHub but NOT deployed. My pointer commit `849fcf5` is a normal (non-skip) commit and is now the tip; **this handover commit is DELIBERATELY normal too (not `[skip ci]`)** so the tip stays build-triggering. Rule for the deploy step: confirm `git log -1` shows a non-`[skip ci]` subject before pushing; if a later docs/`[skip ci]` commit lands on top, add a trailing normal commit (or use Netlify "Clear cache and deploy") or the batch pushes without deploying. Candidate LESSONS addendum to L-030 (prompt Ben).
+
+**What landed this session.**
+- `849fcf5` feat(chat): assistant pointer line for non-carpet enquiries (D-038's last deferred code item). Adds a `SPECIALIST SERVICES BEYOND CARPETS` block to `STATIC_SYSTEM_PROMPT` (`server/netlify/functions/chat.js`, between the hand-over and web-search blocks). The assistant now: names ozone decontamination, fogging and pressure washing; never quotes/books/advises on them or describes method/efficacy; points to Mark (call 01452 452356 / email) OR captures a callback via `escalate_to_human` reason `out_of_scope`; and holds the boundary that decontamination is cleaning/odour only, NOT forensic/trauma/after-death scene cleaning. Reactive only ("if a customer asks") to protect carpet focus (D-038:508). Test in `test/bookings-chat.test.js` asserts the service names, the Mark pointer, the no-quote rule, AND the forensic/trauma boundary as a NEGATIVE (so dropping the boundary fails the suite — prove-it-can-fail). Verified: `node --test` 383 tests, 374 pass / 0 fail / 9 skip; `npm run build --prefix site` green (27 pages). UNVERIFIED at the live seam (unpushed, no ride).
+
+**Design choice made this session (with the Opus-5 advisor, worth Ben's eye).** The 2026-09-09 handover framed the pointer as a pure "give the number" line. On the advisor's steer I made it ADDITIVE instead: it still offers Mark's number/email but ALSO lets the assistant capture a call-back via the existing `escalate_to_human` tool, so a high-value enquiry (a crime-scene decontamination or a commercial bin-store contract) becomes a logged lead + operator email rather than a recited number that evaporates if the customer never rings. This does NOT build the deferred per-service triage/quote BOT (that stays a future phase, D-038 final para); it reuses the tool that already fires on out-of-scope today. If Ben prefers a pure verbal pointer with no lead capture, it is a one-line edit. Not recorded in DECISIONS (it implements D-038's already-decided approach) — prompt Ben if he wants it minuted.
+
+**Preview / sign-off (action #1).** Ran `npm --prefix site run preview` (localhost:4321, astro preview over the fresh `site/dist`) and viewed both pages in the in-app browser. Both render cleanly and professionally; the rendered copy matches source verbatim and the on-page claims discipline holds (certified NOT accredited, ozone as method, the crime-scene card carries "does not include forensic or trauma scene cleaning", no efficacy/kill figures, biocide stated without a named product). **Still Ben's to sign off** (quoted verbatim in this session's chat): the decontamination page's "Specialist & crime-scene decontamination" use-case card, the "Healthcare & infection control" card, and the ozone-safety paragraph — decision needed on whether to keep the phrase "crime-scene" at all. Minor polish flagged: the "Odour elimination" card uses em dashes, which clashes with Ben's no-em-dash preference and the assistant prompt's own no-dash rule (Ben's call, cosmetic).
+
+**Deferred / carried forward (anchors).**
+- **Home-page link to the specialist services** — the two pages are only reachable via /services. Ben to decide whether to surface on home; a minimal reversible link can be staged on his word (NOT built this session — his design call).
+- **Per-service triage/quote bots** — deferred future phase (D-038 final para; ROADMAP:41). Qualify-and-hand-to-Mark, not instant-price; needs a vetted citable KB + per-domain guardrails.
+- **Calendar free/busy clash-check** — PARKED (D-005 + D-033, auth done + token exchange verified). Gated on running `scripts/verify-calendar-freebusy.js` once Mark's calendar is live; then build `docs/CALENDAR_INTEGRATION.md` Part C.
+- **T-1 residual** (D-037): express-request acknowledgement at confirm step, cheap future add. Anchor: the D-037 comment above `cancellationRightParagraphs()`, `shared/config/policy.js`.
+
+**Verification still outstanding.**
+- Whole batch UNPUSHED, so nothing proven at the live seam. On deploy, run the post-deploy booking ride on the noindex site (L-008): (a) the deposit email line + button, (b) the on-screen card pay button, and NOW (c) sanity-check the assistant's pointer behaviour by asking it a pressure-washing / decontamination question and confirming it points to Mark, does not quote, and does not confirm forensic/trauma work.
+- The two service pages are build-green and now visually confirmed, but NOT proven on the live domain (they deploy with the batch).
+
+**Blockers / open questions.**
+- Ben's sign-off/edit on the sensitive decontamination copy (esp. whether to name "crime scene").
+- The whole batch deploy is HELD pending Ben's go. push to main = deploy (mind the `[skip ci]`-tip trap above).
+
+**Next actions (ordered).**
+1. Get Ben's sign-off on the sensitive decon copy (packaged in this session's chat).
+2. On Ben's go: confirm the tip is non-`[skip ci]`, push the batch (= deploy), watch Netlify to green, then run the post-deploy booking ride + the new pointer-behaviour sanity check.
+3. Optionally surface specialist services on the home page (Ben's design call).
+4. Resume the calendar clash-check (D-033) once Mark's calendar is live.
+
+Supersedes the 2026-09-09 next-actions: #1 preview done (sign-off still Ben's); #2 pointer line DONE (`849fcf5`); #3 deploy+ride carried forward; #4 home surfacing carried forward; #5 calendar carried forward.
+
+**Traps / working agreements (this session).**
+- **Do NOT push. Batch still held for Ben's one deploy.** push to main = deploy. Confirm the tip is non-`[skip ci]` first (trap above).
+- The in-app browser preview is rooted at the Desktop STUB cwd, so `preview_start`'s `launch.json` lookup fails there; start `astro preview` from the real repo (`C:\Users\bengr\Projects\ICC\icc-site`) via a background shell and navigate to localhost:4321 instead. The `.claude/launch.json` in the real repo (name `icc-site`, port 4321) is correct but only usable once the tool is pointed at the real repo.
+- The services grid is 2-column only above the 820px CSS breakpoint; the ~800px in-app pane shows the single-column layout unless you set a wider viewport.
+- Claims discipline on the pages (D-015/L-009) unchanged: "certified" NOT "accredited"; ozone = equipment; no efficacy/kill %; no named biocide; crime-scene = decontamination, not forensic/trauma.
+
+---
+
 ## This session (2026-09-09): D-004 deposit-wording contradiction closed across all 3 surfaces; T-1 retired (D-037); repositioning DECIDED as KEEP the carpet name + add services (D-038); two enquiry-led specialist-service pages built. 5 commits, ALL LOCAL/UNPUSHED, nothing deployed (deliberate batch, Ben's steer).
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading — /context unavailable in this harness. No compaction/summarisation warnings seen; deliberate wrap (Ben: "good place to stop, bank it all"). Treated green.**
