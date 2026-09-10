@@ -12,6 +12,56 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session (2026-09-10, backend phase 1): invoicing BACKEND built end-to-end and tested (schema + adapter + endpoint + webhook, dormant behind STRIPE_SECRET_KEY); jobs status dashboard added; a phase-1 build plan recorded. 6 commits, LOCAL/UNPUSHED, batch still HELD, nothing deployed. Sensitive decon copy signed off by Ben ("agree to all"); pointer line already landed (entry below).
+
+*Diagnoses in this note are unverified unless marked.* **Wrap-up context: /context unavailable in this harness — recorded as a gap, not estimated. Long session; wrapping at a tested checkpoint (checkpoint-log: every commit is a safe stop). Ben's steer: build the first betas without him, no deploy; two Opus sub-agents authorised. Both sub-agents were used ONCE (the two surveys); no adversarial/cross-agent review run.**
+
+**Build plan + live checkpoint log:** [docs/BACKEND_PHASE1_PLAN.md](docs/BACKEND_PHASE1_PLAN.md) is the authoritative ledger for this unit (per-commit notes, the two decisions, the checklist). Read it first to resume.
+
+**What landed (6 commits, newest first; each `node --test`-green at the commit; all LOCAL/UNPUSHED, dormant).**
+- `6f9dde4` feat(invoicing): webhook reflects `invoice.*` events onto the `invoices` row (paid CAS / finalized / voided / uncollectible), reusing the signed-webhook verify (Beta 2d).
+- `71e5cd7` feat(invoicing): `POST/GET /api/v1/invoices` create/send/status endpoint, admin-gated, server-authoritative amount, deposit-credit line, idempotent, fail-closed; typed in `shared/contract/invoice.ts` (Beta 2c).
+- `02d4434` feat(invoicing): `invoiceProvider.js` Stripe Invoicing adapter (raw REST, injectable fetch, fail-closed), dormant behind `STRIPE_SECRET_KEY` (Beta 2b).
+- `fc200ea` feat(db): migration `20260910120000_invoices_provider.sql` extends `invoices` (provider pointer + number + payment_url) + `void`/`uncollectible` states; pgTAP invariant. **Validated on the local Docker stack** (`supabase db reset` + `test db` = 5 files / 49 pass). (Beta 2a).
+- `8cafa4b` feat(admin): jobs status dashboard — Outstanding/Completed/Cancelled filters + status-accurate cards, `admin.html` only (Beta 1).
+- `638ecca` docs: the phase-1 build plan + checkpoint log.
+- Full suite at wrap: `node --test` **409 tests, 400 pass / 0 fail / 9 skip**.
+
+**Two decisions (in the plan doc; Ben to confirm/override).**
+- **Decision A — deposit vs invoice: RESOLVED as build-default.** The invoice records the FULL job value; the paid deposit is a negative credit line so the amount DUE is the balance. Reversible; ROADMAP parks full reconciliation in Phase 3.
+- **Decision B — P&L/expenditure crosses D-026's "platform does invoicing, NOT accounting" boundary. NEEDS BEN.** Proposed as **D-039**: a LIGHT operational P&L (revenue the platform owns minus a simple expense log), explicitly not formal MTD accounting. **Beta 3 is blocked on ratifying this** — I did not build cost data in-platform without the decision. Draft D-039 and prompt Ben before Beta 3.
+
+**Ben must do (out-of-repo) for invoicing to work on hosted, when ready (NOT now, batch held):**
+- Apply migration `20260910120000` to the HOSTED DB himself (auto-mode blocks agent schema writes; the inline post-apply catalog verification is in the file). Safe on the empty `invoices` table.
+- Invoicing stays DORMANT until `STRIPE_SECRET_KEY` is set + the Stripe account/webhook exist (D-009); the same Stripe account as the deposit work (D-036).
+
+**Remaining in phase 1 (planned, not built).**
+- **Beta 2e — invoice admin UI** in `admin.html` (create draft / review amount / send / show status on completed job cards) + the accounting export (D-026 build note 6). NOT built: `admin.html` behaviour is login-gated so I cannot verify it here; it is the natural next piece to make invoicing operator-usable. `TODO(backend-phase1/invoice-orphan)` (reconcile a Stripe draft whose local insert failed) is also open.
+- **Beta 3 — expenditure + light operational P&L** — blocked on D-039 (above). Then an `expenses` table (RLS + pgTAP), `/api/v1/expenses` + `/api/v1/pnl`, admin UI.
+- **Beta 4 — operator (Mark-only) assistant** — greenfield; needs its own guardrail decision (**D-040**, modelled on the D-020 handoff-draft precedent: input-minimised, read-only, descriptive) AND the prerequisite refactor of the origin-allowlist + per-IP `rateLimit` out of `chat.js` into a shared lib (`shared/contract/README.md:42-44`) before a second LLM-spend endpoint. Strong reuse base: `runAssistantTurn` (chat.js) + `handoffs.js`.
+
+**Verification still outstanding.**
+- Invoicing is UNIT-tested only, with fakes; nothing proven against live Stripe (no account/keys here, dormant). The one-real-ride for invoicing (create → send → pay a test invoice → webhook reflects paid) is a with-Ben step once Stripe is keyed, like the deposit ride was.
+- `admin.html` Beta 1 status filters + the future invoice UI are login-gated (Supabase Auth); Ben verifies live. The `admin-html-syntax` guard only proves the script compiles.
+
+**Blockers / open questions.**
+- Ben to ratify D-039 (P&L boundary) before Beta 3, and decide D-040 (operator-assistant guardrail) before Beta 4.
+- Deploy still HELD; push to main = deploy; keep the tip non-`[skip ci]` (this handover commit is normal). Batch is now ~15 commits ahead of `origin/main`.
+
+**Next actions (ordered).**
+1. Build Beta 2e (invoice admin UI + export) so invoicing is operator-usable (login-gated verification; Ben confirms live).
+2. Ratify D-039, then build Beta 3 (expenditure + light P&L).
+3. Decide D-040 + do the guards refactor, then build Beta 4 (operator assistant).
+4. When ready to go live with invoicing: Ben applies migration `20260910120000` to hosted, sets Stripe env, then the with-Ben create→send→pay→webhook ride.
+
+**Traps / working agreements (this session).**
+- Local Supabase stack (Docker) is UP; validate every migration with `supabase db reset` + `supabase test db` before Ben applies to hosted. The `20260910120000` migration is validated.
+- Migration numbering: next is `> 20260910120000`. RLS must be `enable`d (no policies) on every new table or the locked-by-default posture breaks silently (init.sql:189-194).
+- New state/money or LLM-spend endpoints go under `/api/v1/*` with a `shared/contract/*.ts` type; factor the origin-allowlist + `rateLimit` out of `chat.js` before the operator-assistant endpoint.
+- Invoice money is server-authoritative (stored `estimated_price_ex_vat` or Mark's reviewed override), never a client figure. No VAT (net = gross).
+
+---
+
 ## This session (2026-09-10): D-038 assistant pointer line BUILT + tested + committed (the last deferred code item in the held batch); both specialist-service pages previewed and verified rendering; sensitive decon copy sign-off packaged for Ben. 2 commits (1 code + this handover), LOCAL/UNPUSHED, batch still HELD, nothing deployed.
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: /context unavailable in this harness (desktop Code tab, non-interactive) — no reading taken, recorded as a gap not an estimate. No compaction/summarisation warnings seen. Ben's steer: "no adversarial reviews at this time, read handover and move onto next steps / most available logical outcomes; two Opus sub-agents permitted if needed; all permissions granted." No sub-agents used (the work did not warrant them; declining for a change this size is the correct call). No adversarial/cross-agent review run, per that steer; the one Opus-5 advisor consult below is the strong-reviewer tool, not a cross-agent seat.**
