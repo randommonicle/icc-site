@@ -130,6 +130,26 @@ test("an oversize job is handed to Mark instead of dead-ending at the slots cap"
   assert.ok(/across two days/i.test(STATIC_SYSTEM_PROMPT), "the approved customer wording is present");
 });
 
+// --- specialist services beyond carpets (D-038): assistant stays carpet-only,
+// names the services, points to Mark, and never confirms forensic/trauma work.
+test("the prompt names ICC's specialist services and keeps the assistant from quoting them", () => {
+  assert.ok(/SPECIALIST SERVICES BEYOND CARPETS/i.test(STATIC_SYSTEM_PROMPT), "the specialist-services scope block is present");
+  assert.ok(/ozone decontamination/i.test(STATIC_SYSTEM_PROMPT), "decontamination is named");
+  assert.ok(/fogging/i.test(STATIC_SYSTEM_PROMPT), "fogging is named");
+  assert.ok(/pressure washing/i.test(STATIC_SYSTEM_PROMPT), "pressure washing is named");
+  assert.ok(/you do not quote, book, or advise on these/i.test(STATIC_SYSTEM_PROMPT), "the assistant is told not to quote or book them (carpet-only, D-038/D-019)");
+  assert.ok(/Mark prices each of these jobs individually/i.test(STATIC_SYSTEM_PROMPT), "the enquiry-led (Mark-priced) framing is present");
+  assert.ok(/01452 452356/.test(STATIC_SYSTEM_PROMPT), "the customer is pointed to Mark's number");
+});
+
+// The forensic/trauma boundary (D-038:504, page comment) must survive edits: the assistant
+// must NOT confirm forensic/trauma/after-death scene cleaning. Asserting the negative so a
+// version that quietly drops the boundary fails here (prove-it-can-fail).
+test("the prompt holds the decontamination boundary: no forensic or trauma scene cleaning", () => {
+  assert.ok(/forensic, trauma, or after-death scene cleaning/i.test(STATIC_SYSTEM_PROMPT), "the boundary names the excluded work");
+  assert.ok(/do not say that ICC does it/i.test(STATIC_SYSTEM_PROMPT), "the assistant is told not to confirm that work");
+});
+
 // --- validateBooking: per-day window (D-027) -------------------------------
 
 test("validateBooking accepts a start inside the day's window and rejects one after the 1pm last start", () => {
