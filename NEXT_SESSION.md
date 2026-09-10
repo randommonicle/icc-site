@@ -29,7 +29,8 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 **Two decisions (in the plan doc; Ben to confirm/override).**
 - **Decision A — deposit vs invoice: RESOLVED as build-default.** The invoice records the FULL job value; the paid deposit is a negative credit line so the amount DUE is the balance. Reversible; ROADMAP parks full reconciliation in Phase 3.
-- **Decision B — P&L/expenditure crosses D-026's "platform does invoicing, NOT accounting" boundary. NEEDS BEN.** Proposed as **D-039**: a LIGHT operational P&L (revenue the platform owns minus a simple expense log), explicitly not formal MTD accounting. **Beta 3 is blocked on ratifying this** — I did not build cost data in-platform without the decision. Draft D-039 and prompt Ben before Beta 3.
+- **Decision B — P&L/expenditure boundary: RATIFIED as D-039 (Ben, 2026-09-11).** A LIGHT operational P&L (revenue the platform owns minus a simple expense log), explicitly not formal MTD accounting; D-026's boundary is narrowly amended. Recorded in DECISIONS.md. **Beta 3 is now UNBLOCKED.**
+- **Operator-assistant guardrail: ACCEPTED as D-040 (Ben, 2026-09-11).** Read-only, input-minimised, descriptive, admin-gated, spend-capped, modelled on D-020. Recorded in DECISIONS.md. **Beta 4 is unblocked** (still needs the guards refactor first).
 
 **Ben must do (out-of-repo) for invoicing to work on hosted, when ready (NOT now, batch held):**
 - Apply migration `20260910120000` to the HOSTED DB himself (auto-mode blocks agent schema writes; the inline post-apply catalog verification is in the file). Safe on the empty `invoices` table.
@@ -46,14 +47,14 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 - `admin.html` Beta 1 status filters + the future invoice UI are login-gated (Supabase Auth); Ben verifies live. The `admin-html-syntax` guard only proves the script compiles.
 
 **Blockers / open questions.**
-- Ben to ratify D-039 (P&L boundary) before Beta 3, and decide D-040 (operator-assistant guardrail) before Beta 4.
-- Deploy still HELD; push to main = deploy; keep the tip non-`[skip ci]` (this handover commit is normal). Batch is now ~15 commits ahead of `origin/main`.
+- No decision blockers left: D-039 and D-040 are ratified (recorded in DECISIONS.md), so Beta 3 and Beta 4 are both unblocked. Ben chose to go with the proposed suggestions and stop for the evening (2026-09-10, into 2026-09-11).
+- Deploy still HELD; push to main = deploy; keep the tip non-`[skip ci]` ([[L-037]]; this handover commit is normal). Batch is now ~17 commits ahead of `origin/main`.
 
-**Next actions (ordered).**
-1. Build Beta 2e (invoice admin UI + export) so invoicing is operator-usable (login-gated verification; Ben confirms live).
-2. Ratify D-039, then build Beta 3 (expenditure + light P&L).
-3. Decide D-040 + do the guards refactor, then build Beta 4 (operator assistant).
-4. When ready to go live with invoicing: Ben applies migration `20260910120000` to hosted, sets Stripe env, then the with-Ben create→send→pay→webhook ride.
+**Next actions (ordered; recommended order, all unblocked).**
+1. Build Beta 2e (invoice admin UI + accounting export) so invoicing is operator-usable — no new decision needed (login-gated verification; Ben confirms live). Also address `TODO(backend-phase1/invoice-orphan)`.
+2. Build Beta 3 (D-039): `expenses` table + `/api/v1/expenses` + `/api/v1/pnl` + admin panel.
+3. Build Beta 4 (D-040): first the origin-allowlist + `rateLimit` guards refactor out of `chat.js`, then the read-only operator assistant.
+4. When ready to go live with invoicing: Ben applies migration `20260910120000` to hosted **before** setting the Stripe key ([[L-037]]-adjacent migration-before-keys), sets Stripe env, then the with-Ben create→send→pay→webhook ride.
 
 **Traps / working agreements (this session).**
 - Local Supabase stack (Docker) is UP; validate every migration with `supabase db reset` + `supabase test db` before Ben applies to hosted. The `20260910120000` migration is validated.

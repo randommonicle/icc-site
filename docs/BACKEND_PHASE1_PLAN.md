@@ -33,7 +33,7 @@ The customer pays a 10% deposit at booking. When the completion invoice is raise
 ### Decision B — P&L / expenditure crosses D-026's boundary (propose **D-039**)
 D-026 (`DECISIONS.md:334-336`) deliberately split "invoicing = platform owns" from "accounting/MTD = Mark's/his accountant's duty, platform only feeds it via a generic export". Expenditure and P&L sit on the accounting side of that line.
 
-**Recommendation (draft D-039, needs Ben's sign-off):** build a **light operational P&L** in-platform — revenue the platform already owns (invoices/jobs) minus a simple expense log Mark keeps — for his own at-a-glance visibility. This is explicitly **operational management insight, not formal tax accounting**: it does not do MTD digital records, quarterly ITSA, bank reconciliation, or filing, and the generic accounting export (D-026 build note 6) still feeds whatever MTD tool Mark lands on. It narrowly amends D-026 to allow cost data in-platform for operational visibility while formal tax accounting stays external. Prompt Ben to ratify as D-039 before this beta is more than a beta.
+**RATIFIED as D-039 (Ben, 2026-09-11).** Build a **light operational P&L** in-platform — revenue the platform already owns (invoices/jobs) minus a simple expense log Mark keeps — for his own at-a-glance visibility. This is explicitly **operational management insight, not formal tax accounting**: it does not do MTD digital records, quarterly ITSA, bank reconciliation, or filing, and the generic accounting export (D-026 build note 6) still feeds whatever MTD tool Mark lands on. It narrowly amends D-026 to allow cost data in-platform for operational visibility while formal tax accounting stays external. See `DECISIONS.md` D-039.
 
 ---
 
@@ -69,16 +69,16 @@ Ordered by what is decided and what unblocks the rest. Each beta is its own smal
 - **Tests:** `invoice-provider.test.js`, `invoices.test.js`, extend `stripe-webhook.test.js`; `admin-html-syntax` for the UI.
 - **Note:** shared-guards refactor deferred to Beta 4; admin gate + idempotency + fail-closed is the defence here.
 
-### Beta 3 — Expenditure + light operational P&L  (pending Decision B / D-039) — [ ]
-- **Decision first:** draft D-039 in `DECISIONS.md`; prompt Ben.
+### Beta 3 — Expenditure + light operational P&L  (D-039 ratified 2026-09-11) — [ ]
+- **Decision:** D-039 accepted (see `DECISIONS.md`); build.
 - **Migration** `expenses` table: `id, created_at, updated_at, incurred_on date, category (enum: fuel|materials|equipment|insurance|software|other), description, amount numeric(10,2) >0, job_id uuid null references jobs(id) on delete set null, notes`. RLS enabled. pgTAP + verification.
 - **Endpoint** `/api/v1/expenses` (`requireAdmin`, CRUD) + `/api/v1/pnl` (period revenue from invoices/jobs − expenses).
 - **Admin UI:** expense entry + a P&L summary panel.
 - **Contract** types.
 - **Tests:** endpoint + pure aggregation.
 
-### Beta 4 — Operator assistant (Mark-only)  (last; pending guardrail decision / D-040) — [ ]
-- **Decision first:** draft D-040 (the structural bound for a read-across-the-business operator AI surface, modelled on D-020); prompt Ben.
+### Beta 4 — Operator assistant (Mark-only)  (last; D-040 accepted 2026-09-11) — [ ]
+- **Decision:** D-040 accepted (read-only, input-minimised, descriptive, admin-gated, spend-capped; see `DECISIONS.md`); build.
 - **Prerequisite refactor:** extract the origin-allowlist + per-IP `rateLimit` from `chat.js` into a shared server lib (`shared/contract/README.md:42-44`); behaviour-preserving, locked by `hardening.test.js`/`origins.test.js`.
 - **Endpoint** `/api/v1/operator-chat` (`requireAdmin` + shared guards + capped rounds/`max_uses`): reuses `runAssistantTurn`; a distinct operator system prompt; **read-only** tools (query jobs / outstanding invoices / revenue / expenses / P&L); descriptive output; never sends anything outbound itself.
 - **Admin UI:** an operator-assistant panel.
