@@ -385,8 +385,12 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# Local-only: the analytics (Logflare) service and its Vector log shipper only feed
+# Studio's logs view, which nobody uses here, and Vector crash-looped on this machine
+# because it cannot reach the Docker socket (seen 2026-09-13). Off so `supabase start`
+# does not create either container. Hosted Supabase is unaffected (this file is local dev).
 [analytics]
-enabled = true
+enabled = false
 port = 54327
 # Configure one of the supported backends: `postgres`, `bigquery`.
 backend = "postgres"
