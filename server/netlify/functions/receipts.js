@@ -12,7 +12,7 @@ async function loadInvoiceRows(supabase) {
     .select("id,job_id,number,status,amount_ex_vat,provider,provider_invoice_id,issued_at,due_at,paid_at,created_at,jobs(slot_date,deposit_ex_vat,deposit_status,customers(name,email))")
     .order("created_at", { ascending: false })
     .limit(2000);
-  if (error) throw new Error(error.message);
+  if (error) { const e = new Error(error.message); e.code = error.code; throw e; } // preserve pg code (42P01/42703) for the endpoints' not-ready mapping
   return data || [];
 }
 
@@ -24,7 +24,7 @@ async function loadPaidDepositRows(supabase) {
     .select("id,deposit_ex_vat,deposit_status,deposit_paid_at,stripe_payment_intent_id,customers(name,email)")
     .eq("deposit_status", "paid")
     .limit(2000);
-  if (error) throw new Error(error.message);
+  if (error) { const e = new Error(error.message); e.code = error.code; throw e; } // preserve pg code for the not-ready mapping
   // TODO(backend-phase1/accounting-refunds): a refunded deposit (deposit_status='refunded')
   // is excluded here, so a paid-then-refunded deposit shows neither the receipt nor the
   // refund; a later slice should emit both as +/- events for period-accurate cash-in.

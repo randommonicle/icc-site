@@ -549,3 +549,14 @@ The accounting export (`GET /api/v1/accounting-export`) has two entities: an inv
 **Why not invoices-only.** Listing paid invoices at face value would misdate the money (the full value would land on the completion date when part arrived at booking) and would drop the deposit as its own Stripe receipt, so the feed would not reconcile against the Stripe payouts. The two-receipts model reconciles and dates correctly without double-counting.
 
 **Scope / boundary.** This is the generic feed for Mark's accountant / MTD tool (D-026 note 6), not in-platform accounting (the D-039 boundary holds). First cut excludes refunded deposits (`TODO(backend-phase1/accounting-refunds)`); a later slice emits refunds as negative events for period-accurate cash-in. No VAT (D-024).
+
+## D-042 — The operational P&L is cash-basis: revenue is money received in the period (the D-041 receipts), expenses on incurred_on
+**Status:** Accepted (Ben, 2026-09-13, on the recommended default while building Beta 3; override to accrual if preferred). Under [D-039](#d-039)'s operational-visibility boundary; reuses the [D-041](#d-041) receipts.
+
+The P&L (`GET /api/v1/pnl`) answers "am I making money this period" at a glance (D-039), so it needs a revenue definition. Two options: cash-basis (money actually received in the period) or accrual (value completed/invoiced regardless of payment).
+
+**Decision.** Cash-basis. Revenue = the D-041 payments feed (deposits + invoice balances/full) whose RECEIPT date falls in the period; expenses = cost rows whose `incurred_on` falls in the period; margin = revenue − expenses. Revenue is computed by `receipts.buildPayments` — the SAME function the accountant export uses — so the P&L margin reconciles with that feed and cannot silently diverge.
+
+**Why cash-basis.** It matches how a sole trader feels the business (money in vs money out), reconciles with the Stripe payouts and the export, and needs no accrual bookkeeping (unbilled WIP, debtor ageing) that D-039 excludes. Period is UTC calendar days (`from`/`to`, default the current month). This is operational insight, not formal cash-basis tax accounting (Mark's accountant's job, D-026/D-039).
+
+**Not this.** Accrual (recognise a completed job's full value at completion even if unpaid) would drift from the cash and from the export and would need debtor tracking; rejected for the light operational view. A future formal-accounts need stays external.
