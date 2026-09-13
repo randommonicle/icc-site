@@ -120,8 +120,32 @@
   .inv-paid{background:rgba(26,58,92,0.1);color:var(--navy);}
   .inv-overdue{background:rgba(180,60,60,0.12);color:#a23b3b;}
   .inv-void{background:rgba(120,120,120,0.15);color:#666;}
+  /* D-039 Beta 3 — finances (expenses + operational P&L) */
+  .finances{margin-bottom:2rem;}
+  .pnl-controls{display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem;}
+  .pnl-controls label{font-size:0.8rem;color:var(--text-mid);display:flex;gap:0.4rem;align-items:center;}
+  .pnl-controls input{padding:0.35rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;}
+  .pnl-hint{font-size:0.78rem;color:var(--text-mid);}
+  .pnl-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem;}
+  .pnl-card{background:#fff;border:1px solid var(--border);border-radius:8px;padding:1rem;text-align:center;}
+  .pnl-card.margin-pos{background:rgba(26,138,122,0.08);border-color:#bfe0d8;}
+  .pnl-card.margin-neg{background:rgba(180,60,60,0.08);border-color:#f5b5b5;}
+  .pnl-num{font-size:1.4rem;font-weight:700;font-family:"Raleway",sans-serif;color:var(--navy);}
+  .pnl-label{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-mid);margin-top:0.25rem;}
+  .pnl-breakdown{font-size:0.75rem;color:var(--text-mid);margin-top:0.5rem;line-height:1.5;}
+  .expense-add{background:#fff;border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1rem;}
+  .expense-add h3{font-size:0.95rem;margin-bottom:0.75rem;color:var(--navy);}
+  .expense-form{display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;}
+  .expense-form label{font-size:0.78rem;color:var(--text-mid);display:flex;flex-direction:column;gap:0.25rem;}
+  .expense-form input,.expense-form select{padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.9rem;}
+  .expense-form .expense-desc{flex:1;min-width:12rem;}
+  .expense-form .expense-desc input{width:100%;}
+  .expense-row{display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;padding:0.6rem 0.9rem;border:1px solid var(--border);border-radius:8px;background:#fff;margin-bottom:0.5rem;font-size:0.85rem;}
+  .expense-cat{padding:0.2rem 0.6rem;border-radius:100px;background:rgba(26,58,92,0.08);color:var(--navy);font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;}
+  .expense-amt{font-weight:700;color:var(--navy);margin-left:auto;}
 
   @media(max-width:768px){
+    .pnl-cards{grid-template-columns:1fr;}
     .stats-row{grid-template-columns:repeat(2,1fr);}
     .detail-grid{grid-template-columns:1fr;}
     .price-row{flex-direction:column;}
@@ -190,6 +214,44 @@
     <div class="bookings-grid" id="handoffsGrid">
       <div class="loading-spinner">Loading handoffs...</div>
     </div>
+
+    <div class="section-header">
+      <h2>Finances</h2>
+    </div>
+    <div class="finances" id="financesSection">
+      <div class="pnl-controls">
+        <label>From <input type="date" id="pnlFrom"></label>
+        <label>To <input type="date" id="pnlTo"></label>
+        <button class="admin-btn teal" onclick="loadFinances()">Show P&amp;L</button>
+        <span class="pnl-hint">Operational view (cash received &minus; expenses). Not formal accounts.</span>
+      </div>
+      <div class="pnl-cards" id="pnlCards">
+        <div class="loading-spinner">Loading P&amp;L...</div>
+      </div>
+
+      <div class="expense-add">
+        <h3>Add an expense</h3>
+        <div class="expense-form">
+          <label>Date <input type="date" id="expDate"></label>
+          <label>Category
+            <select id="expCategory">
+              <option value="fuel">Fuel</option>
+              <option value="materials">Materials</option>
+              <option value="equipment">Equipment</option>
+              <option value="insurance">Insurance</option>
+              <option value="software">Software</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label>Amount (&pound;) <input type="number" step="0.01" min="0" id="expAmount" placeholder="0.00"></label>
+          <label class="expense-desc">Description <input type="text" id="expDescription" placeholder="optional"></label>
+          <button class="action-btn primary" onclick="addExpense(this)">Add expense</button>
+        </div>
+        <div class="review-msg" id="expenseMsg"></div>
+      </div>
+
+      <div class="expense-list" id="expenseList"></div>
+    </div>
   </div>
 </div>
 
@@ -239,6 +301,7 @@ async function login(){
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("adminScreen").style.display = "block";
   loadBookings();   // fetches /api/bookings with the token; also calls loadHandoffs()
+  initFinances();   // sets the period to this month and loads the P&L + expenses (D-039)
 }
 
 function logout(){
@@ -658,12 +721,133 @@ async function refreshInvoiceStatus(jobId, btn){
   invoiceMsg(jobId, "Status: " + ((out.data.invoice && out.data.invoice.status) || "updated") + ".", false);
 }
 
+// D-039 Beta 3 — finances: the operational P&L + the expense log. Period defaults to the
+// current calendar month (set by initFinances on login). loadFinances() pulls the P&L and
+// the period's expenses together (both admin-gated). addExpense/deleteExpense write then
+// refresh. Every value via esc(); a not-set-up (503, migration not applied on hosted) or any
+// error renders a plain message, never a blank panel. Money via invGbp().
+const EXPENSE_CAT_LABELS = { fuel:"Fuel", materials:"Materials", equipment:"Equipment", insurance:"Insurance", software:"Software", other:"Other" };
+
+function initFinances(){
+  const now = new Date();
+  const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0,10);
+  const last = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth()+1, 0)).toISOString().slice(0,10);
+  const f = document.getElementById("pnlFrom"), t = document.getElementById("pnlTo"), d = document.getElementById("expDate");
+  if(f) f.value = first;
+  if(t) t.value = last;
+  if(d) d.value = new Date().toISOString().slice(0,10);
+  loadFinances();
+}
+
+function financeRange(){
+  return { from: (document.getElementById("pnlFrom")||{}).value || "", to: (document.getElementById("pnlTo")||{}).value || "" };
+}
+
+async function loadFinances(){
+  const r = financeRange();
+  const qs = (r.from && r.to) ? ("?from="+encodeURIComponent(r.from)+"&to="+encodeURIComponent(r.to)) : "";
+  const cards = document.getElementById("pnlCards");
+  if(cards) cards.innerHTML = '<div class="loading-spinner">Loading P&amp;L...</div>';
+  try{
+    const res = await fetch("/api/v1/pnl"+qs, { headers: { "Authorization": "Bearer " + adminToken } });
+    const data = await res.json().catch(function(){ return {}; });
+    if(!res.ok){ if(cards) cards.innerHTML = '<div class="empty-state"><p>'+esc((data && data.error) || "Could not load the P&L.")+'</p></div>'; }
+    else renderPnl(data);
+  } catch(e){ if(cards) cards.innerHTML = '<div class="empty-state"><p>Could not reach the server for the P&L.</p></div>'; }
+  const list = document.getElementById("expenseList");
+  try{
+    const res = await fetch("/api/v1/expenses"+qs, { headers: { "Authorization": "Bearer " + adminToken } });
+    const data = await res.json().catch(function(){ return {}; });
+    if(!res.ok){ if(list) list.innerHTML = '<div class="empty-state"><p>'+esc((data && data.error) || "Could not load expenses.")+'</p></div>'; }
+    else renderExpenses(data.expenses || []);
+  } catch(e){ if(list) list.innerHTML = '<div class="empty-state"><p>Could not reach the server for expenses.</p></div>'; }
+}
+
+function breakdownLine(obj, labels){
+  const keys = Object.keys(obj || {});
+  if(!keys.length) return "";
+  return keys.map(function(k){ return esc((labels && labels[k]) || k)+": "+invGbp(obj[k]); }).join("<br>");
+}
+
+function renderPnl(d){
+  const cards = document.getElementById("pnlCards");
+  if(!cards) return;
+  const marginClass = d.margin > 0 ? "margin-pos" : (d.margin < 0 ? "margin-neg" : "");
+  const revBreak = breakdownLine(d.revenue_by_type, { deposit:"Deposits", invoice_balance:"Invoice balances", invoice_full:"Invoices" });
+  const expBreak = breakdownLine(d.expenses_by_category, EXPENSE_CAT_LABELS);
+  cards.innerHTML =
+    '<div class="pnl-card"><div class="pnl-num">'+invGbp(d.revenue)+'</div><div class="pnl-label">Revenue (cash in)</div>'+(revBreak?'<div class="pnl-breakdown">'+revBreak+'</div>':'')+'</div>'+
+    '<div class="pnl-card"><div class="pnl-num">'+invGbp(d.expenses)+'</div><div class="pnl-label">Expenses</div>'+(expBreak?'<div class="pnl-breakdown">'+expBreak+'</div>':'')+'</div>'+
+    '<div class="pnl-card '+marginClass+'"><div class="pnl-num">'+invGbp(d.margin)+'</div><div class="pnl-label">Margin</div><div class="pnl-breakdown">'+esc(d.from||"")+' to '+esc(d.to||"")+'</div></div>';
+}
+
+function renderExpenses(list){
+  const el = document.getElementById("expenseList");
+  if(!el) return;
+  if(!list.length){ el.innerHTML = '<div class="empty-state"><p>No expenses in this period.</p></div>'; return; }
+  el.innerHTML = list.map(function(x){
+    const desc = x.description ? " &middot; "+esc(x.description) : "";
+    return '<div class="expense-row">'+
+      '<span class="expense-cat">'+esc(EXPENSE_CAT_LABELS[x.category]||x.category)+'</span>'+
+      '<span>'+esc(x.incurred_on||"")+desc+'</span>'+
+      '<span class="expense-amt">'+invGbp(x.amount)+'</span>'+
+      '<button class="action-btn" onclick="deleteExpense(\''+esc(x.id)+'\',this)">Delete</button>'+
+    '</div>';
+  }).join("");
+}
+
+function expenseMsg(text, isError){
+  const el = document.getElementById("expenseMsg");
+  if(el){ el.textContent = text; el.style.color = isError ? "#e53e3e" : "var(--teal)"; }
+}
+
+async function addExpense(btn){
+  const incurred_on = (document.getElementById("expDate")||{}).value || "";
+  const category = (document.getElementById("expCategory")||{}).value || "";
+  const amountRaw = (document.getElementById("expAmount")||{}).value || "";
+  const description = (document.getElementById("expDescription")||{}).value || "";
+  if(!incurred_on || !amountRaw){ expenseMsg("Enter a date and an amount.", true); return; }
+  if(btn) btn.disabled = true;
+  expenseMsg("Saving…", false);
+  let res, data = {};
+  try{
+    res = await fetch("/api/v1/expenses", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + adminToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ incurred_on: incurred_on, category: category, amount: Number(amountRaw), description: description || null })
+    });
+    data = await res.json().catch(function(){ return {}; });
+  } catch(e){ expenseMsg("Could not reach the server.", true); if(btn) btn.disabled = false; return; }
+  if(!res.ok){ expenseMsg((data && data.error) || "Could not save the expense.", true); if(btn) btn.disabled = false; return; }
+  expenseMsg("Expense added.", false);
+  const amt = document.getElementById("expAmount"); if(amt) amt.value = "";
+  const desc = document.getElementById("expDescription"); if(desc) desc.value = "";
+  if(btn) btn.disabled = false;
+  loadFinances();
+}
+
+async function deleteExpense(id, btn){
+  if(!confirm("Delete this expense?")) return;
+  if(btn) btn.disabled = true;
+  let res, data = {};
+  try{
+    res = await fetch("/api/v1/expenses?id="+encodeURIComponent(id), {
+      method: "DELETE",
+      headers: { "Authorization": "Bearer " + adminToken }
+    });
+    data = await res.json().catch(function(){ return {}; });
+  } catch(e){ if(btn) btn.disabled = false; alert("Could not reach the server."); return; }
+  if(!res.ok){ if(btn) btn.disabled = false; alert((data && data.error) || "Could not delete the expense."); return; }
+  loadFinances();
+}
+
 function updateStats(bookings){
   const today = new Date().toISOString().split("T")[0];
   const weekEnd = new Date(Date.now() + 7*24*60*60*1000).toISOString().split("T")[0];
   // A cancelled job is neither pipeline nor revenue; exclude it from the active views.
-  // (Est. Revenue still parses the price display string; a numeric field is exposed in
-  // the P&L slice, TODO(backend-phase1/pnl) in docs/BACKEND_PHASE1_PLAN.md.)
+  // Est. Revenue is the PIPELINE estimate (sum of quoted prices), intentionally distinct
+  // from the operational P&L's cash-received Revenue (D-039/D-042, the Finances panel);
+  // the numeric-revenue need the earlier pnl-slice flag tracked is now met there.
   const active = bookings.filter(b => jobStatusCategory(b) !== "cancelled");
   const upcoming = active.filter(b => b.date >= today);
   const thisWeek = active.filter(b => b.date >= today && b.date <= weekEnd);
