@@ -138,6 +138,18 @@
   .expense-form{display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;}
   .expense-form label{font-size:0.78rem;color:var(--text-mid);display:flex;flex-direction:column;gap:0.25rem;}
   .expense-form input,.expense-form select{padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.9rem;}
+  /* D-040 operator assistant */
+  .operator{background:#fff;border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:2rem;}
+  .operator-hint{font-size:0.78rem;color:var(--text-mid);margin-bottom:0.75rem;}
+  .operator-transcript{display:flex;flex-direction:column;gap:0.5rem;max-height:420px;overflow-y:auto;padding:0.25rem 0;margin-bottom:0.75rem;}
+  .operator-msg{font-size:0.88rem;line-height:1.45;padding:0.6rem 0.8rem;border-radius:8px;white-space:pre-wrap;word-break:break-word;max-width:85%;}
+  .operator-msg.user{align-self:flex-end;background:rgba(26,138,122,0.12);color:var(--text-dark);}
+  .operator-msg.assistant{align-self:flex-start;background:var(--off-white);border:1px solid var(--border);color:var(--text-dark);}
+  .operator-msg.status{align-self:flex-start;background:transparent;color:var(--text-mid);font-size:0.8rem;font-style:italic;padding:0.2rem 0;}
+  .operator-msg.status.error{color:#e53e3e;font-style:normal;}
+  .operator-form{display:flex;gap:0.5rem;align-items:flex-start;}
+  .operator-form textarea{flex:1;min-height:2.6rem;max-height:8rem;resize:vertical;padding:0.5rem 0.7rem;border:1px solid var(--border);border-radius:6px;font-family:"Lato",sans-serif;font-size:0.9rem;}
+  .operator-form textarea:focus{outline:none;border-color:var(--teal);}
   .expense-form .expense-desc{flex:1;min-width:12rem;}
   .expense-form .expense-desc input{width:100%;}
   .expense-row{display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;padding:0.6rem 0.9rem;border:1px solid var(--border);border-radius:8px;background:#fff;margin-bottom:0.5rem;font-size:0.85rem;}
@@ -252,6 +264,19 @@
 
       <div class="expense-list" id="expenseList"></div>
     </div>
+
+    <div class="section-header">
+      <h2>Ask about the business</h2>
+    </div>
+    <div class="operator" id="operatorSection">
+      <div class="operator-hint">Read-only assistant over your own jobs, invoices, cash received and expenses. It describes; it never sends, changes or pays anything, and it does not give tax or legal advice. Figures are ex VAT; revenue means cash received.</div>
+      <div class="operator-transcript" id="operatorTranscript"></div>
+      <div class="operator-form">
+        <textarea id="operatorInput" placeholder="e.g. Which invoices are overdue? What did I take in August? Who is booked next week?" maxlength="4000" onkeydown="operatorKey(event)"></textarea>
+        <button class="action-btn primary" id="operatorSend" onclick="sendOperatorQuestion()">Ask</button>
+        <button class="action-btn" onclick="clearOperatorTranscript()">Clear</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -302,10 +327,12 @@ async function login(){
   document.getElementById("adminScreen").style.display = "block";
   loadBookings();   // fetches /api/bookings with the token; also calls loadHandoffs()
   initFinances();   // sets the period to this month and loads the P&L + expenses (D-039)
+  clearOperatorTranscript(); // a fresh operator-assistant transcript per session (D-040)
 }
 
 function logout(){
   adminToken = "";
+  operatorHistory = [];
   document.getElementById("loginScreen").style.display = "flex";
   document.getElementById("adminScreen").style.display = "none";
   document.getElementById("emailInput").value = "";
@@ -1078,6 +1105,106 @@ function downloadXML(){
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// --- D-040 operator assistant panel ------------------------------------------
+// Stateless server: the browser holds the transcript and resends it (bounded to the
+// last OPERATOR_MAX_HISTORY messages, which is the server's cap too). Rendering is
+// textContent ONLY (createElement + textContent, never innerHTML, no markdown, no
+// links): the reply may quote customer-typed text, and inert rendering is the control
+// that keeps an injected string from doing anything but sit there (L-003, D-040).
+// A "stopped" or failed turn never enters the transcript as an assistant reply — the
+// question goes back into the box — so the replayed history keeps alternating
+// user/assistant and the server's 400 check never trips.
+let operatorHistory = [];      // [{ role: "user"|"assistant", content: string }]
+let operatorStatus = [];       // transient status lines (not replayed)
+let operatorBusy = false;
+const OPERATOR_MAX_HISTORY = 20;
+
+function renderOperatorTranscript(){
+  const box = document.getElementById("operatorTranscript");
+  if(!box) return;
+  while(box.firstChild) box.removeChild(box.firstChild);
+  operatorHistory.forEach(function(m){
+    const div = document.createElement("div");
+    div.className = "operator-msg " + (m.role === "user" ? "user" : "assistant");
+    div.textContent = m.content;
+    box.appendChild(div);
+  });
+  operatorStatus.forEach(function(st){
+    const div = document.createElement("div");
+    div.className = "operator-msg status" + (st.error ? " error" : "");
+    div.textContent = st.text;
+    box.appendChild(div);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+function operatorSetStatus(text, isError){
+  operatorStatus = text ? [{ text: text, error: !!isError }] : [];
+  renderOperatorTranscript();
+}
+
+function clearOperatorTranscript(){
+  operatorHistory = [];
+  operatorStatus = [];
+  renderOperatorTranscript();
+}
+
+function operatorKey(ev){
+  if(ev.key === "Enter" && !ev.shiftKey){ ev.preventDefault(); sendOperatorQuestion(); }
+}
+
+async function sendOperatorQuestion(){
+  const input = document.getElementById("operatorInput");
+  const btn = document.getElementById("operatorSend");
+  const q = (input && input.value || "").trim();
+  if(!q || operatorBusy) return;
+  operatorBusy = true;
+  if(btn) btn.disabled = true;
+  input.value = "";
+  operatorHistory.push({ role: "user", content: q });
+  if(operatorHistory.length > OPERATOR_MAX_HISTORY) operatorHistory = operatorHistory.slice(-OPERATOR_MAX_HISTORY);
+  // The replayed history must start with the user (the server rejects anything else).
+  while(operatorHistory.length && operatorHistory[0].role !== "user") operatorHistory.shift();
+  operatorSetStatus("Looking that up…", false);
+
+  let res, data = null;
+  try {
+    res = await fetch("/api/v1/operator-chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + adminToken },
+      body: JSON.stringify({ messages: operatorHistory })
+    });
+    try { data = await res.json(); } catch(e){ data = null; }
+  } catch(e){
+    operatorHistory.pop(); input.value = q;
+    operatorSetStatus("Could not reach the server. Your question is back in the box.", true);
+    operatorBusy = false; if(btn) btn.disabled = false;
+    return;
+  }
+
+  const text = data && Array.isArray(data.content) && data.content[0] ? String(data.content[0].text || "") : "";
+  if(res.ok && data && !data.stopped && text){
+    operatorHistory.push({ role: "assistant", content: text });
+    operatorSetStatus(data.truncated ? "That reply was cut short by the length limit; ask for a narrower list." : "", false);
+  } else {
+    // Not a reply: put the question back and say why. Nothing is replayed as an assistant turn.
+    operatorHistory.pop(); input.value = q;
+    let why;
+    if(res.status === 429 && data && data.retry_after){
+      why = (data.error || "Too many turns.") ;
+    } else if(res.status === 401 || res.status === 403){
+      why = "Your session has expired. Sign out and back in.";
+    } else if(data && data.stopped){
+      why = text || "That turn ran out of steps. Ask something narrower.";
+    } else {
+      why = (data && data.error) || "The assistant could not answer that. Try again.";
+    }
+    operatorSetStatus(why, true);
+  }
+  operatorBusy = false;
+  if(btn) btn.disabled = false;
 }
 </script>
 </body>
