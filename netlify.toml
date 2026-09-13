@@ -84,6 +84,12 @@
   to = "/.netlify/functions/accountingExport"
   status = 200
 
+# Expenses (D-039): the cost-log half of the operational P&L, admin-gated CRUD.
+[[redirects]]
+  from = "/api/v1/expenses"
+  to = "/.netlify/functions/expenses"
+  status = 200
+
 # D-004 deposit pay-link — Stripe posts payment events here. Signature-authorised
 # (STRIPE_WEBHOOK_SECRET), POST-only. Dormant until the Stripe env vars are set.
 [[redirects]]

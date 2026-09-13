@@ -9,3 +9,4 @@ export const API_VERSION = "v1" as const;
 export * from "./quote";
 export * from "./invoice";
 export * from "./accounting";
+export * from "./expense";
