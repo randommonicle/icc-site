@@ -12,6 +12,53 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session (2026-09-13, later): Beta 4 (operator assistant) BUILT end-to-end — five slices + a hardening pass, all unit- and integration-tested; phase 1 build is CLOSED pending deploy. 8 commits (incl. this handover), LOCAL/UNPUSHED, batch now 34 ahead of origin/main, nothing deployed. Ben decided: hold the batch (one release), include customer names (privacy notice updated).
+
+*Diagnoses in this note are unverified unless marked.* **Wrap-up context: /context = 50% (yellow), Ben's reading (this harness cannot self-invoke /context). Wrapping at Ben's request at the end of the evening; the unit (Beta 4) is complete, so nothing is mid-flight.**
+
+**Session goal.** Read the handover, build Beta 4 to the D-040 addendum contract. Done; two advisor (Fable) passes used, both folded in.
+
+**Branch and worktree.** `main`, standard worktree `C:\Users\bengr\Projects\ICC\icc-site` (the Desktop `icc-site` is the stub). No open PRs; origin unchanged all session. **Do NOT push** (Ben: "get as much as possible into this release").
+
+**What landed (newest first; each `node --test`-green at the commit; all LOCAL/UNPUSHED).**
+- (this handover docs commit).
+- `b043c30` feat(admin): operator panel (slice 5) — `createElement` + `textContent` only; refused/stopped turns never replayed; guard test + 2 mutations. Browser-verified with a stubbed fetch and an `<img onerror>` payload (inert).
+- `0142708` fix(operator): slice 4 hardening from the advisor pass — deadline anchored at function ENTRY; `invoices_list` gains `balance_due_ex_vat` / `total_balance_due_ex_vat` (face value overstates collectable cash by every paid deposit); `pnl.partial` boolean; `max_tokens` 1,600 + `truncated: true`; operator per-IP 429 copy; `[integration]` test resolving all seven projections on real PostgREST; spend priced into the D-040 build notes.
+- `56127ed` feat(operator): `POST /api/v1/operator-chat` + `operatorTools.js` (seven read-only tools) + `assistantLoop.js` (loop moved out of `chat.js`, re-exported) + contract type + route + **privacy notice** (`privacy.astro` AND the `index.html` mirror, "Last updated: 13 September 2026") (slice 4).
+- `c669185` feat(operator): `readOnlyClient.js` facade + static module-boundary checker (`test-support/moduleGraph.js`, three negative fixtures) + `pnlCalc.js` (slice 3).
+- `d9d19c1` feat(db): **migration `20260913180000_operator_rate.sql`** + `operator_admit()` + `operatorAdmission.js` (slice 2). Validated on local Docker: `db reset` (12 migrations) + `test db` 7 files / 79 tests; ten-client last-slot race admits exactly one.
+- `d1eac9f` chore(supabase): `[analytics] enabled = false` in `config.toml` (local only; the Vector container was crash-looping; asked for by the PC-optimisation session).
+- `b26ccc0` refactor(guards): origin allowlist + CORS → `origins.js` (slice 1), request/response matrix tested.
+- Full suite at wrap: `node --test` **519 tests, 508 pass / 0 fail / 11 skip** (verified). With `ICC_SUPABASE_IT=1` against the local stack the two `[integration]` tests (race; projections) are green too (verified this session).
+
+**Decisions this session (Ben).** (1) Hold the batch; no deploy until as much as possible is in. (2) Customer NAME + job POSTCODE go to the model; contact details and free text do not; the notice says so. Recorded as D-040 build notes in DECISIONS.md (with the spend pricing: ≈ £0.40 worst-case turn, ≈ £0.02 typical, ≈ £24/hour adversarial ceiling at `OPERATOR_TURN_LIMIT` 30/h × 2 operators).
+
+**Corrections to the previous handover.** "Invoicing one-real-ride once Stripe is keyed" was WRONG: `invoiceProvider.js:28` gates on the same `STRIPE_SECRET_KEY` the deposit link uses, which D-036 set in Test mode on 2026-09-08. Invoicing is already keyed. The real gates are the deploy itself and migration `20260910120000`, plus one Ben-in-Dashboard step: the Stripe webhook endpoint is subscribed only to `checkout.session.completed` (`docs/STRIPE_SETUP.md:53`), so the `invoice.*` events Beta 2d reflects need adding there before the invoicing ride, or 2d sits inert.
+
+**Verification still outstanding.**
+- **Ben applies THREE migrations to hosted**, in order, before pushing (auto-mode blocks agent schema writes; all validated locally): `20260910120000` (invoices provider columns), `20260913120000` (expenses), `20260913180000` (operator_rate + `operator_admit`; the inline post-apply block checks columns, RLS, and that `anon`/`authenticated` have NO execute on the function).
+- **Netlify function timeout** (unresolved): the screenshot Ben sent was the General page; the setting lives under **Cloud compute → Functions**. If no timeout field is shown there, the site is on the 10 s default and the 8.5 s `OPERATOR_TURN_DEADLINE_MS` default stands. If the limit was raised to 26 s, set `OPERATOR_TURN_DEADLINE_MS=20000` in Netlify.
+- Optional env: `OPERATOR_TURN_LIMIT` (default 30/hour/operator), `OPERATOR_TURN_DEADLINE_MS` (default 8500). Nothing else new; `ANTHROPIC_API_KEY`, `SUPABASE_*` and `ADMIN_EMAILS` already serve it.
+- Post-deploy rides (with Ben): the #1 booking ride as usual; the finances panel; the invoice panel; then the **operator assistant's first real turn** (a live model call over hosted data — nothing in this session touched the real model; every model response in the tests is scripted). Suggested first questions: "Which invoices are overdue?", "What did I take in August?", "Who is booked next week?" Watch the function log for `operator turn stopped:` lines (budget/deadline) on the first few turns; if the deadline trips on normal questions, that is the 10 s ceiling biting and the answer is narrower tools or a raised limit, not a looser guard.
+- The whole 34-commit batch is unproven at the live seam.
+
+**Blockers / open questions.** None for the build. Deploy HELD pending Ben.
+
+**Next actions (ordered).**
+1. When Ben is ready to deploy: re-run `node --test` (L-038 — a held batch can red by the calendar alone; today's suite is green), confirm the tip is non-`[skip ci]` (L-037; `b043c30` is a feat commit, fine), apply the three migrations to hosted, push (= deploy), then the rides above.
+2. Stripe Dashboard: add the `invoice.*` events to the webhook endpoint, then the invoicing ride (create → send → pay with `4242…` → webhook reflects `paid`).
+3. Nothing else queued for phase 1. Out-of-scope items unchanged (see the plan's "Out of scope"). Deferred flags: `TODO(backend-phase1/invoice-orphan)`, `TODO(backend-phase1/accounting-refunds)`; calendar clash-check parked (D-033).
+
+**Traps / working agreements (this session).**
+- Do NOT push. Three migrations before the push, in order.
+- Local Docker: `supabase start` reports "already running" if only the DB container is up while Kong/REST are stopped (seen after the other session touched Docker); a clean `npx supabase stop` → `npx supabase start` fixes it, and with the analytics change the Vector/analytics containers no longer exist. `db reset` after any migration change (stale-volume gotcha, memory note).
+- Support files for tests live in `test-support/` (fixtures, `moduleGraph.js`, `fakeReadStore.js`), NOT under `test/`: Node's default glob runs every `.js` under `test/` as a test file and reports them as vacuous passes.
+- The operator tools module must stay client-free: `test/module-boundary.test.js` reds on any `require` of `supabaseClient.js`/`adminAuth.js`/a provider/Blobs anywhere under `operatorTools.js`, including inside a function body. Widening the data scope = editing `ALLOWLIST` in `operatorTools.js` AND the notice's exclusion sentence (a test pins them together).
+- Two harness quirks this session: the Bash tool strips backslashes inside heredocs and `node -e` strings (a `\(` in a regex arrived as `(`), so regex-bearing edits went through the Edit tool; and a `git mv -k` on an untracked file is a silent no-op.
+- **Supersedes the earlier 2026-09-13 next-actions:** Beta 4 built (was "designed"); the Stripe-keyed line corrected above.
+
+---
+
 ## This session (2026-09-13): Beta 2e (invoice UI + accounting export) and Beta 3 (expenses + cash-basis P&L + finances UI) BUILT, tested and committed; Beta 4 (operator assistant) DESIGNED and cross-agent review CONVERGED (not built). 9 commits, LOCAL/UNPUSHED, batch now 26 ahead of origin/main, nothing deployed.
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: /context = 51% (yellow), Ben's reading (this harness cannot self-invoke /context). Wrapping at Ben's request; Beta 4 build deferred to a fresh chat (large unit, yellow band).**
@@ -49,7 +96,7 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 **Next actions (ordered).**
 1. Build Beta 4 to the D-040 addendum contract, starting slice 1 (extract the origin allowlist from `chat.js` into `origins.js`, behaviour-preserving; expand `test/origins.test.js` to the request/response matrix).
 2. When ready to deploy the batch: re-run `node --test` (L-038 — a held batch can red by the calendar alone), confirm the tip is non-`[skip ci]` (L-037), apply the two migrations to hosted, push (= deploy), then the post-deploy rides.
-3. Invoicing one-real-ride once Stripe is keyed.
+3. ~~Invoicing one-real-ride once Stripe is keyed.~~ **(CORRECTED in the later 2026-09-13 entry above: invoicing is already keyed in Test mode via the shared `STRIPE_SECRET_KEY`; the gate is the deploy + migration + the Stripe webhook events.)**
 
 **Traps / working agreements (this session).**
 - Do NOT push; batch held. Non-`[skip ci]` tip rule (L-037). Re-run `node --test` immediately before any deploy (L-038).
