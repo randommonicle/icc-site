@@ -115,8 +115,13 @@ async function doCreate(supabase, body, deps, headers) {
   const { data, error } = await supabase.from("invoices").insert(row).select().limit(1);
   if (error) {
     // The Stripe draft exists (metadata carries job_id) but our record did not persist.
-    // Return the provider id so it is traceable; a create retry is deduped by the Stripe
-    // idempotency key. TODO(backend-phase1/invoice-orphan): reconcile orphaned drafts.
+    // Return the provider id so it is traceable. Mitigation: the admin "Create" is
+    // one-click retryable and the Stripe idempotency key (invoice-<jobId>) returns the
+    // SAME draft within 24h, so a retry re-attempts the local insert with no duplicate draft.
+    // TODO(backend-phase1/invoice-orphan): residual harm is narrow — a retry with a CHANGED
+    // override amount inside the window makes a new invoiceitem (different item key) while the
+    // /invoices key returns the old draft, leaving a stray pending item on the customer; full
+    // reconciliation needs the Stripe Search API (find the draft by metadata job_id).
     console.log("invoice local insert failed for job", jobId, "-", error.message);
     return json(500, headers, { error: "The draft was created on the provider but the local record failed to save.", provider_invoice_id: draft.providerInvoiceId });
   }
@@ -187,6 +192,10 @@ async function handlePost(event, headers, deps) {
 async function handleGet(event, headers, deps) {
   const { supabase } = deps;
   if (!supabase) return json(503, headers, { error: "Supabase not configured" });
+  // Same dormant signal handlePost uses, surfaced so the admin UI can show a
+  // "not configured" panel instead of offering a Create that would 503. GET itself
+  // never gates on it (an empty/legacy invoices table lists fine pre-migration).
+  const configured = deps.invoicingConfigured != null ? deps.invoicingConfigured : invoiceProvider.isInvoicingConfigured();
   const jobId = (event.queryStringParameters || {}).job_id;
   let q = supabase.from("invoices").select("*").order("created_at", { ascending: false });
   if (jobId) q = q.eq("job_id", jobId);
@@ -196,7 +205,7 @@ async function handleGet(event, headers, deps) {
   const invoices = (data || []).map((row) =>
     row.status === "sent" && row.due_at && new Date(row.due_at) < now ? { ...row, status: "overdue" } : row
   );
-  return json(200, headers, { invoices });
+  return json(200, headers, { invoices, configured });
 }
 
 exports.handler = async function (event) {

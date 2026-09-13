@@ -102,6 +102,24 @@
   .prov-actions{display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;}
   .prov-note{color:var(--text-mid);}
   .prov-warn{color:#9b1c1c;font-weight:700;margin-right:0.25rem;}
+  /* D-026 Beta 2e — invoice panel on completed job cards */
+  .inv-section{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);}
+  .inv-title{font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-mid);margin-bottom:0.5rem;}
+  .inv-row{display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.5rem;}
+  .inv-total{font-weight:700;color:var(--navy);}
+  .inv-label,.inv-quoted{font-size:0.85rem;color:var(--text-mid);}
+  .inv-meta{font-size:0.8rem;color:var(--text-mid);margin-bottom:0.25rem;}
+  .inv-note,.inv-hint{font-size:0.8rem;color:var(--text-mid);margin-top:0.5rem;}
+  .inv-create{display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;margin-top:0.5rem;}
+  .inv-amount-label{font-size:0.78rem;color:var(--text-mid);display:flex;flex-direction:column;gap:0.25rem;}
+  .inv-amount{padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.9rem;width:11rem;}
+  .inv-actions{display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:0.5rem;}
+  .inv-badge{padding:0.25rem 0.75rem;border-radius:100px;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;}
+  .inv-draft{background:rgba(200,168,75,0.15);color:#8a6d0a;}
+  .inv-sent{background:rgba(26,138,122,0.15);color:var(--teal);}
+  .inv-paid{background:rgba(26,58,92,0.1);color:var(--navy);}
+  .inv-overdue{background:rgba(180,60,60,0.12);color:#a23b3b;}
+  .inv-void{background:rgba(120,120,120,0.15);color:#666;}
 
   @media(max-width:768px){
     .stats-row{grid-template-columns:repeat(2,1fr);}
@@ -136,6 +154,8 @@
     <div class="admin-nav-actions">
       <button class="admin-btn teal" onclick="loadBookings()">Refresh</button>
       <button class="admin-btn" onclick="downloadXML()">Export XML</button>
+      <button class="admin-btn" onclick="downloadAccountingExport('payments',this)">Payments CSV</button>
+      <button class="admin-btn" onclick="downloadAccountingExport('invoices',this)">Invoices CSV</button>
       <button class="admin-btn" onclick="logout()">Sign Out</button>
     </div>
   </nav>
@@ -177,6 +197,8 @@
 let adminToken = "";
 let allBookings = [];
 let allHandoffs = [];
+let invoicesByJob = {};       // job_id -> invoice record (D-026 Beta 2e)
+let invoicingConfigured = null; // true/false from GET /api/v1/invoices; null = load failed
 
 // Supabase Auth (Slice 5d). Both values are PUBLIC by design — the publishable key
 // is meant to live in client code; access is controlled by the disabled signups +
@@ -233,9 +255,13 @@ function logout(){
 async function loadBookings(){
   document.getElementById("bookingsGrid").innerHTML = '<div class="loading-spinner">Loading bookings...</div>';
   try{
-    const res = await fetch("/api/bookings", {
-      headers: { "Authorization": "Bearer " + adminToken }
-    });
+    // Bookings and invoices load in parallel; loadInvoices() swallows its own errors
+    // (never rejects), so a failed invoice read still renders every card — the invoice
+    // panel just shows "status unavailable". The bookings list is Mark's core tool.
+    const [res] = await Promise.all([
+      fetch("/api/bookings", { headers: { "Authorization": "Bearer " + adminToken } }),
+      loadInvoices()
+    ]);
     const data = await res.json();
     allBookings = data.bookings || [];
     renderBookings(allBookings);
@@ -492,6 +518,146 @@ async function provisionalAction(id, action, btn){
   if(rec){ if(data.state) rec.confirmation_state = data.state; if(data.emailed) rec.notice_sent = true; }
 }
 
+// D-026 Beta 2e — invoicing on completed job cards. loadInvoices() reads the invoice
+// list (the server derives 'overdue' from due_at and reports whether invoicing is
+// configured) and keys it by job_id. Each completed job's card shows a panel to create
+// a draft from the server-authoritative figure, review/adjust the amount, send
+// (finalise + email) and refresh the reflected status. The server (invoices.js,
+// requireAdmin) is the real gate and the money authority; this only drives the controls
+// (L-003: every value via esc(), messages via textContent). It never rejects, so a
+// failed read leaves the cards fully usable.
+async function loadInvoices(){
+  try{
+    const res = await fetch("/api/v1/invoices", { headers: { "Authorization": "Bearer " + adminToken } });
+    if(!res.ok) throw new Error("invoice list " + res.status);
+    const data = await res.json();
+    invoicingConfigured = data.configured !== false; // undefined (older server) -> treat as on
+    const map = {};
+    (data.invoices || []).forEach(function(inv){ if(inv && inv.job_id) map[inv.job_id] = inv; });
+    invoicesByJob = map;
+  } catch(e){
+    invoicesByJob = {};
+    invoicingConfigured = null;
+  }
+}
+
+const INV_STATUS_LABELS = { draft:"Draft", sent:"Sent", paid:"Paid", overdue:"Overdue", void:"Void", uncollectible:"Uncollectible" };
+const INV_STATUS_CLASS = { draft:"inv-draft", sent:"inv-sent", paid:"inv-paid", overdue:"inv-overdue", void:"inv-void", uncollectible:"inv-void" };
+
+function invGbp(n){ const v = Number(n); return isFinite(v) ? "£" + v.toFixed(2) : "-"; }
+function invDate(s){ try{ return new Date(s).toLocaleDateString("en-GB"); } catch(e){ return ""; } }
+
+// Pure builder for the invoice panel body, re-rendered in place after each action so a
+// full reload never wipes an open card or its inline message.
+function invoicePanelHtml(b, inv, configured){
+  if(configured === false){
+    return '<div class="inv-note">Invoicing is not configured yet.</div>';
+  }
+  if(configured == null){
+    return '<div class="inv-note">Invoice status unavailable. <a href="#" onclick="reloadInvoices();return false;">Reload</a></div>';
+  }
+  const id = esc(b.id);
+  if(!inv){
+    const quoted = b.estimated_price ? '<span class="inv-quoted">Quoted: ' + esc(b.estimated_price) + '</span>' : '';
+    return '<div class="inv-row"><span class="inv-label">No invoice raised.</span>' + quoted + '</div>' +
+      '<div class="inv-create">' +
+        '<label class="inv-amount-label">Amount (leave blank to use the quoted price)' +
+          '<input type="number" step="0.01" min="0" class="inv-amount" id="inv-amount-' + id + '" placeholder="e.g. 180.00"></label>' +
+        '<button class="action-btn primary" onclick="createInvoice(\'' + id + '\',this)">Create draft invoice</button>' +
+      '</div>' +
+      '<div class="inv-hint">A paid deposit is credited on the invoice, so the customer\'s balance due is the job total minus the deposit.</div>';
+  }
+  const status = inv.status || "draft";
+  const badge = '<span class="inv-badge ' + (INV_STATUS_CLASS[status] || "inv-draft") + '">' + esc(INV_STATUS_LABELS[status] || status) + '</span>';
+  const numLine = inv.number ? '<div class="inv-meta">Invoice ' + esc(inv.number) + '</div>' : '';
+  const dueLine = inv.due_at ? '<div class="inv-meta">Due ' + esc(invDate(inv.due_at)) + '</div>' : '';
+  const paidLine = inv.paid_at ? '<div class="inv-meta">Paid ' + esc(invDate(inv.paid_at)) + '</div>' : '';
+  const viewLink = (inv.payment_url && String(inv.payment_url).startsWith("https://"))
+    ? '<a class="action-btn" href="' + esc(inv.payment_url) + '" target="_blank" rel="noopener">View invoice</a>' : '';
+  const sendBtn = status === "draft" ? '<button class="action-btn primary" onclick="sendInvoiceAction(\'' + id + '\',this)">Send to customer</button>' : '';
+  const refreshBtn = inv.provider_invoice_id ? '<button class="action-btn" onclick="refreshInvoiceStatus(\'' + id + '\',this)">Refresh status</button>' : '';
+  return '<div class="inv-row">' + badge + '<span class="inv-total">Invoice total ' + invGbp(inv.amount_ex_vat) + '</span></div>' +
+    numLine + dueLine + paidLine +
+    '<div class="inv-actions">' + viewLink + sendBtn + refreshBtn + '</div>';
+}
+
+function invoiceMsg(jobId, text, isError){
+  const el = document.getElementById("inv-msg-" + jobId);
+  if(el){ el.textContent = text; el.style.color = isError ? "#e53e3e" : "var(--teal)"; }
+}
+
+// Re-render one job's invoice panel from invoicesByJob (keeps the open card and the
+// sibling message line intact — the message el lives OUTSIDE the panel container).
+function rerenderInvoicePanel(jobId){
+  const panel = document.getElementById("inv-panel-" + jobId);
+  if(!panel) return;
+  const b = allBookings.find(function(x){ return String(x.id) === String(jobId); }) || { id: jobId };
+  panel.innerHTML = invoicePanelHtml(b, invoicesByJob[jobId], invoicingConfigured);
+}
+
+function reloadInvoices(){
+  loadInvoices().then(function(){
+    document.querySelectorAll("[id^='inv-panel-']").forEach(function(el){
+      rerenderInvoicePanel(el.id.slice("inv-panel-".length));
+    });
+  });
+}
+
+async function postInvoiceAction(payload){
+  const res = await fetch("/api/v1/invoices", {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + adminToken, "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json().catch(function(){ return {}; });
+  return { res: res, data: data };
+}
+
+async function createInvoice(jobId, btn){
+  const amtEl = document.getElementById("inv-amount-" + jobId);
+  const raw = amtEl ? amtEl.value.trim() : "";
+  const ask = raw
+    ? "Create a draft invoice for £" + raw + "? You can review it before it sends."
+    : "Create a draft invoice from the quoted price? You can review it before it sends.";
+  if(!confirm(ask)) return;
+  if(btn) btn.disabled = true;
+  invoiceMsg(jobId, "Creating draft…", false);
+  const payload = { action: "create", job_id: jobId };
+  if(raw){ payload.amount_ex_vat = Number(raw); }
+  let out;
+  try{ out = await postInvoiceAction(payload); }
+  catch(e){ invoiceMsg(jobId, "Could not reach the server.", true); if(btn) btn.disabled = false; return; }
+  if(!out.res.ok){ invoiceMsg(jobId, (out.data && out.data.error) || "Could not create the invoice.", true); if(btn) btn.disabled = false; return; }
+  invoicesByJob[jobId] = out.data.invoice;
+  rerenderInvoicePanel(jobId);
+  invoiceMsg(jobId, out.data.note || "Draft created. Review it, then Send.", false);
+}
+
+async function sendInvoiceAction(jobId, btn){
+  if(!confirm("Finalise and email this invoice to the customer?")) return;
+  if(btn) btn.disabled = true;
+  invoiceMsg(jobId, "Sending…", false);
+  let out;
+  try{ out = await postInvoiceAction({ action: "send", job_id: jobId }); }
+  catch(e){ invoiceMsg(jobId, "Could not reach the server.", true); if(btn) btn.disabled = false; return; }
+  if(!out.res.ok){ invoiceMsg(jobId, (out.data && out.data.error) || "Could not send the invoice.", true); if(btn) btn.disabled = false; return; }
+  invoicesByJob[jobId] = out.data.invoice;
+  rerenderInvoicePanel(jobId);
+  invoiceMsg(jobId, out.data.note || "Invoice sent to the customer.", false);
+}
+
+async function refreshInvoiceStatus(jobId, btn){
+  if(btn) btn.disabled = true;
+  invoiceMsg(jobId, "Checking status…", false);
+  let out;
+  try{ out = await postInvoiceAction({ action: "status", job_id: jobId }); }
+  catch(e){ invoiceMsg(jobId, "Could not reach the server.", true); if(btn) btn.disabled = false; return; }
+  if(!out.res.ok){ invoiceMsg(jobId, (out.data && out.data.error) || "Could not refresh the status.", true); if(btn) btn.disabled = false; return; }
+  invoicesByJob[jobId] = out.data.invoice;
+  rerenderInvoicePanel(jobId);
+  invoiceMsg(jobId, "Status: " + ((out.data.invoice && out.data.invoice.status) || "updated") + ".", false);
+}
+
 function updateStats(bookings){
   const today = new Date().toISOString().split("T")[0];
   const weekEnd = new Date(Date.now() + 7*24*60*60*1000).toISOString().split("T")[0];
@@ -620,6 +786,16 @@ function buildCard(b, i){
     provisionalSection += '<div class="review-msg" id="prov-msg-'+esc(b.id)+'"></div>';
   }
 
+  // D-026 Beta 2e — invoice panel on completed real jobs (legacy Blobs rows have no job
+  // to invoice, so isJob gates it). The message line is a SIBLING of the panel container
+  // so an in-place panel re-render after create/send/refresh does not wipe it.
+  const invoiceSection = (isJob && b.job_status === "completed")
+    ? '<div class="inv-section"><div class="inv-title">Invoice</div>'+
+        '<div class="inv-panel" id="inv-panel-'+esc(b.id)+'">'+invoicePanelHtml(b, invoicesByJob[b.id], invoicingConfigured)+'</div>'+
+        '<div class="review-msg" id="inv-msg-'+esc(b.id)+'"></div>'+
+      '</div>'
+    : '';
+
   return '<div class="booking-card">'+
     '<div class="booking-card-header" onclick="toggleCard('+i+')">'+
       '<div class="booking-card-header-left">'+
@@ -660,6 +836,7 @@ function buildCard(b, i){
         reviewControls+
       '</div>'+
       '<div class="review-msg" id="review-msg-'+esc(b.id)+'"></div>'+
+      invoiceSection+
     '</div>'+
   '</div>';
 }
@@ -667,6 +844,34 @@ function buildCard(b, i){
 function toggleCard(i){
   const body = document.getElementById("card-"+i);
   if(body) body.classList.toggle("open");
+}
+
+// D-026 Beta 2e — accounting export (D-039). Fetches the server-built CSV with the admin
+// Bearer (the endpoint is requireAdmin-gated, so a plain link would 401) and saves it.
+// entity is 'payments' (money-in receipts, two-receipts model) or 'invoices' (register).
+async function downloadAccountingExport(entity, btn){
+  const label = entity === "invoices" ? "invoices" : "payments";
+  if(btn) btn.disabled = true;
+  try{
+    const res = await fetch("/api/v1/accounting-export?format=csv&entity=" + encodeURIComponent(label), {
+      headers: { "Authorization": "Bearer " + adminToken }
+    });
+    if(!res.ok){ alert("Could not build the " + label + " export (" + res.status + ")."); return; }
+    const text = await res.text();
+    const blob = new Blob([text], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "icc-" + label + "-" + new Date().toISOString().split("T")[0] + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch(e){
+    alert("Could not reach the server for the " + label + " export.");
+  } finally {
+    if(btn) btn.disabled = false;
+  }
 }
 
 function downloadXML(){

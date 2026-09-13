@@ -173,6 +173,20 @@ test("handleGet lists invoices, optionally filtered by job_id", async () => {
   assert.strictEqual(res.body.invoices.length, 2);
 });
 
+test("handleGet reports configured:true when invoicing is configured", async () => {
+  const sb = fakeSupabase(() => ({ data: [], error: null }));
+  const res = await parse(await inv.handleGet({ httpMethod: "GET", queryStringParameters: {} }, HEADERS, { supabase: sb, invoicingConfigured: true }));
+  assert.strictEqual(res.status, 200);
+  assert.strictEqual(res.body.configured, true);
+});
+
+test("handleGet reports configured:false when invoicing is dormant", async () => {
+  const sb = fakeSupabase(() => ({ data: [], error: null }));
+  const res = await parse(await inv.handleGet({ httpMethod: "GET", queryStringParameters: {} }, HEADERS, { supabase: sb, invoicingConfigured: false }));
+  assert.strictEqual(res.status, 200);
+  assert.strictEqual(res.body.configured, false);
+});
+
 test("handleGet derives 'overdue' for a sent invoice past its due date (not stored)", async () => {
   const rows = [
     { id: "inv-1", status: "sent", due_at: "2026-09-01T00:00:00Z" }, // past due -> overdue

@@ -77,6 +77,13 @@
   to = "/.netlify/functions/invoices"
   status = 200
 
+# Accounting export (D-026 build note 6 / D-039): invoices register + payments feed,
+# admin-gated, generic CSV/JSON. Reads our own DB, so not gated on the Stripe rail.
+[[redirects]]
+  from = "/api/v1/accounting-export"
+  to = "/.netlify/functions/accountingExport"
+  status = 200
+
 # D-004 deposit pay-link — Stripe posts payment events here. Signature-authorised
 # (STRIPE_WEBHOOK_SECRET), POST-only. Dormant until the Stripe env vars are set.
 [[redirects]]

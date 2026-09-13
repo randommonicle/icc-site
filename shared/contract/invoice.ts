@@ -53,7 +53,10 @@ export interface InvoiceResponse {
   note?: string;
 }
 
-/** `GET /api/v1/invoices[?job_id=...]` success response. */
+/** `GET /api/v1/invoices[?job_id=...]` success response. `configured` is the dormant
+ *  signal (false when no provider key is set), so a client can show a "not configured"
+ *  state rather than offering a create that would 503. */
 export interface InvoiceListResponse {
   invoices: InvoiceRecord[];
+  configured: boolean;
 }

@@ -538,3 +538,14 @@ Ben wants a back-end chatbot that assists **Mark only**, not customers. Every ex
 5. **Reuse, do not fork.** Built on the existing `runAssistantTurn` loop and the `handoffs.js` pattern; model is `shared/config/models.js` `text` (Sonnet).
 
 **Sequencing.** Beta 4, LAST in phase 1, because it reads the data the other betas produce (invoices, expenses), and it needs the guards refactor first. Relationships: extends D-019 (grounding / escalation) and D-020 (operator AI-draft discipline) to a read-across-the-business surface; the AI-surface discipline (input minimisation, output discipline, human-in-the-loop) applies throughout.
+
+## D-041 — The accounting export's payments feed represents cash-in as two receipts (deposit + invoice balance), not one invoice at face value
+**Status:** Accepted (Ben, 2026-09-13, ratifying the Beta 2e export proposal). Implements the D-026 build-note-6 accounting feed under [D-039](#d-039)'s operational-visibility boundary.
+
+The accounting export (`GET /api/v1/accounting-export`) has two entities: an invoices REGISTER (documents raised, full face value) and a payments FEED (money actually received). Under Decision A ([BACKEND_PHASE1_PLAN.md](docs/BACKEND_PHASE1_PLAN.md)) an invoice's face value is the FULL job value with the paid deposit shown as a credit line, so the customer pays the deposit at booking (Stripe Checkout) and the BALANCE at completion (the invoice). Two separate money-in events, on two dates.
+
+**Decision.** The payments feed emits **two receipts** for a deposit job: the deposit (dated `deposit_paid_at`, amount `deposit_ex_vat`, referenced by the Stripe payment_intent) and the invoice balance (dated `paid_at`, amount `full − deposit`, referenced by the invoice number). They sum to the full job value. A job with no paid deposit yields a single full receipt; an unpaid invoice is not a receipt (it stays in the register only).
+
+**Why not invoices-only.** Listing paid invoices at face value would misdate the money (the full value would land on the completion date when part arrived at booking) and would drop the deposit as its own Stripe receipt, so the feed would not reconcile against the Stripe payouts. The two-receipts model reconciles and dates correctly without double-counting.
+
+**Scope / boundary.** This is the generic feed for Mark's accountant / MTD tool (D-026 note 6), not in-platform accounting (the D-039 boundary holds). First cut excludes refunded deposits (`TODO(backend-phase1/accounting-refunds)`); a later slice emits refunds as negative events for period-accurate cash-in. No VAT (D-024).
