@@ -1,53 +1,7 @@
-// Allowed origins for the chat endpoint.
-//
-// Order of precedence:
-//   1. The ALLOWED_ORIGINS env var (comma-separated) if explicitly set — strict
-//      mode: an unrecognised origin is 403'd. The site's OWN Netlify deploy
-//      origins (see netlifyDeployOrigins) are ALWAYS folded in, even here, so
-//      setting ALLOWED_ORIGINS to lock the public domain never 403s the
-//      .netlify.app host or a deploy preview the team tests on (the L-001 safe
-//      variant — strict mode without locking ourselves out).
-//   2. Netlify's auto-injected URL / DEPLOY_URL / DEPLOY_PRIME_URL — these
-//      always reflect the real deployed domain (production, branch deploys and
-//      deploy previews), so a default-named Netlify site works without config.
-//   3. A small set of common dev/prod fallbacks (fail-open mode only).
-//
-// When ALLOWED_ORIGINS is unset we fail OPEN with a warning rather than 403
-// every customer — the per-IP rate limit on /api/chat is the real defence.
-function normaliseOrigins(list){
-  const seen = new Set();
-  const out = [];
-  for(const o of list){
-    if(!o) continue;
-    const n = String(o).replace(/\/+$/, ""); // strip trailing slashes
-    if(n && !seen.has(n)){ seen.add(n); out.push(n); }
-  }
-  return out;
-}
-// The site's own Netlify deploy origins: URL is the production / custom-domain
-// host, DEPLOY_URL the unique per-deploy host, DEPLOY_PRIME_URL the branch-deploy
-// / deploy-preview host. Allowed in BOTH modes so locking the public domain via
-// ALLOWED_ORIGINS does not 403 the .netlify.app or a preview (L-001).
-function netlifyDeployOrigins(){
-  return [process.env.URL, process.env.DEPLOY_URL, process.env.DEPLOY_PRIME_URL];
-}
-function buildAllowedOrigins(){
-  const explicit = process.env.ALLOWED_ORIGINS;
-  if(explicit){
-    const listed = explicit.split(",").map(s => s.trim()).filter(Boolean);
-    // Strict mode still trusts the site's own deploy origins (L-001 safe variant).
-    return normaliseOrigins(listed.concat(netlifyDeployOrigins()));
-  }
-  // Fail-open default: the deploy origins plus the known prod domains + localhost.
-  return normaliseOrigins(netlifyDeployOrigins().concat([
-    "https://intelligentclean.co.uk",
-    "https://www.intelligentclean.co.uk",
-    "http://localhost:8888",
-    "http://localhost:3000"
-  ]));
-}
-const ALLOWED_ORIGINS = buildAllowedOrigins();
-const ORIGIN_CHECK_STRICT = process.env.ALLOWED_ORIGINS ? true : false;
+// The origin allowlist + CORS policy live in origins.js (extracted for Beta 4 so the
+// operator endpoint shares ONE policy with this one, D-040 guardrail 4). It is required
+// below beside the rate limiter and snapshotted once at module load, exactly as the
+// module-level consts that used to sit here were.
 
 // Shared config — single source of truth (D-006, D-007). Model names, the
 // pricing table, and the service-area/surcharge facts live in shared/config and
@@ -74,6 +28,9 @@ const { insertBooking, setJobCalLink, availabilityFromJobs, serverQuoteForBookin
 // re-exported below for test/hardening.test.js.
 const { getBlobStore } = require("./blobStore.js");
 const { getClientIP, tooManyResponse, rateLimit, enforceRateLimit } = require("./rateLimit.js");
+// Origin allowlist + CORS (origins.js): one policy per function instance, built at load.
+const { getOrigin, createOriginPolicy } = require("./origins.js");
+const originPolicy = createOriginPolicy();
 
 // Slice 5b (D-021): the single switch for the bookings backend. When "postgres",
 // confirm_booking writes to the Supabase `jobs` table, availability derives from
@@ -247,35 +204,13 @@ const WEB_SEARCH_TOOL = {
 // one-time cache re-warm, exactly like adding ESCALATION_TOOL in 4b.
 const TOOLS = [ESCALATION_TOOL, WEB_SEARCH_TOOL];
 
-function getOrigin(event){
-  const raw = event.headers.origin || event.headers.referer || "";
-  if(!raw) return "";
-  try { const u = new URL(raw); return u.origin; } catch(e){ return ""; }
-}
-
-function corsHeaders(origin){
-  // In strict mode echo allowed origins only. In fail-open mode echo the
-  // request's origin so the browser actually accepts the response — otherwise
-  // a CORS mismatch hides the real response body from the client.
-  const ok = origin && ALLOWED_ORIGINS.includes(origin);
-  let allow;
-  if(ok) allow = origin;
-  else if(!ORIGIN_CHECK_STRICT && origin) allow = origin;
-  else allow = ALLOWED_ORIGINS[0] || "*";
-  return {
-    "Access-Control-Allow-Origin": allow,
-    "Vary": "Origin",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS"
-  };
-}
-
-// getClientIP / tooManyResponse / rateLimit / enforceRateLimit now live in
-// rateLimit.js (imported above), so bookingAction.js shares the same limiter.
+// getOrigin / corsHeaders / the origin check live in origins.js (originPolicy above);
+// getClientIP / tooManyResponse / rateLimit / enforceRateLimit in rateLimit.js, so
+// bookingAction.js and operatorChat.js share the same guards, not divergent copies.
 
 exports.handler = async function (event) {
   const origin = getOrigin(event);
-  const baseHeaders = corsHeaders(origin);
+  const baseHeaders = originPolicy.corsHeaders(origin);
 
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 200, headers: baseHeaders, body: "" };
@@ -303,16 +238,11 @@ exports.handler = async function (event) {
     return { statusCode: 400, headers: baseHeaders, body: JSON.stringify({ error: "Invalid JSON" }) };
   }
 
-  // Origin check: only enforced when ALLOWED_ORIGINS env var was explicitly set.
-  // Otherwise we log mismatches but let the request through — the rate limit is
-  // the real defence and a 403 storm would be much more visible than abuse.
-  if (origin && !ALLOWED_ORIGINS.includes(origin)) {
-    if(ORIGIN_CHECK_STRICT){
-      console.log("Rejected origin:", origin, "allowed:", ALLOWED_ORIGINS.join(","));
-      return { statusCode: 403, headers: baseHeaders, body: JSON.stringify({ error: "Forbidden origin" }) };
-    } else {
-      console.log("Unrecognised origin (fail-open):", origin, "allowed defaults:", ALLOWED_ORIGINS.join(","));
-    }
+  // Origin check (origins.js): only enforced when ALLOWED_ORIGINS was explicitly set;
+  // otherwise an unrecognised origin is logged and let through (createOriginPolicy).
+  const originCheck = originPolicy.check(origin);
+  if (!originCheck.ok) {
+    return { statusCode: originCheck.status, headers: baseHeaders, body: JSON.stringify({ error: originCheck.error }) };
   }
 
   // Per-IP client identity, shared by all three POST actions for rate limiting.
@@ -1480,4 +1410,3 @@ exports.handleEscalation = handleEscalation;
 exports.withKnowledgeDocument = withKnowledgeDocument;
 exports.collectCitations = collectCitations;
 exports.privacyNoticeUrl = privacyNoticeUrl;
-exports.buildAllowedOrigins = buildAllowedOrigins;

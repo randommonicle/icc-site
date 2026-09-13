@@ -39,6 +39,7 @@ existing behaviour.
 
 Public by design: pricing is not sensitive, so CORS is open and there is no
 per-IP rate limit (L-006 gates only money / shared-state paths — this endpoint
-is neither). When v1 grows endpoints that write state or cost money, factor the
-origin-allowlist + `rateLimit` helpers out of `chat.js` into a shared server lib
-and apply them there.
+is neither). Endpoints that write state or cost money take the shared guards:
+the per-IP limiter in `server/netlify/functions/rateLimit.js` and the origin
+allowlist + CORS policy in `server/netlify/functions/origins.js` (both extracted
+from `chat.js`; the operator assistant, D-040, is the next consumer of both).
