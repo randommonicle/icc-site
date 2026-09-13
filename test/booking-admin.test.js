@@ -21,7 +21,11 @@ function baseJob(over = {}) {
     operator_action_token_expires_at: new Date(Date.now() + 86400000).toISOString(),
     operator_action_token_used_at: null,
     customer_id: "cust-1",
-    slot_date: "2026-09-10",
+    // Relative future date: `resend` 409s once the booking's day has passed
+    // (bookingAdmin.js "day has passed" guard vs real Date.now()), so a fixed date goes
+    // stale and reds the resend tests. Tests needing a past booking override to a fixed
+    // past date. (date-relative fixtures; mirrors bookings-chat.js futureDow.)
+    slot_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
     start_hour: 13,
     start_minute: 0,
     slots_needed: 3,
