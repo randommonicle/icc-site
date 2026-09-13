@@ -12,6 +12,54 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session (2026-09-13): Beta 2e (invoice UI + accounting export) and Beta 3 (expenses + cash-basis P&L + finances UI) BUILT, tested and committed; Beta 4 (operator assistant) DESIGNED and cross-agent review CONVERGED (not built). 9 commits, LOCAL/UNPUSHED, batch now 26 ahead of origin/main, nothing deployed.
+
+*Diagnoses in this note are unverified unless marked.* **Wrap-up context: /context = 51% (yellow), Ben's reading (this harness cannot self-invoke /context). Wrapping at Ben's request; Beta 4 build deferred to a fresh chat (large unit, yellow band).**
+
+**Session goal.** Read the handover, build the next phases. Landed Beta 2e + Beta 3; designed Beta 4 and ran a GPT/Gemini cross-agent design review to convergence.
+
+**Branch and worktree.** `main`, standard worktree `C:\Users\bengr\Projects\ICC\icc-site` (the Desktop `icc-site` is the stub). No open PRs. **Do NOT push** (batch held for Ben's one deploy).
+
+**What landed (newest first; each `node --test`-green at the commit; all LOCAL/UNPUSHED).**
+- (this handover + D-040-addendum docs commit).
+- `a652a7d` feat(admin): finances UI — expenses + P&L panel (Beta 3 slice E). UI login-gated, Ben verifies live.
+- `5c8f016` feat(pnl): operational P&L endpoint, cash-basis (D-039, D-042, slice D).
+- `fb74a1b` feat(expenses): `/api/v1/expenses` CRUD + shared `period.js` (slice C).
+- `fe30e45` refactor(accounting): extract money-in into `receipts.js` (slice B; export tests unchanged, behaviour-preserving).
+- `a4e58a1` feat(db): `expenses` table (slice A). **Migration `20260913120000` validated on local Docker** (`db reset` + `test db` = 6 files / 60 tests). Ben applies to hosted.
+- `8a5ad00` docs(lessons): L-038 (stale date fixture reds the suite by the calendar).
+- `46b22b5` feat(invoicing): invoice admin UI + accounting export (Beta 2e; D-026, D-039, D-041). UI login-gated.
+- `a05dfc4` test(booking-admin): relative future `slot_date` — **fixed a pre-existing RED suite** (a stale fixture, not a regression; see L-038).
+- Full suite at wrap: `node --test` **441 tests, 432 pass / 0 fail / 9 skip** (verified). D-041 (two-receipts export) and D-042 (cash-basis P&L) recorded this session.
+
+**Beta 4 — designed + CONVERGED, NOT built.** Cross-agent design review (CLAUDE + GPT/ASTRA + Gemini/GEMPRO) reached `[[CONVERGED]]` on both seats, no residual. **The converged build contract is banked in DECISIONS.md D-040 addendum (2026-09-13) and the Beta 4 section of docs/BACKEND_PHASE1_PLAN.md.** The full transcript is `exchange/REVIEW_beta4-operator-assistant_2026-09-13.md`, which is GITIGNORED + machine-local (does not travel), so the addendum + plan are the durable record — build from those, not the exchange file. Five slices next session: (1) `origins.js` refactor, (2) `operator_rate` atomic-counter migration + admission helper, (3) `readOnlyClient` facade + allowlist boundary test + extract `buildPnl` to a client-free module, (4) `POST /api/v1/operator-chat`, (5) admin operator panel.
+
+**Deferred items (grep anchors).**
+- `TODO(backend-phase1/invoice-orphan)` (`server/netlify/functions/invoices.js`) — Stripe-Search reconciliation; the one-click Create retry is the practical mitigation.
+- `TODO(backend-phase1/accounting-refunds)` (`server/netlify/functions/receipts.js`) — refunded deposits excluded from the export/P&L first cut.
+- Calendar clash-check PARKED (D-005/D-033), gated on Mark's live calendar.
+
+**Verification still outstanding.**
+- **Ben applies TWO migrations to hosted** (auto-mode blocks agent schema writes; both validated locally): `20260910120000` (invoices provider columns — the export + P&L read them, so they 42703 without it) and `20260913120000` (expenses). The expenses/P&L/export endpoints 503 cleanly ("not set up yet") until applied.
+- Login-gated UIs (invoice panel on completed job cards; the Finances section) verified live by Ben post-deploy.
+- Whole 26-commit batch UNPUSHED → nothing proven at the live seam. Invoicing one-real-ride (create→send→pay→webhook) is a with-Ben step once Stripe is keyed (invoicing dormant behind `STRIPE_SECRET_KEY`).
+
+**Blockers / open questions.** None blocking the Beta 4 build (design converged). Deploy HELD pending Ben.
+
+**Next actions (ordered).**
+1. Build Beta 4 to the D-040 addendum contract, starting slice 1 (extract the origin allowlist from `chat.js` into `origins.js`, behaviour-preserving; expand `test/origins.test.js` to the request/response matrix).
+2. When ready to deploy the batch: re-run `node --test` (L-038 — a held batch can red by the calendar alone), confirm the tip is non-`[skip ci]` (L-037), apply the two migrations to hosted, push (= deploy), then the post-deploy rides.
+3. Invoicing one-real-ride once Stripe is keyed.
+
+**Traps / working agreements (this session).**
+- Do NOT push; batch held. Non-`[skip ci]` tip rule (L-037). Re-run `node --test` immediately before any deploy (L-038).
+- Migration validation needs local Docker up (`supabase start` → `db reset` → `test db`).
+- The `exchange/REVIEW_*.md` / `KICKOFF_*.md` files are GITIGNORED + machine-local; Beta 4's design is banked in DECISIONS + the plan, not there.
+- Two errors in my Beta 4 brief were caught by the review and corrected in the D-040 addendum: `max_uses` is a web-search-tool feature (not for custom tools); `runAssistantTurn` does NOT produce structured tool results (handlers must). Build to the addendum, not the original brief.
+- **Supersedes the 2026-09-10 backend next-actions:** Beta 2e DONE, Beta 3 DONE, Beta 4 designed+converged (was "planned"). The invoicing hosted-migration + Stripe-key steps below still stand.
+
+---
+
 ## This session (2026-09-10, backend phase 1): invoicing BACKEND built end-to-end and tested (schema + adapter + endpoint + webhook, dormant behind STRIPE_SECRET_KEY); jobs status dashboard added; a phase-1 build plan recorded. 6 commits, LOCAL/UNPUSHED, batch still HELD, nothing deployed. Sensitive decon copy signed off by Ben ("agree to all"); pointer line already landed (entry below).
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: /context unavailable in this harness — recorded as a gap, not estimated. Long session; wrapping at a tested checkpoint (checkpoint-log: every commit is a safe stop). Ben's steer: build the first betas without him, no deploy; two Opus sub-agents authorised. Both sub-agents were used ONCE (the two surveys); no adversarial/cross-agent review run.**
