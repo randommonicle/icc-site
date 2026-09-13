@@ -11,3 +11,4 @@ export * from "./invoice";
 export * from "./accounting";
 export * from "./expense";
 export * from "./pnl";
+export * from "./operatorChat";

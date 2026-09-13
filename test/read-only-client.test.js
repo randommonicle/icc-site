@@ -30,7 +30,7 @@ function fakeSupabase(response) {
 
 const ALLOW = {
   jobs: { cols: ["id", "slot_date", "status", "estimated_price_ex_vat", "deposit_status"] },
-  invoices: { cols: ["id", "job_id", "status", "amount_ex_vat", "paid_at", "created_at"], rel: { jobs: ["slot_date", "deposit_ex_vat", "deposit_status"] } },
+  invoices: { cols: ["id", "job_id", "status", "amount_ex_vat", "paid_at", "created_at"], rel: { jobs: { cols: ["slot_date", "deposit_ex_vat", "deposit_status"], rel: { customers: { cols: ["name"] } } } } },
   expenses: { cols: ["category", "amount", "incurred_on"] },
 };
 
@@ -68,6 +68,15 @@ test("filters may be applied in any order and repeated; order() without opts is 
     ["gte", "incurred_on", "2026-09-01"], ["lte", "incurred_on", "2026-09-30"], ["gte", "amount", 1], ["order", "incurred_on"], ["limit", MAX_LIMIT],
   ]);
   assert.deepStrictEqual(res, { data: [], error: null });
+});
+
+test("a nested embed passes only where the allowlist spells out that depth (invoices -> jobs -> customers.name)", async () => {
+  const sb = fakeSupabase({ data: [], error: null });
+  const ro = createReadOnlyClient(sb, ALLOW);
+  await ro.from("invoices").select("id,jobs(slot_date,customers(name))").limit(5);
+  assert.deepStrictEqual(sb.log[1], ["select", "id,jobs(slot_date,customers(name))"]);
+  // The same relation is NOT reachable from a table whose allowlist does not name it.
+  rejects(() => ro.from("jobs").select("id,customers(name)"), /relation 'customers' is not allowlisted on jobs/);
 });
 
 test("a DB error comes back reduced to {code, message}; no details/hint/builder leak; data is null", async () => {
@@ -136,8 +145,11 @@ test("select(): '*', unknown columns, aliases, casts, hints, nesting and non-all
   const badInv = [
     ["id,customers(name)", /relation 'customers' is not allowlisted/],
     ["id,jobs!inner(slot_date)", /bad relation token/],
-    ["id,jobs(customers(name))", /bad column token/],
-    ["id,jobs(address)", /'jobs.address' is not allowlisted/],
+    ["id,jobs(customers(email))", /'invoices.jobs.customers.email' is not allowlisted/],
+    ["id,jobs(customers(name,notes))", /'invoices.jobs.customers.notes' is not allowlisted/],
+    ["id,jobs(deposit_status,invoices(id))", /relation 'invoices' is not allowlisted on invoices.jobs/],
+    ["id,jobs()", /explicit column list/],
+    ["id,jobs(address)", /'invoices.jobs.address' is not allowlisted/],
     ["id,jobs(slot_date", /unbalanced/],
     ["id,jobs(*)", /bad column token/],
   ];

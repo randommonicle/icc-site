@@ -5,9 +5,11 @@
 // enough: pnl.js imports the write client at module level yet exports a pure buildPnl.
 // So the check is a STATIC transitive require graph against an explicit allowlist.
 //
-// Slice 3 lands the checker + proves it can fail (three negative fixtures) + the positive
-// case for pnlCalc.js (the calculation the tools reuse). Slice 4 adds the assertion over
-// the real operatorTools.js.
+// Slice 3 landed the checker + proved it can fail (three negative fixtures) + the positive
+// case for pnlCalc.js; slice 4 adds THE assertion: the real operatorTools.js graph is
+// exactly the client-free set. A future require of supabaseClient.js, adminAuth.js, a
+// provider, Blobs or supabase-js anywhere under it (top level, inside a function, or via
+// a helper) reds this file.
 
 const { test } = require("node:test");
 const assert = require("node:assert");
@@ -18,7 +20,8 @@ const FN = (f) => path.resolve(__dirname, "..", "server", "netlify", "functions"
 const FIX = (f) => path.resolve(__dirname, "..", "test-support", "fixtures", f);
 
 // The client-free modules the operator tools may reach. Anything else is a violation.
-const CLIENT_FREE = [FN("pnlCalc.js"), FN("period.js"), FN("receipts.js"), FN("readOnlyClient.js")];
+const CLIENT_FREE = [FN("pnlCalc.js"), FN("period.js"), FN("receipts.js"), FN("readOnlyClient.js"), FN("assistantLoop.js")];
+const PRIVILEGED = /supabaseClient\.js$|adminAuth\.js$|paymentProvider\.js$|invoiceProvider\.js$|smsProvider\.js$|blobStore\.js$|rateLimit\.js$|operatorAdmission\.js$|chat\.js$|handoffs\.js$|stripe-webhook\.js$/;
 
 test("positive: pnlCalc.js reaches only client-free modules (period.js), no bare imports", () => {
   const g = requireGraph(FN("pnlCalc.js"));
@@ -29,15 +32,31 @@ test("positive: pnlCalc.js reaches only client-free modules (period.js), no bare
   assert.strictEqual(r.ok, true, JSON.stringify(r));
 });
 
-test("positive: the allowlist itself is client-free (none of its members reach supabaseClient.js or adminAuth.js)", () => {
+test("positive: the allowlist itself is client-free (none of its members reach a privileged module)", () => {
   for (const f of CLIENT_FREE) {
     const g = requireGraph(f);
-    for (const reached of g.files) {
-      assert.ok(!/supabaseClient\.js$|adminAuth\.js$|paymentProvider\.js$|invoiceProvider\.js$|smsProvider\.js$|blobStore\.js$/.test(reached),
-        path.basename(f) + " reaches " + reached);
-    }
+    for (const reached of g.files) assert.ok(!PRIVILEGED.test(reached), path.basename(f) + " reaches " + reached);
     assert.ok(!g.bare.has("@supabase/supabase-js"), path.basename(f) + " imports supabase-js");
   }
+});
+
+test("THE BOUNDARY: operatorTools.js reaches exactly the client-free set, no bare imports, no dynamic requires", () => {
+  const g = requireGraph(FN("operatorTools.js"));
+  assert.deepStrictEqual([...g.files].sort(), [FN("operatorTools.js"), FN("pnlCalc.js"), FN("period.js"), FN("receipts.js")].sort());
+  assert.deepStrictEqual([...g.bare], [], "no node_modules or builtins at all");
+  assert.deepStrictEqual(g.dynamic, []);
+  const r = checkAllowlist(g, CLIENT_FREE.concat([FN("operatorTools.js")]), []);
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  for (const reached of g.files) assert.ok(!PRIVILEGED.test(reached), "privileged: " + reached);
+});
+
+test("the endpoint is where privilege lives: operatorChat.js reaches the client, auth and admission, and hands the tools only the facade", () => {
+  const g = requireGraph(FN("operatorChat.js"));
+  for (const must of ["adminAuth.js", "supabaseClient.js", "operatorAdmission.js", "readOnlyClient.js", "operatorTools.js", "assistantLoop.js", "origins.js", "rateLimit.js"]) {
+    assert.ok(g.files.has(FN(must)), "operatorChat.js must reach " + must);
+  }
+  assert.ok(!g.files.has(FN("chat.js")), "the operator function does not bundle the customer chat");
+  assert.ok(!g.files.has(FN("paymentProvider.js")) && !g.files.has(FN("invoiceProvider.js")) && !g.files.has(FN("smsProvider.js")), "no outbound side-effect module is reachable");
 });
 
 test("negative (prove-it-can-fail): an INDIRECT privileged import via a helper is flagged", () => {

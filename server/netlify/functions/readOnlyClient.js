@@ -5,9 +5,11 @@
 // What a handler can do through it, and nothing else:
 //   ro.from(table)                    table must be in the allowlist
 //     .select("a,b,rel(c,d)")         explicit columns only, each in the table's allowlist;
-//                                     ONE level of embed, only allowlisted relations and
-//                                     their allowlisted columns; '*', aliases, casts, hints
-//                                     (alias:col, col::text, rel!inner) all rejected
+//                                     embeds only where the allowlist names the relation
+//                                     AND its columns (nested embeds need their own entry,
+//                                     e.g. invoices -> jobs -> customers(name)); '*',
+//                                     aliases, casts, hints (alias:col, col::text,
+//                                     rel!inner) all rejected
 //     .eq(col, v) .gte(col, v) .lte(col, v) .order(col, opts)   col must be allowlisted
 //     .limit(n)                       required; 1..MAX_LIMIT
 //     await                           -> a fresh { data, error } (error reduced to
@@ -45,9 +47,10 @@ function splitTopLevel(s) {
   return out.map((x) => x.trim());
 }
 
-// Validate a projection against { cols:[...], rel:{ name:[...] } }; returns the
-// normalised projection string PostgREST will receive.
-function checkProjection(table, spec, projection) {
+// Validate a projection against a spec { cols:[...], rel:{ name:{ cols, rel } } } —
+// recursive, so a nested embed is allowed only where the allowlist spells it out at that
+// depth. Returns the normalised projection string PostgREST will receive.
+function checkProjection(label, spec, projection) {
   if (typeof projection !== "string" || !projection.trim()) fail("select needs an explicit column list");
   const parts = [];
   for (const item of splitTopLevel(projection)) {
@@ -56,17 +59,12 @@ function checkProjection(table, spec, projection) {
     if (m) {
       const rel = m[1].trim();
       if (!IDENT.test(rel)) fail("bad relation token '" + rel + "'");
-      const relCols = spec.rel && spec.rel[rel];
-      if (!relCols) fail("relation '" + rel + "' is not allowlisted on " + table);
-      const inner = splitTopLevel(m[2]);
-      for (const c of inner) {
-        if (!IDENT.test(c)) fail("bad column token '" + c + "' in " + rel + "(…)");
-        if (!relCols.includes(c)) fail("column '" + rel + "." + c + "' is not allowlisted");
-      }
-      parts.push(rel + "(" + inner.join(",") + ")");
+      const relSpec = spec.rel && spec.rel[rel];
+      if (!relSpec || !Array.isArray(relSpec.cols)) fail("relation '" + rel + "' is not allowlisted on " + label);
+      parts.push(rel + "(" + checkProjection(label + "." + rel, relSpec, m[2]) + ")");
     } else {
       if (!IDENT.test(item)) fail("bad column token '" + item + "'");
-      if (!spec.cols.includes(item)) fail("column '" + table + "." + item + "' is not allowlisted");
+      if (!spec.cols.includes(item)) fail("column '" + label + "." + item + "' is not allowlisted");
       parts.push(item);
     }
   }

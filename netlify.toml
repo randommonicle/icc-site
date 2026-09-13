@@ -96,6 +96,13 @@
   to = "/.netlify/functions/pnl"
   status = 200
 
+# D-040 operator assistant: Mark-only, read-only, admin-gated (requireAdmin) with a
+# Postgres atomic turn budget; origin allowlist + per-IP limit as defence in depth.
+[[redirects]]
+  from = "/api/v1/operator-chat"
+  to = "/.netlify/functions/operatorChat"
+  status = 200
+
 # D-004 deposit pay-link — Stripe posts payment events here. Signature-authorised
 # (STRIPE_WEBHOOK_SECRET), POST-only. Dormant until the Stripe env vars are set.
 [[redirects]]
