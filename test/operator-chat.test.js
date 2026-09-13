@@ -69,6 +69,9 @@ test("per-IP limiter (defence in depth) refuses before the body is read; admissi
   const { res, d } = await run("{not json", { enforceRateLimitFn: async () => ({ ok: false, retryAfter: 3600 }), admit: async () => { admitted++; return { admitted: true }; } });
   assert.strictEqual(res.statusCode, 429);
   assert.strictEqual(res.headers["Retry-After"], "3600");
+  const body = JSON.parse(res.body);
+  assert.ok(!body.error.includes("01452"), "the operator is not told to phone the business");
+  assert.strictEqual(body.retry_after, 3600);
   assert.strictEqual(admitted, 0);
   assert.strictEqual(d.fetchImpl.calls.length, 0);
 });
@@ -208,6 +211,32 @@ test("with the production limits, the loop's own round cap also ends as a stoppe
   assert.strictEqual(json.stopped, "model_calls");
   assert.deepStrictEqual(json.usage, { model_calls: oc.LIMITS.maxRounds + 1, tool_calls: oc.LIMITS.maxRounds });
   assert.ok(oc.LIMITS.maxRounds + 1 <= oc.LIMITS.maxModelCalls, "the wrapper cap is never looser than the loop cap");
+});
+
+test("the deadline is anchored at ENTRY: time spent in auth, the limiter and admission counts against it", async () => {
+  let t = Date.parse(NOW);
+  const slowGate = async () => { t += 3000; return { ok: true, user: { id: UID, email: "m@x" } }; }; // requireAdmin takes 3 s
+  const slowAdmit = async () => { t += 3000; return { admitted: true }; };                          // admission takes 3 s
+  const fetchImpl = scriptedFetch([textReply("late")]);
+  // 6 s already gone of an 8.5 s budget: the first model call still runs, with the remaining ~2.5 s as its signal.
+  const ok = await run(user("hi"), { requireAdminFn: slowGate, admit: slowAdmit, fetchImpl, nowMs: () => t, deadline: 8500 });
+  assert.strictEqual(ok.json.stopped, undefined);
+  assert.strictEqual(fetchImpl.calls.length, 1);
+  // 9 s gone before the first call: refused up front, nothing fetched, nothing charged to the model.
+  t = Date.parse(NOW);
+  const slower = async () => { t += 9000; return { admitted: true }; };
+  const late = await run(user("hi"), { admit: slower, fetchImpl: scriptedFetch([textReply("x")]), nowMs: () => t, deadline: 8500 });
+  assert.strictEqual(late.json.stopped, "deadline");
+});
+
+test("a reply cut off by max_tokens is returned with truncated: true", async () => {
+  const cut = Object.assign(textReply("Here are the first forty rows"), { stop_reason: "max_tokens" });
+  const { json } = await run(user("list everything"), { fetchImpl: scriptedFetch([cut]) });
+  assert.strictEqual(json.truncated, true);
+  assert.strictEqual(json.stopped, undefined);
+  assert.strictEqual(json.content[0].text, "Here are the first forty rows");
+  const whole = await run(user("hi"));
+  assert.strictEqual(whole.json.truncated, undefined, "absent when the reply completed");
 });
 
 test("the deadline: checked before each call (clock jump) and honoured mid-call (fetch timeout) — both a stopped 'deadline' reply", async () => {

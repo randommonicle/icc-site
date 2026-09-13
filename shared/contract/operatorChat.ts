@@ -23,11 +23,14 @@ export interface OperatorChatRequest {
 export interface OperatorChatResponse {
   content: [{ type: "text"; text: string }];
   stopped?: "model_calls" | "deadline";
+  /** The model hit its output-token cap: `content` is real but cut short; say so. */
+  truncated?: true;
   usage: { model_calls: number; tool_calls: number };
 }
 
 /** Non-200 bodies: 400 (bad transcript), 401/403 (not an admin), 429 (this hour's turns
- *  used; `retry_after` seconds, also in the Retry-After header), 500/503 (not configured
+ *  used, or too many requests from one connection; `retry_after` seconds, also in the
+ *  Retry-After header), 500/503 (not configured
  *  or the turn budget could not be checked; fail-closed), 502 (the model call failed). */
 export interface OperatorChatError {
   error: string;

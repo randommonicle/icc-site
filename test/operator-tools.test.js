@@ -49,6 +49,7 @@ const TABLES = {
     invoice(),
     invoice({ id: "f1e2d3c4-0000-4000-8000-000000000002", job_id: "a1b2c3d4-0000-4000-8000-000000000002", number: "INV-0002", status: "sent", amount_ex_vat: 250, paid_at: null, due_at: "2026-09-01T00:00:00Z", created_at: "2026-08-20T09:00:00Z", provider_invoice_id: "in_2", jobs: { slot_date: "2026-08-15", deposit_ex_vat: 24, deposit_status: "unpaid", customers: { name: "Tom Brown" } } }),
     invoice({ id: "f1e2d3c4-0000-4000-8000-000000000003", job_id: "a1b2c3d4-0000-4000-8000-000000000006", number: "INV-0003", status: "sent", amount_ex_vat: 90, paid_at: null, due_at: "2026-12-01T00:00:00Z", created_at: "2026-09-01T09:00:00Z", provider_invoice_id: "in_3", jobs: { slot_date: "2026-09-01", deposit_ex_vat: null, deposit_status: "unpaid", customers: { name: "sarah smith" } } }),
+    invoice({ id: "f1e2d3c4-0000-4000-8000-000000000004", job_id: "a1b2c3d4-0000-4000-8000-000000000004", number: "INV-0004", status: "sent", amount_ex_vat: 250, paid_at: null, due_at: "2026-09-05T00:00:00Z", created_at: "2026-08-22T09:00:00Z", provider_invoice_id: "in_4", jobs: { slot_date: "2026-08-20", deposit_ex_vat: 24, deposit_status: "paid", customers: { name: "Ann Lee" } } }),
   ],
   expenses: [
     expense(),
@@ -68,7 +69,7 @@ async function call(name, input, tables) {
 }
 
 const JOB_KEYS = ["job", "date", "start_hour", "hours", "customer", "postcode", "status", "confirmation", "price_ex_vat", "deposit_ex_vat", "deposit_status", "method"];
-const INVOICE_KEYS = ["invoice", "number", "customer", "job", "job_date", "status", "amount_ex_vat", "deposit_credited_ex_vat", "issued_at", "due_at", "paid_at"];
+const INVOICE_KEYS = ["invoice", "number", "customer", "job", "job_date", "status", "amount_ex_vat", "deposit_credited_ex_vat", "balance_due_ex_vat", "issued_at", "due_at", "paid_at"];
 
 // --- definitions + the outward claim ----------------------------------------------------
 
@@ -140,9 +141,9 @@ test("find_customer_jobs: case-insensitive substring across a two-year window, m
 
 // --- invoices ---------------------------------------------------------------------------
 
-test("invoices_list: overdue derived from due_at, deposit credited when paid, exact keys, filters, total", async () => {
+test("invoices_list: overdue derived from due_at, deposit credited when paid, balance due is face value less the PAID deposit, exact keys, filters, totals", async () => {
   const { out } = await call("invoices_list", {});
-  assert.strictEqual(out.matched, 3);
+  assert.strictEqual(out.matched, 4);
   for (const r of out.invoices) assert.deepStrictEqual(Object.keys(r), INVOICE_KEYS);
   const byNo = Object.fromEntries(out.invoices.map((r) => [r.number, r]));
   assert.strictEqual(byNo["INV-0001"].status, "paid");
@@ -150,11 +151,20 @@ test("invoices_list: overdue derived from due_at, deposit credited when paid, ex
   assert.strictEqual(byNo["INV-0002"].status, "overdue", "sent + due_at in the past => overdue");
   assert.strictEqual(byNo["INV-0002"].deposit_credited_ex_vat, 0, "unpaid deposit is not credited");
   assert.strictEqual(byNo["INV-0003"].status, "sent");
-  assert.strictEqual(out.total_ex_vat, 540);
+  // Balance due: paid => 0; unpaid deposit => the full face value; PAID deposit => face less deposit.
+  assert.strictEqual(byNo["INV-0001"].balance_due_ex_vat, 0);
+  assert.strictEqual(byNo["INV-0002"].balance_due_ex_vat, 250);
+  assert.strictEqual(byNo["INV-0003"].balance_due_ex_vat, 90);
+  assert.strictEqual(byNo["INV-0004"].status, "overdue");
+  assert.strictEqual(byNo["INV-0004"].deposit_credited_ex_vat, 24);
+  assert.strictEqual(byNo["INV-0004"].balance_due_ex_vat, 226);
+  assert.strictEqual(out.total_ex_vat, 790, "face values");
+  assert.strictEqual(out.total_balance_due_ex_vat, 566, "what is actually outstanding: 250 + 90 + 226");
   assert.ok(!JSON.stringify(out).includes("pay.example"), "payment_url never leaves");
   const overdue = await call("invoices_list", { status: "overdue" });
-  assert.deepStrictEqual(overdue.out.invoices.map((r) => r.number), ["INV-0002"]);
-  assert.strictEqual(overdue.out.total_ex_vat, 250);
+  assert.deepStrictEqual(overdue.out.invoices.map((r) => r.number).sort(), ["INV-0002", "INV-0004"]);
+  assert.strictEqual(overdue.out.total_ex_vat, 500, "face value overstates collectable cash by the paid deposit");
+  assert.strictEqual(overdue.out.total_balance_due_ex_vat, 476);
   const sarah = await call("invoices_list", { customer: "SARAH" });
   assert.deepStrictEqual(sarah.out.invoices.map((r) => r.customer).sort(), ["Sarah Jones", "sarah smith"]);
 });
@@ -169,7 +179,8 @@ test("pnl: reconciles with the receipts feed (deposit + invoice balance), subtra
   assert.strictEqual(out.expenses, 52.5);
   assert.strictEqual(out.margin, 171.5);
   assert.deepStrictEqual(out.expenses_by_category, { fuel: 40, materials: 12.5 });
-  assert.deepStrictEqual(out.partial, { invoices: false, deposits: false, expenses: false });
+  assert.strictEqual(out.partial, false, "a plain boolean, the flag the prompt promises");
+  assert.deepStrictEqual(out.partial_detail, { invoices: false, deposits: false, expenses: false });
   for (const c of store.calls) assert.ok(!c.projection.includes("customers"), "pnl needs no PII: " + c.projection);
 });
 
@@ -232,4 +243,30 @@ test("safeText strips control characters, collapses whitespace and caps with an 
   assert.strictEqual(safeText("x".repeat(12), 10), "x".repeat(10) + "…");
   assert.strictEqual(safeText(null, 10), "");
   assert.strictEqual(safeText(42, 10), "42");
+});
+
+// --- integration: the projections against a real PostgREST -------------------------------
+// fakeReadStore proves the allowlist; only PostgREST proves that `customers(name)` resolves
+// from jobs and that the nested `jobs(...,customers(name))` resolves from invoices. It
+// validates a projection against its schema cache even on empty tables (a bad embed is a
+// PGRST200, which dbError would turn into a generic error result), so "no result carries
+// an error key" is the whole assertion. Read-only: nothing is written.
+
+test("[integration] all seven tools' projections resolve on a real PostgREST (local stack)", {
+  skip: process.env.ICC_SUPABASE_IT === "1" ? false : "set ICC_SUPABASE_IT=1 with local Supabase env to run",
+}, async () => {
+  const { createClient } = require("@supabase/supabase-js");
+  const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  assert.ok(url && key, "SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY must point at the local stack");
+  const sb = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  const ctx = { ro: createReadOnlyClient(sb, ALLOWLIST), now: NOW, log: (...a) => console.log(...a) };
+  const calls = [
+    ["jobs_summary", {}], ["jobs_list", { status: "booked" }], ["find_customer_jobs", { customer: "xx" }],
+    ["invoices_list", { status: "overdue" }], ["pnl", {}], ["expenses_summary", {}], ["expenses_list", { category: "fuel" }],
+  ];
+  for (const [name, input] of calls) {
+    const out = JSON.parse(await handleOperatorTool({ name, input }, ctx));
+    assert.ok(!("error" in out), name + " returned an error against real PostgREST: " + JSON.stringify(out));
+    assert.strictEqual(typeof out.partial, "boolean", name + " carries a boolean partial flag");
+  }
 });
