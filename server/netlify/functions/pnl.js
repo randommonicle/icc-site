@@ -12,12 +12,14 @@
 const { requireAdmin } = require("./adminAuth.js");
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const receipts = require("./receipts.js");
-const { parsePeriod, endExclusiveISO } = require("./period.js");
+const { parsePeriod } = require("./period.js");
+// The pure calculation lives in pnlCalc.js (client-free) so the operator assistant can
+// share it; re-exported below so test/pnl.test.js and any caller keep the same import.
+const { buildPnl } = require("./pnlCalc.js");
 
 function json(statusCode, headers, obj) {
   return { statusCode, headers, body: JSON.stringify(obj) };
 }
-function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 
 // A pending migration on hosted surfaces as undefined_table (42P01) or undefined_column
 // (42703) — the P&L reads invoices provider columns + the expenses table. Map both to a
@@ -34,46 +36,6 @@ async function loadExpensesInPeriod(supabase, from, to) {
     .limit(5000);
   if (error) throw error;
   return data || [];
-}
-
-// Pure aggregation (exported for tests). Receipts count when their date is within
-// [from 00:00Z, (to + 1 day) 00:00Z) (end-exclusive, so 23:59:59Z on `to` is in);
-// expenses are already period-filtered by the caller (incurred_on). round2 once at the end
-// of each sum so float drift (e.g. three 0.1s) cannot leak into the figures.
-function buildPnl(period, payments, expenseRows) {
-  const startT = Date.parse(period.from + "T00:00:00Z");
-  const endT = Date.parse(endExclusiveISO(period.to));
-  let revenue = 0;
-  const revenueByType = {};
-  let receiptCount = 0;
-  for (const p of (payments || [])) {
-    const t = Date.parse(p.date);
-    if (!Number.isFinite(t) || t < startT || t >= endT) continue;
-    const a = Number(p.amount) || 0;
-    revenue += a;
-    revenueByType[p.type] = round2((revenueByType[p.type] || 0) + a);
-    receiptCount += 1;
-  }
-  let expenses = 0;
-  const expensesByCategory = {};
-  for (const e of (expenseRows || [])) {
-    const a = Number(e.amount) || 0;
-    expenses += a;
-    expensesByCategory[e.category] = round2((expensesByCategory[e.category] || 0) + a);
-  }
-  revenue = round2(revenue);
-  expenses = round2(expenses);
-  return {
-    from: period.from,
-    to: period.to,
-    revenue,
-    expenses,
-    margin: round2(revenue - expenses),
-    revenue_by_type: revenueByType,
-    expenses_by_category: expensesByCategory,
-    receipt_count: receiptCount,
-    expense_count: (expenseRows || []).length,
-  };
 }
 
 async function handleGet(event, headers, deps) {
