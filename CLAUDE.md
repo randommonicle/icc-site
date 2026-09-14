@@ -241,6 +241,10 @@ These are the same standards we hold on the ASH app and PropOS. They are not opt
 - Keep this doc set current. Every architectural choice → a record in [DECISIONS.md](DECISIONS.md). Every hard-won gotcha → an entry in [LESSONS_LEARNED.md](LESSONS_LEARNED.md). At the end of a working session, update [NEXT_SESSION.md](NEXT_SESSION.md) so the next person (or AI) can continue cold.
 - Writing style: clean prose. Use bold for structure (labels, headings, table headers), not to emphasise random words or sentences in body text.
 
+### Marketing skills pack
+- `.claude/skills/` holds a stripped subset of coreyhaines31/marketingskills, installed by `hooks/install-marketing-pack.mjs` from randommonicle/claude-skills; provenance and every cut are in `.claude/skills/UPSTREAM.md`. Do not edit those skills in place; re-run the installer to change the set.
+- Copy produced through those skills gets `unslop-text` as the final pass (the pack is written in the register that skill strips). Any customer-facing claim, statistic or certification goes through `substantiate-outward-claims` before it ships.
+
 ### Ownership
 - All accounts (domain, Netlify, Anthropic, Resend, Stripe, Supabase, Google Business Profile) should be owned by Mark / the business from the start, so nothing needs transferring later (D-009, [docs/DESIGN.md](docs/DESIGN.md) §13).
 
