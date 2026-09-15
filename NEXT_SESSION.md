@@ -12,7 +12,7 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
-## This session (2026-09-15): the held batch turned out to be PUSHED AND DEPLOYED on 2026-09-14 with its three hosted migrations UNAPPLIED (plus one applied-but-unrecorded); live blast radius established as admin-only; the not-ready 503 fixed for PostgREST's real codes and invoice Create gated before Stripe; a pre-push migration guard built and armed. 3 commits on `claude/handover-next-steps-6d2e41`, LOCAL/UNPUSHED. The three migrations still need applying (Ben's call, exact block below).
+## This session (2026-09-15): the held batch turned out to be PUSHED AND DEPLOYED on 2026-09-14 with its three hosted migrations UNAPPLIED (plus one applied-but-unrecorded); live blast radius established as admin-only; the not-ready 503 fixed for PostgREST's real codes and invoice Create gated before Stripe; a pre-push migration guard built and armed. 3 commits on `claude/handover-next-steps-6d2e41`, LOCAL/UNPUSHED. The three migrations were then APPLIED by Ben and verified (addendum below).
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: this harness cannot self-invoke /context; Ben did not read a figure this session. The unit is complete; nothing is mid-flight.**
 
@@ -33,8 +33,10 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 **Cross-agent review (CLI transport, first use on this repo).** `exchange/REVIEW_deploy-before-migrations_2026-09-15.md` in the MAIN checkout's `exchange/` (`C:\Users\bengr\Projects\ICC\icc-site\exchange\`, beside the earlier transcripts; gitignored, machine-local; copied there from this disposable worktree). `exchange/seats.jsonc` (the skill's template, also ignored) is there too, so the next review needs no setup. Seats GPT (codex 0.154.0) and GEMPRO (agy 1.2.3), driven headlessly from this worktree with `--cwd` = the worktree root (a one-file smoke turn first proved agy's workspace detection on a worktree whose `.git` is a file). Three rounds, `[[CONVERGED]]` on both. What the seats changed: my "no Create gate" lean was rejected by both with the same zero-round-trip fix (adopted); my env-var override for the hook was dropped in favour of `git push --no-verify`; a `node --test` pin on `core.hooksPath` was rejected (suite must not depend on git client state). Cost: GPT ≈ 0.9M / 2.2M / 2.4M gross input per round (≈ 90% cache reads), GEMPRO ≈ 330k / 340k; wall clock ≈ 2-3 min per seat-turn. Every citation the seats made was re-read against the file before acceptance (all correct).
 
+**Addendum (2026-09-15, late): hosted migrations APPLIED and VERIFIED.** Ben ran the block below from Git Bash: `db-migration-repair.sh 20260906120000` (history 8 → 9 rows, no SQL run), `db-push.sh --dry-run` (listed exactly the three), `db-push.sh` (applied `20260910120000`, `20260913120000`, `20260913180000`; history 12 rows, last `20260913180000`). Every prescribed post-apply check passed against hosted (psql via the local Docker container): `invoice_status` labels `draft,sent,paid,overdue,void,uncollectible`; the four provider columns with `provider text NOT NULL default 'stripe'`; `invoices_provider_invoice_idx` unique partial; `expense_category` six labels; `expenses` nine columns, `CHECK (amount > 0)`, RLS on; `operator_rate` three columns, RLS on; `operator_admit` execute = anon f / authenticated f / service_role t; the functional probe admitted then refused at limit 1 (`t f`, and again `true` through PostgREST's `rpc/`), sentinel row deleted, table empty. PostgREST now answers 200 for `expenses`, `operator_rate` and `invoices?select=provider`. `bash scripts/check-hosted-migrations.sh` → `OK: hosted Supabase carries all 12 local migrations`, so the pre-push guard will pass. The live functions need no redeploy for this (they read the schema at request time), so the finance endpoints and the operator assistant are unblocked on the current deploy; the code FIX in `daf593b` is still unpushed and only matters for the next deploy-before-migration, which the guard now prevents.
+
 **Verification still outstanding.**
-- **The three hosted migrations, in order, after recording the fourth.** Ben's per-action call (hosted schema write). From PowerShell (Windows: `bash` alone can resolve to WSL's System32 `bash.exe`, so the Git for Windows path is explicit):
+- ~~**The three hosted migrations, in order, after recording the fourth.**~~ DONE (addendum above). The block is kept for the record; it was run from Git Bash as `bash scripts/...` (the PowerShell form needs the explicit Git bash path). From PowerShell (Windows: `bash` alone can resolve to WSL's System32 `bash.exe`, so the Git for Windows path is explicit):
 
 ```powershell
 cd C:\Users\bengr\Projects\ICC\icc-site\.claude\worktrees\handover-next-steps-6d2e41
@@ -54,8 +56,8 @@ $bash = "C:\Program Files\Git\bin\bash.exe"
 **Blockers / open questions.** None for the code. The apply is HELD for Ben (one block above). Merge + push of this branch is Ben's go-ahead; the branch tip is a normal commit so a fast-forward push deploys the fix (L-037), and once merged the hook will refuse the push until the migrations are on hosted, which is the intended order.
 
 **Next actions (ordered).**
-1. Ben: run the apply block (or tell me "apply" and I run it, then the catalog checks and probes).
-2. Ben: merge this branch to `main` (fast-forward from `417aab3`), `node --test`, push; the hook checks hosted on the way out.
+1. ~~Apply the migrations.~~ DONE 2026-09-15 (addendum above).
+2. Ben: merge this branch to `main` (fast-forward from `417aab3`), `node --test`, push; the hook checks hosted on the way out and now passes.
 3. The rides above, then the Stripe `invoice.*` events and the invoicing ride.
 4. Nothing else queued for phase 1. Deferred flags unchanged: `TODO(backend-phase1/invoice-orphan)` (the pre-Stripe gate narrows it to the changed-override case), `TODO(backend-phase1/accounting-refunds)`; calendar clash-check parked (D-033).
 
