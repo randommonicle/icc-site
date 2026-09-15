@@ -1161,11 +1161,16 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
       })
     };
   } catch (err) {
+    // The booking is persisted and the slot held; only the emails failed. This is a
+    // success with emailStatus both false, and it must NOT carry an `error` key: the
+    // client (rightly) treats a body with error and no success as a refusal, and until
+    // L-041 this response carried both, so a saved booking was announced as "choose
+    // another time". The message and the log keep the diagnosis.
     console.error("Booking email send threw:", err.message);
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, provisional, message: "Booking recorded but email sending failed.", calLink, depositPayUrl: customerDepositPayUrl, error: err.message, emailStatus: { operator: false, customer: false } })
+      body: JSON.stringify({ success: true, provisional, message: "Booking recorded but email sending failed.", calLink, depositPayUrl: customerDepositPayUrl, emailStatus: { operator: false, customer: false } })
     };
   }
 }

@@ -680,8 +680,9 @@ async function processBooking(booking){
     });
     const bookData = await bookRes.json();
 
-    if(bookData.error){
-      appendMessage("bot","Sorry - "+bookData.error+" Please choose another time.");
+    const refusal = bookingRefusal(bookData);
+    if(refusal){
+      appendMessage("bot",refusal);
       return;
     }
 
@@ -807,6 +808,23 @@ function extractBookingReady(text){
   return null;
 }
 /* __END_BOOKING_READY_EXTRACTOR__ */
+
+/* __BOOKING_REFUSAL__ */
+// Decide from the confirm_booking response whether the booking was REFUSED and, if so,
+// what to tell the customer. A body with success:true IS a booking, whatever else it
+// carries: the row is persisted and the slot held before any email is attempted, and
+// emailStatus says which emails went (the card copy below reads it). Only a body
+// WITHOUT success:true is a refusal (409 slot taken, 503 store write failed, 400
+// validation), and those carry error alone. Testing error first announced a saved
+// booking as a failure when the email send threw (L-041). Extract-and-run tested and
+// kept byte-identical in book.astro and index.html (test/booking-outcome.test.js).
+function bookingRefusal(bookData){
+  var d = (bookData && typeof bookData === "object") ? bookData : {};
+  if(d.success === true) return null;
+  var reason = (typeof d.error === "string" && d.error) ? d.error : "We couldn't confirm your booking just now. Please call 01452 452356 to book.";
+  return "Sorry - "+reason+" Please choose another time.";
+}
+/* __END_BOOKING_REFUSAL__ */
 
 async function sendMessage(){
   const input=document.getElementById("chatInput");

@@ -374,6 +374,37 @@ test("handleBooking surfaces a failed operator email instead of reporting a clea
   assert.ok(errors.some((l) => /operator email failed/i.test(l)), "the failure is logged, not swallowed");
 });
 
+// One layer up from L-029 (L-041): when the send THROWS (network down, DNS, an aborted
+// fetch), the booking is still persisted, so the response is a success with emailStatus
+// both false. It must not ALSO carry an `error` key: the client reads a body with error
+// and no success as a refusal, and this response carried both, so a saved booking was
+// announced to the customer as "choose another time" (both 14 Sept copy reviews, B-1).
+test("handleBooking: a thrown email send is a persisted booking with emailStatus false, never an error-keyed refusal", async () => {
+  const prevStore = process.env.BOOKINGS_STORE;
+  const prevFetch = global.fetch;
+  const prevError = console.error;
+  const errors = [];
+  process.env.BOOKINGS_STORE = "postgres";
+  console.error = (...a) => errors.push(a.join(" "));
+  global.fetch = async () => { throw new Error("fetch failed: getaddrinfo ENOTFOUND api.resend.com"); };
+  let res;
+  try {
+    res = await handleBooking(baseBooking(), "re_test", {}, fakeSupabase());
+  } finally {
+    if (prevStore === undefined) delete process.env.BOOKINGS_STORE;
+    else process.env.BOOKINGS_STORE = prevStore;
+    global.fetch = prevFetch;
+    console.error = prevError;
+  }
+  assert.strictEqual(res.statusCode, 200);
+  const body = JSON.parse(res.body);
+  assert.strictEqual(body.success, true, "the booking is recorded; the slot is already held");
+  assert.deepStrictEqual(body.emailStatus, { operator: false, customer: false }, "both sends are reported failed");
+  assert.strictEqual(body.error, undefined, "a success response must not carry an error key (the client would read it as a refusal)");
+  assert.match(body.message, /email sending failed/i);
+  assert.ok(errors.some((l) => /Booking email send threw/.test(l)), "the throw is logged with its message");
+});
+
 // --- D-027: provisional booking (finish after the 15:00 auto-confirm line) ----
 // A late-finishing job is TAKEN and holds the slot, but is marked awaiting_operator
 // with a stored (hashed) single-use action token, and Mark's email carries the
