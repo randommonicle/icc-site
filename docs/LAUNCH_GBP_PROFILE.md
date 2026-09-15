@@ -49,7 +49,7 @@ The last job may **start** at 1pm; the day finishes later, set by the job's leng
 
 **Description (paste as-is, about 600 of the 750-character limit):**
 
-> Intelligent Carpet Cleaning provides professional carpet, rug and upholstery cleaning across Cheltenham, Gloucester, Winchcombe and the wider Gloucestershire area. We use a low-moisture cleaning method that is well suited to wool and natural-fibre carpets, with short drying times and no soaked carpets left behind. We give honest, expert advice on what cleaning can and cannot achieve, an accurate quote up front, and a clear price with no surprises. From a single room or staircase to a full house or a commercial floor, we treat your home with care. Book online or call us on 01242 279590.
+> Intelligent Carpet Cleaning provides professional carpet, rug and upholstery cleaning across Cheltenham, Gloucester, Winchcombe and the wider Gloucestershire area. We use a low-moisture cleaning method that is well suited to wool and natural-fibre carpets, with short drying times and no soaked carpets left behind. We give honest, expert advice on what cleaning can and cannot achieve, an accurate quote up front, and a clear price with no surprises. From a single room or staircase to a full house or a commercial floor, we treat your home with care. Book online or call us on 01452 452356.
 
 **Services (all prices are the final price — Mark is not VAT-registered, so no VAT is added; source of truth is `shared/config/pricing.js`):**
 

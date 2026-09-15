@@ -581,7 +581,7 @@ The P&L (`GET /api/v1/pnl`) answers "am I making money this period" at a glance 
 
 
 ## D-043 — Migrations-before-deploy is a tracked pre-push hook, not a line in the handover
-**Status:** Built and active on the build machine (2026-09-15, `34f08cc`); Ben to confirm or revert (`git config --unset core.hooksPath`). Design converged in a GPT + Gemini cross-agent review the same day (transcript machine-local). Records the control for [L-040](LESSONS_LEARNED.md#l-040).
+**Status:** Accepted (Ben, 2026-09-15, "keep the hook"). Built in `34f08cc`, active on the build machine, proven on Ben's first two pushes of `main` the same evening. Design converged in a GPT + Gemini cross-agent review the same day (transcript machine-local). Records the control for [L-040](LESSONS_LEARNED.md#l-040).
 
 Netlify deploys `main`, so a push to `main` is the deploy. The 2026-09-14 push shipped code whose three migrations were not on hosted, and the only thing saying "apply them first" was a paragraph in NEXT_SESSION.md. A rule nothing enforces is a comment, not a control.
 
