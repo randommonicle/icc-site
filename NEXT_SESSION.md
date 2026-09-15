@@ -12,7 +12,7 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
-## This session (2026-09-15): the held batch turned out to be PUSHED AND DEPLOYED on 2026-09-14 with its three hosted migrations UNAPPLIED (plus one applied-but-unrecorded); live blast radius established as admin-only; the not-ready 503 fixed for PostgREST's real codes and invoice Create gated before Stripe; a pre-push migration guard built and armed. 3 commits on `claude/handover-next-steps-6d2e41`, LOCAL/UNPUSHED. The three migrations were then APPLIED by Ben and verified (addendum below).
+## This session (2026-09-15): the held batch turned out to be PUSHED AND DEPLOYED on 2026-09-14 with its three hosted migrations UNAPPLIED (plus one applied-but-unrecorded); live blast radius established as admin-only; the not-ready 503 fixed for PostgREST's real codes and invoice Create gated before Stripe; a pre-push migration guard built and armed. The three migrations were then APPLIED by Ben and verified, and the branch (6 commits, tip `88547af`) was MERGED to `main` and PUSHED by Ben at 23:42 BST; Netlify production deploy of `88547af` `ready` at 22:43:04Z (verified via the API, live endpoints answering). The hook ran on that push and passed.
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: this harness cannot self-invoke /context; Ben did not read a figure this session. The unit is complete; nothing is mid-flight.**
 
@@ -57,12 +57,12 @@ $bash = "C:\Program Files\Git\bin\bash.exe"
 
 **Next actions (ordered).**
 1. ~~Apply the migrations.~~ DONE 2026-09-15 (addendum above).
-2. Ben: merge this branch to `main` (fast-forward from `417aab3`), `node --test`, push; the hook checks hosted on the way out and now passes.
+2. ~~Merge and push.~~ DONE 2026-09-15 23:42 BST (`88547af` on `origin/main`, deployed, verified).
 3. The rides above, then the Stripe `invoice.*` events and the invoicing ride.
 4. Nothing else queued for phase 1. Deferred flags unchanged: `TODO(backend-phase1/invoice-orphan)` (the pre-Stripe gate narrows it to the changed-override case), `TODO(backend-phase1/accounting-refunds)`; calendar clash-check parked (D-033).
 
 **Traps / working agreements (this session).**
-- Do NOT push. The hook is armed on this repo: a push of `main` from ANY worktree on this machine now runs `supabase migration list` against hosted (≈ 5-10 s) and refuses while migrations are missing.
+- The hook is armed on this repo: a push of `main` from ANY worktree on this machine now runs `supabase migration list` against hosted (≈ 5-10 s) and refuses while migrations are missing. (The "do NOT push" of this session is spent: Ben pushed at 23:42.)
 - Working tree is CRLF (`core.autocrlf=true`): anchored multi-line edits must normalise to LF first; git diffs stay clean. Shell scripts and `.githooks/*` are pinned LF in `.gitattributes`.
 - The Bash tool's heredoc turns `\b` into a literal backspace byte (0x08) inside a JSON string, and strips other backslashes; regex-bearing edits and shell scripts went through the Write tool. Check with `grep -c $'\x08'` after any heredoc that carried a regex.
 - `run-seat.mjs` needs `--cwd <worktree root>` (default is the exchange dir) and `seats.jsonc` beside the review file; keep the exchange file under ≈ 25k characters for the agy seat (argv ceiling 30k including framing).
