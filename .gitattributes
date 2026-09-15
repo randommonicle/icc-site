@@ -2,3 +2,4 @@
 # line, which breaks the shebang ("bad interpreter") and trailing values (e.g. a URL
 # gains a stray \r). Pin regardless of the machine's core.autocrlf setting.
 *.sh text eol=lf
+.githooks/* text eol=lf

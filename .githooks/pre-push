@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Pre-push guard (L-040): refuse to push main while hosted Supabase is missing a local
+# migration. Netlify deploys main, so a push to main IS the deploy, and code that reads a
+# table its migration has not created fails live. It did on 2026-09-14, when a 35-commit
+# batch went out with three migrations unapplied and only prose said "apply them first".
+#
+# Activate ONCE per clone (git never tracks hooks; this file is tracked so it travels):
+#   git config core.hooksPath .githooks
+# A clone without that setting is not guarded: this is a local guard, not enforcement.
+# Deliberate override, visible in the shell history:  git push --no-verify
+#
+# Only a push that updates refs/heads/main is checked. Branch pushes never deploy, and a
+# deletion of main is not a deploy either. The check itself is scripts/check-hosted-
+# migrations.sh, which fails closed when it cannot tell (no .env, no CLI, no network).
+
+set -u
+touches_main=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ] && [ "$local_sha" != "0000000000000000000000000000000000000000" ]; then
+    touches_main=1
+  fi
+done
+[ "$touches_main" -eq 1 ] || exit 0
+
+echo "pre-push: main is the deploy branch; checking hosted Supabase carries every local migration..."
+root=$(git rev-parse --show-toplevel)
+exec bash "$root/scripts/check-hosted-migrations.sh"
