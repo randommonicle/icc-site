@@ -578,3 +578,15 @@ The P&L (`GET /api/v1/pnl`) answers "am I making money this period" at a glance 
 **Why cash-basis.** It matches how a sole trader feels the business (money in vs money out), reconciles with the Stripe payouts and the export, and needs no accrual bookkeeping (unbilled WIP, debtor ageing) that D-039 excludes. Period is UTC calendar days (`from`/`to`, default the current month). This is operational insight, not formal cash-basis tax accounting (Mark's accountant's job, D-026/D-039).
 
 **Not this.** Accrual (recognise a completed job's full value at completion even if unpaid) would drift from the cash and from the export and would need debtor tracking; rejected for the light operational view. A future formal-accounts need stays external.
+
+
+## D-043 — Migrations-before-deploy is a tracked pre-push hook, not a line in the handover
+**Status:** Built and active on the build machine (2026-09-15, `34f08cc`); Ben to confirm or revert (`git config --unset core.hooksPath`). Design converged in a GPT + Gemini cross-agent review the same day (transcript machine-local). Records the control for [L-040](LESSONS_LEARNED.md#l-040).
+
+Netlify deploys `main`, so a push to `main` is the deploy. The 2026-09-14 push shipped code whose three migrations were not on hosted, and the only thing saying "apply them first" was a paragraph in NEXT_SESSION.md. A rule nothing enforces is a comment, not a control.
+
+**Decision.** `.githooks/pre-push` (tracked, activated once per clone by `git config core.hooksPath .githooks`) runs `scripts/check-hosted-migrations.sh` for any push that updates `refs/heads/main`. The check runs the repo-pinned CLI's `supabase migration list --db-url` over the session pooler (`scripts/db-env.sh`, the one construction of that URL, shared with `db-push.sh` and the new `db-migration-repair.sh`), parses the table STRICTLY, and refuses on any Local-only row, naming each version. It fails CLOSED on anything it cannot read: no `.env`, no CLI, no network, a changed table shape. The only override is `git push --no-verify`.
+
+**Why this shape.** Least machinery that actually blocks the deploy: no remote required check (would need a GitHub Action and the DB password in GitHub), no password in Netlify's build env, and a runtime readiness probe would only report the state, not prevent it. No env-var bypass: git already has an explicit, visible one. No `node --test` assertion on `core.hooksPath`: the unit suite must not depend on git client state.
+
+**What it does not do.** A clone without `core.hooksPath` set, a push from the GitHub web UI, or a `--no-verify` push is unguarded; this is a local guard and is documented as such (README quick start, CLAUDE.md deploy process). Branch pushes are never checked (they never deploy production).

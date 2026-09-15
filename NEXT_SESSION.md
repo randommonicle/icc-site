@@ -12,7 +12,93 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
-## This session (2026-09-13, later): Beta 4 (operator assistant) BUILT end-to-end — five slices + a hardening pass, all unit- and integration-tested; phase 1 build is CLOSED pending deploy. 8 commits (incl. this handover), LOCAL/UNPUSHED, batch now 34 ahead of origin/main, nothing deployed. Ben decided: hold the batch (one release), include customer names (privacy notice updated).
+## This session (2026-09-15): the held batch turned out to be PUSHED AND DEPLOYED on 2026-09-14 with its three hosted migrations UNAPPLIED (plus one applied-but-unrecorded); live blast radius established as admin-only; the not-ready 503 fixed for PostgREST's real codes and invoice Create gated before Stripe; a pre-push migration guard built and armed. 3 commits on `claude/handover-next-steps-6d2e41`, LOCAL/UNPUSHED. The three migrations still need applying (Ben's call, exact block below).
+
+*Diagnoses in this note are unverified unless marked.* **Wrap-up context: this harness cannot self-invoke /context; Ben did not read a figure this session. The unit is complete; nothing is mid-flight.**
+
+**Session goal.** Read the handover, act on its next steps, using the cross-agent review skill's CLI transport (GPT via codex, Gemini via agy, no pasting). Done: a Challenger-Claude review over the live finding, converged on both seats in three rounds, and its converged record built.
+
+**Branch and worktree.** `claude/handover-next-steps-6d2e41`, worktree `C:\Users\bengr\Projects\ICC\icc-site\.claude\worktrees\handover-next-steps-6d2e41`, branched from `417aab3` (= `origin/main`). Two sibling worktrees hold the L-039 re-runs (`docs/SEO_AUDIT_2026-09-14_v2.md`, `docs/BOOKING_PAGE_COPY_REVIEW_2026-09-14_v2.md`, uncommitted, untouched by me). No open PRs.
+
+**Corrections to the previous handover (2026-09-13, later).** "34 commits LOCAL/UNPUSHED, do NOT push" is stale: the batch went to `origin/main` on 2026-09-14 at 20:52 BST as `7976d1c` (`git reflog show origin/main`), a normal tip, and Netlify's production deploy of it is `ready` (2026-09-14T19:52:28Z, Netlify API); the live `/privacy/` shows "updated: 13 September 2026" and `POST /api/v1/operator-chat` answers 401. No session entry recorded that push. **The migrations were not applied first** (verified): PostgREST `GET /rest/v1/expenses` and `/operator_rate` → 404 `PGRST205`, `/invoices?select=provider` → 400 `42703`, `/rpc/operator_admit` → 404 `PGRST202`; `supabase migration list --db-url` (session pooler) shows 8 Local+Remote through `20260903120000` and FOUR Local-only: `20260906120000` (applied by hand 2026-09-08, objects present, never recorded), `20260910120000`, `20260913120000`, `20260913180000`. Netlify's production `SUPABASE_URL` and the local `.env` name the same project (`qzcfgp…`). Every hosted table is empty (jobs 0, customers 0, invoices 0, messages 0). `ADMIN_EMAILS` is not set in Netlify: fine, `adminAuth.js:44-48` falls back to the two operators.
+
+**Live blast radius (verified from code, converged in the review).** Admin-only. The subscribed Stripe event's branch (`stripe-webhook.js:47`) writes `jobs` columns that exist; the `invoice.*` branch (`stripe-webhook.js:81`) is not subscribed (`docs/STRIPE_SETUP.md:53`); no customer path touches a missing object (all eight modules read, both seats concurred with citations). Operator assistant: 503 fail-closed, no model spend (`operatorAdmission.js:50`, `operatorChat.js:215`). P&L: 503, but only because its invoices load ran first. Expenses: **500, not the promised 503**. Invoice Create: would have raised a Stripe draft and then failed the local insert (orphan), latent only because no completed job exists.
+
+**What landed (newest first; each `node --test`-green at the commit; all LOCAL/UNPUSHED).**
+- (this handover + L-040 + D-043 + README/CLAUDE.md docs commit; deliberately NOT `[skip ci]`, because it tops three undeployed code commits and a skip tip would land them without deploying, L-037).
+- `18ed12c` chore(guard): executable bit on the hook and db scripts in the index.
+- `34f08cc` feat(guard): `.githooks/pre-push` refuses a push that updates `main` while hosted is missing a local migration (D-043). `scripts/check-hosted-migrations.sh` (strict, fail-closed parse of the CLI table), `scripts/db-env.sh` (the one pooler-URL construction, worktree-aware), `scripts/db-migration-repair.sh` (record a hand-applied migration), `scripts/db-push.sh` now shares `db-env.sh` and uses the repo-pinned CLI. **Proven against hosted today: BLOCKED, naming all four versions**; six fixture tests, three of which fail when the row regex is broken. `git config core.hooksPath .githooks` is SET on this machine's repo (shared by all worktrees).
+- `daf593b` fix(finance): `schemaNotReady.js` (one predicate: `42P01 | 42703 | PGRST205`) replaces three drifting inline checks (`expenses.js:31`, `pnl.js:52`, `accountingExport.js:68`); `existingInvoiceForJob` names its 13 columns (`invoices.js:51`) and `doCreate` answers 503 (`invoices.js:90`) before the Stripe call (`invoices.js:104`); fakes now emit PGRST205/PGRST202 beside the kept 42P01; the export's mapping tested for the first time. `docs/BACKEND_PHASE1_PLAN.md` lines 116-117 corrected.
+- Full suite at wrap: `node --test` **532 tests, 521 pass / 0 fail / 11 skip** (verified).
+
+**Cross-agent review (CLI transport, first use on this repo).** `exchange/REVIEW_deploy-before-migrations_2026-09-15.md` (gitignored, machine-local; `exchange/seats.jsonc` copied from the skill template, also ignored). Seats GPT (codex 0.154.0) and GEMPRO (agy 1.2.3), driven headlessly from this worktree with `--cwd` = the worktree root (a one-file smoke turn first proved agy's workspace detection on a worktree whose `.git` is a file). Three rounds, `[[CONVERGED]]` on both. What the seats changed: my "no Create gate" lean was rejected by both with the same zero-round-trip fix (adopted); my env-var override for the hook was dropped in favour of `git push --no-verify`; a `node --test` pin on `core.hooksPath` was rejected (suite must not depend on git client state). Cost: GPT ≈ 0.9M / 2.2M / 2.4M gross input per round (≈ 90% cache reads), GEMPRO ≈ 330k / 340k; wall clock ≈ 2-3 min per seat-turn. Every citation the seats made was re-read against the file before acceptance (all correct).
+
+**Verification still outstanding.**
+- **The three hosted migrations, in order, after recording the fourth.** Ben's per-action call (hosted schema write). From PowerShell (Windows: `bash` alone can resolve to WSL's System32 `bash.exe`, so the Git for Windows path is explicit):
+
+```powershell
+cd C:\Users\bengr\Projects\ICC\icc-site\.claude\worktrees\handover-next-steps-6d2e41
+$bash = "C:\Program Files\Git\bin\bash.exe"
+& $bash scripts/db-migration-repair.sh 20260906120000
+& $bash scripts/db-push.sh --dry-run
+& $bash scripts/db-push.sh
+& $bash scripts/check-hosted-migrations.sh
+```
+
+  Step 1 records the deposit migration whose objects were re-verified today (`jobs.stripe_checkout_session_id`, `deposit_status` → 200) without running its SQL. Step 2 must list exactly `20260910120000, 20260913120000, 20260913180000`; stop if it lists anything else. Step 3 applies them in one CLI run (the CLI prompts; each migration runs in its own transaction; `20260910120000`'s `alter type ... add value` is safe there because the new labels are not used in the same transaction). Step 4 must print `OK: hosted Supabase carries all 12 local migrations`. Then the post-apply catalog checks in the comment blocks of `20260910120000` and `20260913180000:48-65` (they are comments, `db push` does not run them) and the four PostgREST probes above flipping to 200/`PGRST202`-gone; I run those on Ben's word (psql via the local `supabase_db_icc-site` Docker container reaches the pooler). If `PGRST205` lingers after the apply, `notify pgrst, 'reload schema';`.
+- **Netlify function timeout** (still unresolved from 2026-09-13): the setting is under Cloud compute → Functions; the 8.5 s `OPERATOR_TURN_DEADLINE_MS` default stands on the 10 s tier.
+- **Post-deploy rides (with Ben), unchanged from 2026-09-13:** the #1 booking ride; the finances panel; the invoice panel; the operator assistant's first real turn (watch the function log for `operator turn stopped:`). None has run: the batch has been live since 2026-09-14 with the assistant refusing every turn and the finance endpoints 503/500ing, so the rides remain the first proof at the live seam.
+- **Stripe Dashboard:** add the `invoice.*` events to the webhook endpoint (currently only `checkout.session.completed`, `docs/STRIPE_SETUP.md:53`), then the invoicing ride.
+- **Hook on the other machine:** `git config core.hooksPath .githooks` once in that clone, and its `.env` needs `SUPABASE_DB_PASSWORD` or the hook fails closed with a message saying so (`git push --no-verify` is the deliberate way past it).
+
+**Blockers / open questions.** None for the code. The apply is HELD for Ben (one block above). Merge + push of this branch is Ben's go-ahead; the branch tip is a normal commit so a fast-forward push deploys the fix (L-037), and once merged the hook will refuse the push until the migrations are on hosted, which is the intended order.
+
+**Next actions (ordered).**
+1. Ben: run the apply block (or tell me "apply" and I run it, then the catalog checks and probes).
+2. Ben: merge this branch to `main` (fast-forward from `417aab3`), `node --test`, push; the hook checks hosted on the way out.
+3. The rides above, then the Stripe `invoice.*` events and the invoicing ride.
+4. Nothing else queued for phase 1. Deferred flags unchanged: `TODO(backend-phase1/invoice-orphan)` (the pre-Stripe gate narrows it to the changed-override case), `TODO(backend-phase1/accounting-refunds)`; calendar clash-check parked (D-033).
+
+**Traps / working agreements (this session).**
+- Do NOT push. The hook is armed on this repo: a push of `main` from ANY worktree on this machine now runs `supabase migration list` against hosted (≈ 5-10 s) and refuses while migrations are missing.
+- Working tree is CRLF (`core.autocrlf=true`): anchored multi-line edits must normalise to LF first; git diffs stay clean. Shell scripts and `.githooks/*` are pinned LF in `.gitattributes`.
+- The Bash tool's heredoc turns `\b` into a literal backspace byte (0x08) inside a JSON string, and strips other backslashes; regex-bearing edits and shell scripts went through the Write tool. Check with `grep -c $'\x08'` after any heredoc that carried a regex.
+- `run-seat.mjs` needs `--cwd <worktree root>` (default is the exchange dir) and `seats.jsonc` beside the review file; keep the exchange file under ≈ 25k characters for the agy seat (argv ceiling 30k including framing).
+- **Supersedes the 2026-09-13 (later) next-actions:** the push happened; the migrations did not; the rides have not.
+
+**Citations for this entry** (quoted text = the line as read today; "How verified" = the command run).
+
+| Claim | Path | Line | Quoted text | How verified |
+|---|---|---|---|---|
+| Admission refuses on any rpc error | `server/netlify/functions/operatorAdmission.js` | 50 | `if (!res || res.error) return { admitted: false, reason: "unavailable" };` | `sed -n 50p` |
+| Refusal is a 503 | `server/netlify/functions/operatorChat.js` | 215 | `return json(503, headers, { error: "The assistant is unavailable right now (turn budget could not be checked)." });` | `sed -n 215p` |
+| Subscribed event branch | `server/netlify/functions/stripe-webhook.js` | 47 | `if (stripeEvent.type === "checkout.session.completed") {` | `sed -n 47p` |
+| Unsubscribed invoice branch | `server/netlify/functions/stripe-webhook.js` | 81 | `if (typeof stripeEvent.type === "string" && stripeEvent.type.startsWith("invoice.")) {` | `sed -n 81p` |
+| Only one event subscribed | `docs/STRIPE_SETUP.md` | 53 | `"Add endpoint", paste the URL, select the event **`checkout.session.completed`**` | `sed -n 53p` |
+| Fallback operator allowlist | `server/netlify/functions/adminAuth.js` | 44-48 | `function adminEmailSet() {` … `|| "mark_director@intelligentclean.co.uk,ben@intelligentclean.co.uk";` | `grep -n -A12 ADMIN_EMAILS` |
+| Non-idempotent statement in the unrecorded migration | `supabase/migrations/20260906120000_jobs_deposit_payment.sql` | 18 | `create type deposit_status as enum ('unpaid', 'paid', 'refunded');` | `sed -n 18p` |
+| Enum add-value in a transaction | `supabase/migrations/20260910120000_invoices_provider.sql` | 18 | `alter type invoice_status add value if not exists 'void';` | `sed -n 18p`; `grep -n "void\|uncollectible"` shows the only later hit is a comment at 44 |
+| Route exists | `netlify.toml` | 102 | `from = "/api/v1/operator-chat"` | `sed -n 102p` |
+| The predicate | `server/netlify/functions/schemaNotReady.js` | 18 | `const SCHEMA_NOT_READY = new Set(["42P01", "42703", "PGRST205"]);` | `grep -n` |
+| Expenses mapping | `server/netlify/functions/expenses.js` | 31 | `if (schemaNotReady(error)) return json(503, headers, { error: "Expenses are not set up yet …` | `grep -n` |
+| P&L mapping | `server/netlify/functions/pnl.js` | 52 | `if (schemaNotReady(e)) return json(503, headers, { error: "The P&L is not set up yet …` | `grep -n` |
+| Export mapping | `server/netlify/functions/accountingExport.js` | 68 | `if (schemaNotReady(e)) return json(503, headers, { error: "The accounting export is not set up yet …` | `grep -n` |
+| Explicit invoice columns | `server/netlify/functions/invoices.js` | 51 | `const INVOICE_COLUMNS = "id,job_id,status,amount_ex_vat,provider,provider_invoice_id,number,payment_url,issued_at,due_at,paid_at,created_at,updated_at";` | `grep -n` |
+| 503 before Stripe | `server/netlify/functions/invoices.js` | 90 / 104 | `if (schemaNotReady(e)) return json(503, …` / `draft = await deps.createDraftFn({` | `grep -n` |
+| Old fakes kept | `test/expenses.test.js`, `test/pnl.test.js` | 82 / 83 | `… error: { code: "42P01", …` / `… throw Object.assign(new Error('relation "expenses" does not …` | `grep -n '"42P01"'` |
+| Hook gates main only | `.githooks/pre-push` | 19 | `if [ "$remote_ref" = "refs/heads/main" ] && [ "$local_sha" != "0000…0000" ]; then` | `grep -n` |
+| Hook delegates to the checker | `.githooks/pre-push` | 27 | `exec bash "$root/scripts/check-hosted-migrations.sh"` | `grep -n` |
+| Strict parser / block message | `scripts/check-hosted-migrations.sh` | 17 / 60 | `parse_migration_table() {` / `echo "PUSH BLOCKED: hosted Supabase is missing migrations:$missing"` | `grep -n` |
+| One URL construction | `scripts/db-env.sh` | 46 | `ICC_DB_URL="postgresql://postgres.${ref}:${enc}@aws-1-eu-west-2.pooler.supabase.com:5432/postgres"` | `grep -n` |
+| Push date/time | git | `7976d1c` | `2026-09-14 20:15:18 +0100 chore: marketing skills pack …`; reflog `update by push` at 20:52:26 | `git log --format='%h %ci %s'`; `git reflog show origin/main --date=iso` |
+| Deploy record | Netlify API | deploy of `7976d1c` | `2026-09-14T19:52:28.393Z ready production 7976d1c` | `GET /api/v1/sites/{id}/deploys` |
+| Hosted history | Supabase | `supabase_migrations.schema_migrations` | 8 rows, last `20260903120000` | psql via `supabase_db_icc-site`, `select version … order by version` |
+| Local vs hosted | Supabase CLI 2.105.0 | `migration list --db-url` | four Local-only rows: `20260906120000 20260910120000 20260913120000 20260913180000` | run 2026-09-15 |
+| This session's commits | git | `daf593b`, `34f08cc`, `18ed12c` | `2026-09-15 23:00:09 +0100 fix(finance): …`; `23:04:37 feat(guard): …`; `23:04:49 chore(guard): …` | `git log --format='%h %ci %s' -3` |
+
+---
+
+## This session (2026-09-13, later): Beta 4 (operator assistant) BUILT end-to-end — five slices + a hardening pass, all unit- and integration-tested; phase 1 build is CLOSED pending deploy. 8 commits (incl. this handover), LOCAL/UNPUSHED, batch now 34 ahead of origin/main, nothing deployed. Ben decided: hold the batch (one release), include customer names (privacy notice updated). **(SUPERSEDED 2026-09-15: the batch was pushed and deployed on 2026-09-14 WITHOUT the three migrations; see the 2026-09-15 entry above.)**
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: /context = 50% (yellow), Ben's reading (this harness cannot self-invoke /context). Wrapping at Ben's request at the end of the evening; the unit (Beta 4) is complete, so nothing is mid-flight.**
 

@@ -16,6 +16,7 @@ The Phase 1 public site is live and most of the Phase 2 operational backend is b
 ```bash
 npm install
 cp .env.example .env        # then fill in the values
+git config core.hooksPath .githooks   # once per clone: the pre-push migration guard (D-043)
 npx netlify dev             # serves the site + functions locally
 ```
 

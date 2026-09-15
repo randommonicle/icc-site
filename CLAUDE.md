@@ -146,7 +146,8 @@ icc-site/                        # monorepo layout (D-014): site/ + server/ + sh
 │       └── supabaseClient.js   # Service-role Supabase client singleton
 ├── shared/                     # config single source: models, pricing, service area, knowledge (D-006/D-007)
 ├── supabase/                   # migrations + pgTAP tests (D-002)
-├── scripts/                    # ops utilities (e.g. delete-booking.js)
+├── scripts/                    # ops utilities: delete-booking.js; db-env.sh + db-push.sh + db-migration-repair.sh + check-hosted-migrations.sh (hosted migrations, D-043)
+├── .githooks/                  # tracked pre-push guard: no push of main while hosted lacks a local migration (activate: git config core.hooksPath .githooks)
 ├── app/                        # field-app placeholder (D-012) — empty until the Phase 2 API exists
 ├── test/                       # node --test suite
 └── docs/
@@ -250,14 +251,15 @@ These are the same standards we hold on the ASH app and PropOS. They are not opt
 
 ---
 
-## Deploy Process (Phase 0)
+## Deploy Process
 
-1. Push the branch and open a PR into `main`.
-2. Merge to `main` only when reviewed and approved (and not mid-traffic without sign-off).
-3. Netlify auto-deploys `main`. Confirm the production deploy URL serves the change.
-4. Verify env vars are present in Netlify before relying on any function (`chat.js` returns a 500 if `ANTHROPIC_API_KEY` is missing; `bookings.js` returns 401/500 if `ADMIN_SECRET` is missing).
+A push to `main` IS the deploy: Netlify runs the `netlify.toml` build (Astro `site/dist` + `admin.html` + the functions) on every non-`[skip ci]` push.
 
-There is no build step in Phase 0 (static files + functions). When the front end moves to Astro (Phase 1/2), document the build command here.
+1. Stage on a branch; merge to `main` only on Ben's go-ahead (Working Discipline above).
+2. **Hosted migrations go BEFORE the push** (L-040). `bash scripts/db-push.sh --dry-run` lists what is pending, `bash scripts/db-push.sh` applies it, and a migration that was applied by hand is recorded with `bash scripts/db-migration-repair.sh <version>` (verify its objects first). The tracked pre-push hook refuses a push of `main` while hosted is missing a local migration (D-043): activate it once per clone with `git config core.hooksPath .githooks`; the only override is `git push --no-verify`. On Windows call the Git for Windows bash explicitly (`& "C:\Program Files\Git\bin\bash.exe" scripts/db-push.sh`); a bare `bash` in PowerShell can resolve to WSL.
+3. Re-run `node --test` immediately before the push (L-038), and make sure the tip is not `[skip ci]` when the batch carries undeployed code (L-037).
+4. Push `main`. Confirm the production URL serves the change, then the with-Ben rides for anything login-gated.
+5. Env vars are read by the functions only on the NEXT deploy after they are saved; `chat.js` returns a 500 without `ANTHROPIC_API_KEY`.
 
 ---
 
