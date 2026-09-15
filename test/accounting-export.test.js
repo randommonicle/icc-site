@@ -105,6 +105,19 @@ test("handleGet returns text/csv for the payments entity", async () => {
   assert.strictEqual(lines.length, 3); // header + deposit + balance
 });
 
+test("handleGet maps a pending invoices migration (42703 on the provider columns) to a clean 503", async () => {
+  // receipts.loadInvoiceRows names the provider columns, so hosted without 20260910120000
+  // answers 42703 (the live state on 2026-09-14, L-040). This mapping had no test before.
+  const deps = {
+    supabase: {},
+    loadInvoiceRows: async () => { throw Object.assign(new Error("column invoices.provider does not exist"), { code: "42703" }); },
+    loadPaidDepositRows: async () => [],
+  };
+  const res = await acc.handleGet({ httpMethod: "GET", queryStringParameters: {} }, HEADERS, deps);
+  assert.strictEqual(res.statusCode, 503);
+  assert.match(JSON.parse(res.body).error, /not set up yet/i);
+});
+
 test("handleGet 503s when Supabase is not configured", async () => {
   const res = await acc.handleGet({ httpMethod: "GET", queryStringParameters: {} }, HEADERS, { supabase: null });
   assert.strictEqual(res.statusCode, 503);

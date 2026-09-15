@@ -12,7 +12,7 @@ async function loadInvoiceRows(supabase) {
     .select("id,job_id,number,status,amount_ex_vat,provider,provider_invoice_id,issued_at,due_at,paid_at,created_at,jobs(slot_date,deposit_ex_vat,deposit_status,customers(name,email))")
     .order("created_at", { ascending: false })
     .limit(2000);
-  if (error) { const e = new Error(error.message); e.code = error.code; throw e; } // preserve pg code (42P01/42703) for the endpoints' not-ready mapping
+  if (error) { const e = new Error(error.message); e.code = error.code; throw e; } // preserve the code for the endpoints' schemaNotReady mapping
   return data || [];
 }
 

@@ -22,6 +22,7 @@
 const { requireAdmin } = require("./adminAuth.js");
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const invoiceProvider = require("./invoiceProvider.js");
+const { schemaNotReady } = require("./schemaNotReady.js");
 
 function json(statusCode, headers, obj) {
   return { statusCode, headers, body: JSON.stringify(obj) };
@@ -42,9 +43,16 @@ async function loadJobForInvoice(supabase, id) {
   return (data && data[0]) || null;
 }
 
+// The 13 columns are named, not "*", so a deploy that lands before migration 20260910120000
+// fails HERE (42703 on the provider columns) and doCreate never reaches the Stripe call: a
+// "*" lists fine on the old shape and the draft it then raised would be orphaned by the
+// insert (the TODO in doCreate; L-040). The error keeps its code for schemaNotReady.
+// Keep in step with receipts.js loadInvoiceRows when a column is added.
+const INVOICE_COLUMNS = "id,job_id,status,amount_ex_vat,provider,provider_invoice_id,number,payment_url,issued_at,due_at,paid_at,created_at,updated_at";
+
 async function existingInvoiceForJob(supabase, jobId) {
-  const { data, error } = await supabase.from("invoices").select("*").eq("job_id", jobId).limit(1);
-  if (error) throw new Error(error.message);
+  const { data, error } = await supabase.from("invoices").select(INVOICE_COLUMNS).eq("job_id", jobId).limit(1);
+  if (error) { const e = new Error(error.message); e.code = error.code; throw e; }
   return (data && data[0]) || null;
 }
 
@@ -76,7 +84,12 @@ async function doCreate(supabase, body, deps, headers) {
   if (!job) return json(404, headers, { error: "Job not found" });
   if (job.status !== "completed") return json(409, headers, { error: "An invoice can only be raised against a completed job." });
 
-  const existing = await existingInvoiceForJob(supabase, jobId);
+  let existing;
+  try { existing = await existingInvoiceForJob(supabase, jobId); }
+  catch (e) {
+    if (schemaNotReady(e)) return json(503, headers, { error: "Invoicing is not set up yet (apply migration 20260910120000 to the database)." });
+    throw e;
+  }
   if (existing) return json(200, headers, { ok: true, invoice: existing, note: "An invoice already exists for this job." });
 
   const cust = job.customers || {};

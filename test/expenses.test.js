@@ -1,6 +1,7 @@
 // D-039 expenses endpoint (expenses.js). Fake Supabase (chainable) so these exercise the
 // real REST routing, server-side validation (category enum, positive 2dp amount), the
-// Postgres-error mapping (42P01 -> 503 not-set-up, 23503 FK -> 400), and the period filter.
+// Postgres-error mapping (42P01 and PostgREST's PGRST205 -> 503 not-set-up, 23503 FK -> 400),
+// and the period filter.
 
 const { test } = require("node:test");
 const assert = require("node:assert");
@@ -80,6 +81,16 @@ test("POST rounds the amount to 2dp server-side", async () => {
 test("POST maps a missing table (42P01) to a clean 503, not a 500", async () => {
   const sb = fakeSupabase(() => ({ data: null, error: { code: "42P01", message: 'relation "expenses" does not exist' } }));
   const res = await parse(await exp.handlePost(evt("POST", { body: VALID }), HEADERS, { supabase: sb }));
+  assert.strictEqual(res.status, 503);
+  assert.match(res.body.error, /not set up yet/i);
+});
+
+test("GET maps PostgREST's PGRST205 (table not in its schema cache) to the same 503", async () => {
+  // What the live seam actually emits for a never-created table (verified 2026-09-15 against
+  // hosted, L-040): PostgREST answers PGRST205 itself and Postgres is never asked, so a
+  // mapping that only knows 42P01 500s. The admin panel's first call is this GET.
+  const sb = fakeSupabase(() => ({ data: null, error: { code: "PGRST205", message: "Could not find the table 'public.expenses' in the schema cache" } }));
+  const res = await parse(await exp.handleGet(evt("GET"), HEADERS, { supabase: sb }));
   assert.strictEqual(res.status, 503);
   assert.match(res.body.error, /not set up yet/i);
 });

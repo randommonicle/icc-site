@@ -61,6 +61,20 @@ test("handleGet 400s on a half-specified period", async () => {
   assert.strictEqual(res.statusCode, 400);
 });
 
+test("handleGet maps PostgREST's PGRST205 on the expenses table to a clean 503 (invoices already migrated)", async () => {
+  // The state between applying 20260910120000 and 20260913120000: invoices load fine, the
+  // expenses table is absent and PostgREST says PGRST205, not 42P01. Until L-040 this 500'd.
+  const deps = {
+    supabase: {},
+    loadInvoiceRows: async () => [],
+    loadPaidDepositRows: async () => [],
+    loadExpensesInPeriod: async () => { throw Object.assign(new Error("Could not find the table 'public.expenses' in the schema cache"), { code: "PGRST205" }); },
+  };
+  const res = await pnl.handleGet({ httpMethod: "GET", queryStringParameters: SEP }, HEADERS, deps);
+  assert.strictEqual(res.statusCode, 503);
+  assert.match(JSON.parse(res.body).error, /not set up yet/i);
+});
+
 test("handleGet maps a pending migration (42P01) to a clean 503", async () => {
   const deps = {
     supabase: {},

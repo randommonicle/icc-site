@@ -14,7 +14,7 @@ function fakeSupabase(handler) {
   const calls = [];
   function builder(state) {
     return {
-      select() { if (!state.op) state.op = "select"; return builder(state); },
+      select(cols) { if (!state.op) state.op = "select"; state.cols = cols; return builder(state); },
       insert(row) { state.op = "insert"; state.payload = row; return builder(state); },
       update(patch) { state.op = "update"; state.payload = patch; return builder(state); },
       eq(col, val) { state.filters.push([col, val]); return builder(state); },
@@ -102,6 +102,26 @@ test("create raises a draft with a deposit-credit line and stores the full value
   assert.strictEqual(captured.lines[0].amountPence, 7500);
   assert.strictEqual(captured.lines[1].amountPence, -750);
   assert.strictEqual(captured.customerEmail, "a@b.com");
+});
+
+test("create refuses BEFORE the Stripe call when the invoices migration is pending (42703)", async () => {
+  // The live seam on 2026-09-14: code deployed, migration 20260910120000 not applied (L-040).
+  // The lookup names the provider columns so THIS query fails and no draft is raised; a
+  // select("*") lists fine on the old shape and the draft would then be orphaned by the insert.
+  let drafted = false;
+  const sb = fakeSupabase((s) => {
+    if (s.table === "jobs") return { data: [JOB], error: null };
+    if (s.table === "invoices" && s.op === "select") return { data: null, error: { code: "42703", message: "column invoices.provider does not exist" } };
+    return { data: [], error: null };
+  });
+  const res = await parse(await inv.handlePost(post({ action: "create", job_id: "job-1" }), HEADERS, {
+    supabase: sb, invoicingConfigured: true, createDraftFn: async () => { drafted = true; return { providerInvoiceId: "in_orphan" }; },
+  }));
+  assert.strictEqual(res.status, 503);
+  assert.match(res.body.error, /not set up yet/i);
+  assert.strictEqual(drafted, false, "no Stripe draft is raised when the local schema cannot record it");
+  const lookup = sb.calls.find((c) => c.table === "invoices" && c.op === "select");
+  assert.match(String(lookup.cols), /(^|,)provider(,|$)/, "the lookup must name the provider columns, or a pending migration only fails at the insert");
 });
 
 test("create fails closed on a provider error and writes nothing", async () => {

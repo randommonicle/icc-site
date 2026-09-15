@@ -51,7 +51,10 @@ test("NULL, a truthy string, an object: ambiguous, never admitted", async () => 
 });
 
 test("an rpc error, a thrown rpc, an empty response: unavailable (the 503 path)", async () => {
-  assert.deepStrictEqual(await admitOperatorTurn(fakeClient({ result: { data: null, error: { code: "42P01", message: "missing" } } }), UID, 5),
+  // PGRST202 is what PostgREST returns for a function it cannot find (the live shape of
+  // migration 20260913180000 not applied, verified 2026-09-15); any error refuses, so the
+  // code is not consulted, but the fake should still speak the seam's dialect (L-040).
+  assert.deepStrictEqual(await admitOperatorTurn(fakeClient({ result: { data: null, error: { code: "PGRST202", message: "Could not find the function public.operator_admit" } } }), UID, 5),
     { admitted: false, reason: "unavailable" });
   assert.deepStrictEqual(await admitOperatorTurn(fakeClient({ throws: "fetch failed" }), UID, 5),
     { admitted: false, reason: "unavailable" });

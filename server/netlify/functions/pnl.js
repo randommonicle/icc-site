@@ -13,6 +13,7 @@ const { requireAdmin } = require("./adminAuth.js");
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const receipts = require("./receipts.js");
 const { parsePeriod } = require("./period.js");
+const { schemaNotReady } = require("./schemaNotReady.js");
 // The pure calculation lives in pnlCalc.js (client-free) so the operator assistant can
 // share it; re-exported below so test/pnl.test.js and any caller keep the same import.
 const { buildPnl } = require("./pnlCalc.js");
@@ -21,13 +22,11 @@ function json(statusCode, headers, obj) {
   return { statusCode, headers, body: JSON.stringify(obj) };
 }
 
-// A pending migration on hosted surfaces as undefined_table (42P01) or undefined_column
-// (42703) — the P&L reads invoices provider columns + the expenses table. Map both to a
-// clean 503 so a deploy-before-migration fails legibly rather than as a 500.
-function pgNotReady(error) {
-  const code = error && error.code;
-  return code === "42P01" || code === "42703";
-}
+// A pending migration on hosted surfaces as undefined_column (42703, the invoices provider
+// columns) or, for the expenses table, PostgREST's PGRST205 (not in its schema cache);
+// schemaNotReady.js names the full set. Map it to a clean 503 so a deploy-before-migration
+// fails legibly rather than as a 500. Until 2026-09-14 this keyed on 42P01 and answered
+// 503 only because the invoices load ran first (L-040).
 
 async function loadExpensesInPeriod(supabase, from, to) {
   const { data, error } = await supabase
@@ -50,7 +49,7 @@ async function handleGet(event, headers, deps) {
     depositRows = await (deps.loadPaidDepositRows || receipts.loadPaidDepositRows)(supabase);
     expenseRows = await (deps.loadExpensesInPeriod || loadExpensesInPeriod)(supabase, period.from, period.to);
   } catch (e) {
-    if (pgNotReady(e)) return json(503, headers, { error: "The P&L is not set up yet (apply the pending migrations to the database)." });
+    if (schemaNotReady(e)) return json(503, headers, { error: "The P&L is not set up yet (apply the pending migrations to the database)." });
     console.log("pnl load failed:", e.message);
     return json(500, headers, { error: "Could not load the P&L data." });
   }

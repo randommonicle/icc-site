@@ -5,15 +5,18 @@
 // bad value is a clean 400, not a DB 500. No VAT (D-024).
 //
 // The table has no credential gate (unlike invoicing), so if this deploys before the
-// expenses migration is applied to hosted, every op hits a missing table — caught as
-// Postgres 42P01 and returned as a clean 503 "not set up yet", never a 500 (the operator
-// sees a real message). A bad job_id FK (23503) is a 400, not a 500.
+// expenses migration is applied to hosted, every op hits a missing table. On the live seam
+// that is PostgREST's PGRST205 (the table is not in its schema cache), not the Postgres
+// 42P01 this code first keyed on (it 500'd for real on 2026-09-14, L-040); schemaNotReady
+// covers both and returns a clean 503 "not set up yet", never a 500 (the operator sees a
+// real message). A bad job_id FK (23503) is a 400, not a 500.
 //
 // REST verbs: POST create, GET list (optional ?from&to), PATCH update, DELETE remove.
 
 const { requireAdmin } = require("./adminAuth.js");
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const { parsePeriod } = require("./period.js");
+const { schemaNotReady } = require("./schemaNotReady.js");
 
 const CATEGORIES = ["fuel", "materials", "equipment", "insurance", "software", "other"];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -25,7 +28,7 @@ function json(statusCode, headers, obj) {
 // Map a Postgres error to a clean HTTP response, or null if it is not one we special-case.
 function pgErrorResponse(error, headers) {
   const code = error && error.code;
-  if (code === "42P01") return json(503, headers, { error: "Expenses are not set up yet (apply migration 20260913120000 to the database)." });
+  if (schemaNotReady(error)) return json(503, headers, { error: "Expenses are not set up yet (apply migration 20260913120000 to the database)." });
   if (code === "23503") return json(400, headers, { error: "That job_id does not match a job." });
   if (code === "23514" || code === "22P02") return json(400, headers, { error: "Invalid expense value." });
   return null;

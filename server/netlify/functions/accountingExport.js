@@ -13,6 +13,7 @@
 const { requireAdmin } = require("./adminAuth.js");
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const receipts = require("./receipts.js");
+const { schemaNotReady } = require("./schemaNotReady.js");
 
 function json(statusCode, headers, obj) {
   return { statusCode, headers, body: JSON.stringify(obj) };
@@ -63,8 +64,8 @@ async function handleGet(event, headers, deps) {
     invoiceRows = await (deps.loadInvoiceRows || receipts.loadInvoiceRows)(supabase);
     depositRows = await (deps.loadPaidDepositRows || receipts.loadPaidDepositRows)(supabase);
   } catch (e) {
-    // A pending migration on hosted (undefined_table/column) → clean 503, not a 500.
-    if (e && (e.code === "42P01" || e.code === "42703")) return json(503, headers, { error: "The accounting export is not set up yet (apply the pending migrations to the database)." });
+    // A pending migration on hosted (schemaNotReady.js) → clean 503, not a 500.
+    if (schemaNotReady(e)) return json(503, headers, { error: "The accounting export is not set up yet (apply the pending migrations to the database)." });
     console.log("accounting-export load failed:", e.message);
     return json(500, headers, { error: "Could not load the accounting data." });
   }
