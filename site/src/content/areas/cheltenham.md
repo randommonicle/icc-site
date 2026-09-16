@@ -7,7 +7,7 @@ tier: "core"
 postcodes: ["GL50", "GL51", "GL52", "GL53"]
 nearby: ["Charlton Kings", "Prestbury", "Leckhampton", "Up Hatherley", "Benhall", "Pittville", "Battledown"]
 order: 10
-updated: "2026-06-04"
+updated: "2026-09-16"
 faq:
   - question: "Do you charge extra for carpet cleaning in Cheltenham?"
     answer: "No. Cheltenham is our home town and core service area, so there is no out-of-area travel surcharge. You pay the standard per-room pricing shown on our services page."
@@ -17,7 +17,7 @@ faq:
     answer: "Yes. We identify the fibre and pile construction first, then clean wool, Axminster, Wilton and natural fibres such as sisal and seagrass with a low-moisture method that avoids the shrinkage and browning over-wetting can cause. See our wool-carpet guide for the detail."
 ---
 
-Intelligent Carpet Cleaning is based in Cheltenham, and the town is the heart of everything we do. From the Regency terraces around Montpellier and Pittville to the family homes of Charlton Kings, Leckhampton and Up Hatherley, we clean carpets and upholstery right across Cheltenham — and because it is our core area, there is never a travel surcharge.
+Intelligent Carpet Cleaning is based in Gloucester, and Cheltenham is at the heart of everything we do. From the Regency terraces around Montpellier and Pittville to the family homes of Charlton Kings, Leckhampton and Up Hatherley, we clean carpets and upholstery right across Cheltenham — and because it is our core area, there is never a travel surcharge.
 
 ## The right method for your carpet
 

@@ -7,7 +7,7 @@ tier: "core"
 postcodes: ["GL1", "GL2", "GL3", "GL4"]
 nearby: ["Quedgeley", "Hardwicke", "Hucclecote", "Longlevens", "Abbeymead", "Tuffley", "Barnwood", "Kingsholm"]
 order: 20
-updated: "2026-06-04"
+updated: "2026-09-16"
 faq:
   - question: "Is there a surcharge for carpet cleaning in Gloucester?"
     answer: "No. Gloucester is part of our core service area with Cheltenham, so there is no out-of-area travel charge — just the standard per-room pricing shown on our services page."
@@ -17,7 +17,7 @@ faq:
     answer: "Use our online assistant for an instant, itemised quote, or see the full pricing list on our services page. Everything is confirmed before any work is booked."
 ---
 
-We clean carpets and upholstery right across Gloucester, from the city-centre and dockside flats to the family homes of Quedgeley, Hardwicke, Hucclecote, Longlevens and Abbeymead. Gloucester is part of our core service area alongside Cheltenham, so there is no travel surcharge.
+Intelligent Carpet Cleaning is based in Gloucester, and we clean carpets and upholstery right across the city, from the city-centre and dockside flats to the family homes of Quedgeley, Hardwicke, Hucclecote, Longlevens and Abbeymead. Gloucester is part of our core service area alongside Cheltenham, so there is no travel surcharge.
 
 ## Cleaning matched to the fibre
 
