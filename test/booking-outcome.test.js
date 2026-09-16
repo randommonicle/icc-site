@@ -122,6 +122,12 @@ test("the confirmation card prints the server's deposit (bookData.deposit) befor
 test("processBooking gates on bookingRefusal WITH the HTTP status, and no longer on bookData.error first, in both clients", () => {
   for (const [name, src] of [["book.astro", bookAstro], ["index.html", indexHtml]]) {
     assert.match(src, /const refusal = bookingRefusal\(bookData, bookRes\.status\);/, name + " must decide the outcome through bookingRefusal, passing the response status (E2 keys the wording on it)");
+    // The status comes from the fetch response, so that variable must exist in THIS file under
+    // that name: a rollback that named it differently would throw a ReferenceError on every
+    // confirm and fall through to the catch-all "call us" line (the L-035 twin-drift failure).
+    const fetchAt = src.indexOf("const bookRes = await fetch(");
+    const callAt = src.indexOf("bookingRefusal(bookData, bookRes.status)");
+    assert.ok(fetchAt >= 0 && callAt > fetchAt, name + " must define bookRes from the confirm fetch before passing bookRes.status");
     assert.ok(!/if\(bookData\.error\)\{/.test(src), name + " must not test bookData.error before success (the L-041 defect)");
   }
 });
