@@ -4,6 +4,7 @@ description: "Cleaning upholstered furniture: what the W, S, SW and X codes mean
 summary: "What the upholstery cleaning codes (W, S, SW, X) tell you, why the fabric dictates the method, and how to keep sofas and chairs fresh between professional cleans."
 order: 25
 updated: "2026-06-04"
+published: "2026-06-04"
 faq:
   - question: "What do the cleaning codes on my sofa label mean?"
     answer: "They tell you how the fabric should be cleaned. W means use a water-based cleaner; S means solvent (dry-clean) products only, no water; SW or WS means either is safe; X means vacuum or light-brush only, with no water or solvent — leave those to a professional. The label is usually under a seat cushion."

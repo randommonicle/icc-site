@@ -4,6 +4,7 @@ description: "Hot-water extraction and low-moisture cleaning both have their pla
 summary: "How the two main professional cleaning methods differ, the trade-offs in drying time and depth of clean, and how to match the method to your carpet."
 order: 30
 updated: "2026-06-03"
+published: "2026-06-03"
 faq:
   - question: "Is steam cleaning bad for carpets?"
     answer: "Not inherently. Hot-water extraction is a proven professional method. The risks come from over-wetting and slow drying, especially on wool and natural fibres, which is why a low-moisture method is often the safer choice for those carpets."

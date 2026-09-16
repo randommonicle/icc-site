@@ -4,6 +4,7 @@ description: "How to clean wool carpets and rugs safely: why over-wetting and ha
 summary: "Why wool needs a gentler approach than synthetic carpet, the damage that over-wetting and harsh products cause, and how to keep a wool carpet looking its best."
 order: 10
 updated: "2026-06-03"
+published: "2026-06-03"
 faq:
   - question: "Can you steam clean a wool carpet?"
     answer: "Hot-water extraction can be used on wool by a careful professional, but the risk of over-wetting, browning, and shrinkage is higher, so a low-moisture method is generally the safer choice. What matters is controlled moisture, mild chemistry, and fast drying, not the label on the machine."

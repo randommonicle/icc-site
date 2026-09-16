@@ -4,6 +4,7 @@ description: "How long a professional carpet clean takes to dry, what affects dr
 summary: "What drives carpet drying time, how to speed it up safely, and the aftercare that keeps a freshly cleaned carpet looking good for longer."
 order: 35
 updated: "2026-06-04"
+published: "2026-06-04"
 faq:
   - question: "How long does carpet take to dry after cleaning?"
     answer: "It depends on the method, the fibre, and the airflow and temperature in the room. A low-moisture clean is far quicker than traditional wet extraction — Texatherm states a typical drying time of 30 to 60 minutes for its system, while a heavily over-wet carpet can take several hours or more."

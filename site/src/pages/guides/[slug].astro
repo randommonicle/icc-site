@@ -14,7 +14,7 @@ export async function getStaticPaths() {
 
 const { guide } = Astro.props;
 const { Content } = await render(guide);
-const { title, description, faq, updated } = guide.data;
+const { title, description, faq, updated, published } = guide.data;
 
 const siteUrl = (Astro.site?.href ?? 'https://www.intelligentclean.co.uk/').replace(/\/$/, '');
 const pageUrl = new URL(Astro.url.pathname, Astro.site).href;
@@ -34,6 +34,11 @@ const articleSchema = {
   description,
   url: pageUrl,
   mainEntityOfPage: pageUrl,
+  // S-01 (SEO audit): image and datePublished were missing; the logo stands in until the
+  // guides have their own images, and published is the frontmatter date (first release
+  // per git), falling back to updated for a guide that omits it.
+  image: `${siteUrl}/logo.jpg`,
+  datePublished: published ?? updated,
   dateModified: updated,
   author: { '@type': 'Organization', name: 'Intelligent Carpet Cleaning', url: siteUrl },
   publisher: {

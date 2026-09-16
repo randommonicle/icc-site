@@ -139,6 +139,18 @@ const services = [
         </section>
       )}
 
+      {/* Related guides (SEO audit O-05): the FAQ answers mention the guides in prose
+          only, so the area pages gave the guides no crawl path. Three links every area
+          page can honestly recommend; the guides index carries the rest. */}
+      <section class="area-guides">
+        <h2 class="section-title">Related guides</h2>
+        <ul class="area-guides-list">
+          <li><a href="/guides/cleaning-wool-carpets/">How to clean a wool carpet safely</a></li>
+          <li><a href="/guides/which-carpet-stains-are-permanent/">Which carpet stains are permanent?</a></li>
+          <li><a href="/guides/carpet-care-at-home/">Carpet care at home: spills and stains</a></li>
+        </ul>
+      </section>
+
       <div class="area-cta">
         <h2 class="area-cta-title">Get a quote for your {town} carpets</h2>
         <p class="area-cta-sub">Our AI assistant helps assess your carpet, gives you an honest view of what can and cannot be cleaned, and an itemised price before we arrive, with the method confirmed on the day.</p>
@@ -303,6 +315,11 @@ const services = [
   .area-faq-item p { color: var(--text-mid); font-size: 0.97rem; line-height: 1.75; }
 
   /* CTA. */
+  .area-guides { margin: 2.5rem 0; }
+  .area-guides .section-title { font-size: 1.5rem; margin-bottom: 1rem; }
+  .area-guides-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0.5rem 2rem; }
+  .area-guides-list a { color: var(--teal); font-weight: 700; text-decoration: none; }
+  .area-guides-list a:hover { text-decoration: underline; }
   .area-cta {
     margin: 3.5rem 0 4rem;
     padding: 2.5rem 2rem;

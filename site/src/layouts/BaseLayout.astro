@@ -15,18 +15,16 @@ import Footer from '../components/Footer.astro';
 //
 // Subsets are pinned rather than taking the default bundle, which ships Cyrillic,
 // Greek and Vietnamese too. Raleway is latin only because it renders our own
-// headings. Lato also takes latin-ext, because it is the body font and therefore
-// the one that renders customer-typed names in the chat, which can carry accented
-// characters outside plain latin.
+// headings. Lato's latin-ext faces (customer-typed names in the chat can carry
+// accented characters) are imported by book.astro alone, the one page that renders
+// customer text, so the other 27 pages do not fetch 18 KB they never use (SEO audit
+// T-10, 14 Sept 2026).
 import '@fontsource/raleway/latin-400.css';
 import '@fontsource/raleway/latin-700.css';
 import '@fontsource/raleway/latin-800.css';
 import '@fontsource/lato/latin-300.css';
 import '@fontsource/lato/latin-400.css';
 import '@fontsource/lato/latin-700.css';
-import '@fontsource/lato/latin-ext-300.css';
-import '@fontsource/lato/latin-ext-400.css';
-import '@fontsource/lato/latin-ext-700.css';
 import '../styles/global.css';
 // Trading day from the single source (D-006). The JSON-LD hours are the ones
 // Google shows, so they must match the booking engine and the Business Profile.

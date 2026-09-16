@@ -15,6 +15,12 @@
 // would scope them and break the handlers).
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Icon from '../components/Icon.astro';
+// Lato latin-ext, for customer-typed names with accented characters in the chat
+// bubbles. Imported here rather than in BaseLayout so only this page ships the
+// extra faces (SEO audit T-10).
+import '@fontsource/lato/latin-ext-300.css';
+import '@fontsource/lato/latin-ext-400.css';
+import '@fontsource/lato/latin-ext-700.css';
 ---
 <BaseLayout
   title="Book a Carpet Clean | Intelligent Carpet Cleaning"

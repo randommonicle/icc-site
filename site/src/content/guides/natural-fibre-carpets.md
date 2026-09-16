@@ -4,6 +4,7 @@ description: "Sisal, seagrass, coir and jute are easily ruined by the wrong clea
 summary: "Why natural plant fibres are the most water-sensitive floor coverings of all, the damage over-wetting causes, and how to clean and care for them safely."
 order: 12
 updated: "2026-06-04"
+published: "2026-06-04"
 faq:
   - question: "Can you steam clean a sisal or seagrass carpet?"
     answer: "It is best avoided. These are cellulosic plant fibres and are highly sensitive to water — over-wetting causes shrinkage, rippling and brown watermarks that are often permanent. A low-moisture or dry method is the safe choice, with as little water as the job allows and fast drying."

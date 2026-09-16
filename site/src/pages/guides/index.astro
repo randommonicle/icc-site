@@ -29,9 +29,15 @@ const guides = (await getCollection('guides', ({ data }) => !data.draft)).sort(
       ))}
     </div>
 
-    <p class="guides-related">
-      Related reading: <a href="/history/">The History of Carpet Cleaning</a>.
-    </p>
+    {/* The history article is not in the collection; a card, not a footnote, so it has a
+        real internal link (SEO audit O-05: it was a near-orphan). */}
+    <div class="guides-list guides-list-more">
+      <a class="guide-card" href="/history/">
+        <h2 class="guide-card-title">The History of Carpet Cleaning</h2>
+        <p class="guide-card-summary">From hand-knotted rugs and Britain's Axminster and Wilton looms to today's low-moisture systems: how carpet cleaning evolved, and why the method matters.</p>
+        <span class="guide-card-link">Read the article &rarr;</span>
+      </a>
+    </div>
   </section>
 </BaseLayout>
 

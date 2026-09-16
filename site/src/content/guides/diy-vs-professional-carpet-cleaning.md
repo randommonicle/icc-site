@@ -4,6 +4,7 @@ description: "An honest comparison of hired and home carpet cleaning machines wi
 summary: "Hired and home machines use the same extraction principle as professional equipment, but at lower temperature and suction and with far more water. What that means for your carpet."
 order: 18
 updated: "2026-07-19"
+published: "2026-07-19"
 faq:
   - question: "Are hired carpet cleaning machines any good?"
     answer: "They work on the same extraction principle as professional equipment, but they run at far lower temperature and suction, and they put much more water into the carpet. That combination is what causes most of the problems we are called out to put right."

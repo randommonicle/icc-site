@@ -14,6 +14,7 @@ const guides = defineCollection({
     summary: z.string(), // listing-card blurb
     order: z.number().default(50), // listing sort (low number = first)
     updated: z.string(), // ISO date, e.g. "2026-06-03"
+    published: z.string().optional(), // ISO date of first publication (Article.datePublished); defaults to `updated`
     // Rendered visibly at the foot of the guide AND as FAQPage JSON-LD, so the
     // structured data always matches what the reader sees.
     faq: z

@@ -4,6 +4,7 @@ description: "An honest guide to carpet stains: which marks a professional can r
 summary: "The difference between a stain and permanent dye damage, which marks usually come out and which do not, and how to give a spill the best chance of lifting."
 order: 20
 updated: "2026-06-03"
+published: "2026-06-03"
 faq:
   - question: "Can bleach stains be removed from carpet?"
     answer: "No. Bleach destroys the carpet's dye rather than adding a mark, so there is nothing to clean away. The realistic fixes are re-dyeing the affected area or patching in a piece of matching carpet."

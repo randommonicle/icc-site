@@ -4,6 +4,7 @@ description: "What you can safely do yourself: treating a spill before it sets, 
 summary: "What you can safely do yourself: treat a spill the right way before it sets, avoid the mistakes that cause permanent damage, and keep your carpet well between professional cleans."
 order: 15
 updated: "2026-06-03"
+published: "2026-06-03"
 faq:
   - question: "What should I do the moment something spills on the carpet?"
     answer: "Act straight away. Lift any solids gently, then blot (do not rub) with a clean white cloth, working from the outside of the spill inwards. Use cool water, never hot. The faster you lift a spill, the less chance it has of becoming a permanent stain."
