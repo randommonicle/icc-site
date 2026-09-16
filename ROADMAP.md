@@ -16,13 +16,13 @@ Outstanding before this can safely take real traffic (carried into Phase 1, trac
 
 | Item | Status | Ref |
 |------|--------|-----|
-| Set `ALLOWED_ORIGINS` in Netlify (chat origin check fails open today) | 🔴 | L-001 |
+| Set `ALLOWED_ORIGINS` in Netlify (chat origin check fails open until set) | 🟢 | L-001 |
 | Rate-limit booking/availability endpoints (slot-griefing risk) | 🟢 | L-006 |
 | Verify a Resend sending domain; set real from/operator addresses | 🟢 | L-004 |
 | Privacy notice on the public site | 🟡 | DESIGN §11 |
 | Constant-time admin token compare | 🟢 | — |
 
-🟢 done on `hardening/phase0-pre-launch` (rate limits L-006, constant-time admin compare). 🟡 privacy notice is **drafted and live-linked but not go-live ready** — Mark must fill the data-controller placeholders (`[to confirm: …]` in `site/src/pages/privacy.astro`) and the wording wants a data-protection review before real traffic. 🟢 the Resend sending domain (L-004) is verified with real from/operator addresses (10 June 2026). 🔴 `ALLOWED_ORIGINS` (L-001) is deliberately deferred to the domain cutover; the per-IP rate limit is the live defence on the cost path. Verified locally by `node --test` (pure logic) + in-browser render; live 429/email/CORS behaviour verifies on a Netlify deploy preview.
+🟢 done on `hardening/phase0-pre-launch` (rate limits L-006, constant-time admin compare). 🟡 privacy notice is **drafted and live-linked but not go-live ready** — Mark must fill the data-controller placeholders (`[to confirm: …]` in `site/src/pages/privacy.astro`) and the wording wants a data-protection review before real traffic. 🟢 the Resend sending domain (L-004) is verified with real from/operator addresses (10 June 2026). 🟢 `ALLOWED_ORIGINS` (L-001) set 30 July 2026 to the production domain and live-verified (hostile origin 403); it stays defence-in-depth, the per-IP rate limit is the primary control on the cost path. Verified locally by `node --test` (pure logic) + in-browser render; live 429/email/CORS behaviour verifies on a Netlify deploy preview.
 
 ---
 
@@ -65,14 +65,14 @@ Carry the Phase 0 hardening items above into this phase.
 - [x] Stand up Supabase: relational DB + admin auth (hosted `icc-platform`, London). File storage for job photos is still to come.
 - [ ] Design the API surface deliberately so the future field app is a client, not a rebuild (D-003). **Started** — `/api/v1/quote` + a versioned `shared/contract/`; the full surface is ongoing.
 - [x] Migrate bookings off Netlify Blobs into Postgres (Slice 5b, `BOOKINGS_STORE=postgres`, enabled 14 June 2026; fail-closed write, double-booking is a DB constraint).
-- [ ] Jobs dashboard: all jobs, filterable by status. **Partial** — bookings + handoffs are visible in the admin; status-filter / outstanding-vs-completed views are still to build.
+- [x] Jobs dashboard: all jobs, filterable by status. **Done** (Beta 1, 10 Sept 2026): Outstanding / Completed / Cancelled filters keyed off `jobs.status`, cancelled jobs excluded from the pipeline stats. A `/api/v1/jobs` endpoint for the field app is still to add.
 - [x] Job records: customer, address, carpet details, AI assessment, quote, slot, notes. (Photos are still emailed to Mark, not yet stored — `TODO(slice5x/photos)`.)
-- [ ] Basic invoice tracking (draft / sent / paid / overdue) against completed jobs. **Now specced as the next backend slice (D-026): platform-owned invoicing on Stripe, review-then-send from the admin, dormant behind a credentials flag. This supersedes the D-024 "invoice via FreeAgent" plan.**
+- [x] Basic invoice tracking (draft / sent / paid / overdue) against completed jobs. **Built and live** (backend phase 1, 10 to 15 Sept 2026; D-026 supersedes the D-024 FreeAgent plan): platform-owned invoicing on Stripe (`invoices.js`, webhook, admin invoice panel), the accounting export (D-041) and a cash-basis P&L with an expense log (D-039/D-042). Dormant behind `STRIPE_SECRET_KEY` for invoicing; the Stripe `invoice.*` webhook events and the first invoicing ride are still owed (NEXT_SESSION.md).
 - [x] Move model names + AI knowledge source server-side as a single source of truth (Slices 1 + 4a, `shared/config`; D-007, D-006).
 - [x] First test suite (real services, no mocks): `node --test` + guarded real-Supabase integration tests + pgTAP.
 
 **New from the August 2026 Mark meeting:**
-- [ ] **Rework trading hours to per-day** (Mark, Aug 2026): day-specific starts (Mon 09:30 / Tue 10:30 / Wed 09:30 / Thu 10:00 / Fri 09:30 / Sat 09:30) with **1pm as the last job start** (Ben confirmed: last start, not the hard finish, which follows from job length), Saturday at a weekend premium. `shared/config/tradingHours.js` is single-hours-for-all-days today, so this is structural: prompt + availability grid + `validateBooking` + `contact.astro` + JSON-LD. (Thursday starts 10:00; there is no 10:10 start.)
+- [x] **Rework trading hours to per-day** (Mark, Aug 2026; **D-027, built and live 1 Sept 2026**): day-specific starts (Mon 09:30 / Tue 10:30 / Wed 09:30 / Thu 10:00 / Fri 09:30 / Sat 09:30) with **1pm as the last job start** across the prompt, the availability grid, `validateBooking`, `contact.astro` and the JSON-LD, all from `shared/config/tradingHours.js`. Still open from the same decision: the **Saturday weekend premium figure** is not set (`TODO(D-027/saturday-premium)` in `tradingHours.js`), and the late-finish provisional-booking flow shipped with it.
 - [ ] **Re-centre the travel charge on Mark's base address** (Mark + Ben, Aug 2026): free within ~10 miles of Mark's GL3 base (held privately per D-016, distance calc only), then **£5 / £10 / £15** tiers; Winchcombe moves from free to ~£5. Amends **D-011** (flat £15 + three-town core). Set exact bandings + postcode boundary before touching `serviceArea.js` and the area pages.
 - [ ] **One-week booking offset** (Mark, Aug 2026): never offer a slot in the enquiry's own week; an **urgent override** emails Mark for approval and, on approval, populates the calendar.
 - [ ] **Smart allocation by travel time** (Mark, Aug 2026): add 15–20 min between consecutive jobs so Mark can travel between them. Do not cluster jobs by area; take the booking and add the buffer.
