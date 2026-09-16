@@ -37,7 +37,7 @@ A carpet that re-soils quickly is usually carrying cleaning-product residue. Det
 
 - **Vacuum regularly** to lift dry grit before it grinds into the pile.
 - **Use doormats** to catch soil at the door before it reaches your carpets.
-- **Deal with spills promptly** — our [home care guide](/guides/carpet-care-at-home) covers exactly how.
+- **Deal with spills promptly** — our [home care guide](/guides/carpet-care-at-home/) covers exactly how.
 - **Plan a routine clean** before a carpet looks heavily soiled; maintenance cleaning is gentler and cheaper than rescuing a neglected carpet.
 
-When it is time for a professional clean, our [AI assistant](/book) will identify your carpet, recommend the right method, and give you an itemised quote in minutes.
+When it is time for a professional clean, our [AI assistant](/book/) will identify your carpet, recommend the right method, and give you an itemised quote in minutes.

@@ -34,7 +34,7 @@ If there is no code, treat the piece as delicate until a professional has tested
 
 ## How we clean upholstery
 
-We check the fabric and its cleaning code, test an unseen area first, then clean with a fabric-appropriate, low-moisture method. That keeps water to a minimum, lifts soiling with gentle action, dries quickly and leaves little residue, so the piece is usable again soon and stays fresher for longer. It is the same low-moisture approach we use on [carpets](/services).
+We check the fabric and its cleaning code, test an unseen area first, then clean with a fabric-appropriate, low-moisture method. That keeps water to a minimum, lifts soiling with gentle action, dries quickly and leaves little residue, so the piece is usable again soon and stays fresher for longer. It is the same low-moisture approach we use on [carpets](/services/).
 
 ## Between professional cleans
 
@@ -43,4 +43,4 @@ We check the fabric and its cleaning code, test an unseen area first, then clean
 - **Blot spills straight away**, following the cleaning code, working inwards, and never rub.
 - **Avoid over-wetting** and harsh supermarket sprays, which can leave rings or sticky residue.
 
-For a full refresh, or a stubborn mark on a piece you value, our [AI assistant](/book) will give you an itemised quote, and we will tell you honestly what a clean can and cannot achieve before we start.
+For a full refresh, or a stubborn mark on a piece you value, our [AI assistant](/book/) will give you an itemised quote, and we will tell you honestly what a clean can and cannot achieve before we start.

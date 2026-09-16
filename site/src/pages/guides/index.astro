@@ -21,7 +21,7 @@ const guides = (await getCollection('guides', ({ data }) => !data.draft)).sort(
 
     <div class="guides-list">
       {guides.map((g) => (
-        <a class="guide-card" href={`/guides/${g.id}`}>
+        <a class="guide-card" href={`/guides/${g.id}/`}>
           <h2 class="guide-card-title">{g.data.title}</h2>
           <p class="guide-card-summary">{g.data.summary}</p>
           <span class="guide-card-link">Read the guide &rarr;</span>
@@ -30,7 +30,7 @@ const guides = (await getCollection('guides', ({ data }) => !data.draft)).sort(
     </div>
 
     <p class="guides-related">
-      Related reading: <a href="/history">The History of Carpet Cleaning</a>.
+      Related reading: <a href="/history/">The History of Carpet Cleaning</a>.
     </p>
   </section>
 </BaseLayout>

@@ -46,7 +46,7 @@ const breadcrumbSchema = {
       <h2 class="areas-group-title">Core area <span>&mdash; no travel surcharge</span></h2>
       <div class="areas-list">
         {core.map((a) => (
-          <a class="area-card area-card-core" href={`/areas/${a.id}`}>
+          <a class="area-card area-card-core" href={`/areas/${a.id}/`}>
             <h3 class="area-card-town">{a.data.town}</h3>
             <p class="area-card-summary">{a.data.summary}</p>
             {a.data.postcodes.length > 0 && (
@@ -60,7 +60,7 @@ const breadcrumbSchema = {
       <h2 class="areas-group-title">Wider Gloucestershire <span>&mdash; flat {surcharge} out-of-area surcharge</span></h2>
       <div class="areas-list">
         {wider.map((a) => (
-          <a class="area-card area-card-wider" href={`/areas/${a.id}`}>
+          <a class="area-card area-card-wider" href={`/areas/${a.id}/`}>
             <h3 class="area-card-town">{a.data.town}</h3>
             <p class="area-card-summary">{a.data.summary}</p>
             {a.data.postcodes.length > 0 && (
@@ -72,8 +72,8 @@ const breadcrumbSchema = {
       </div>
 
       <p class="areas-note">
-        Just outside these towns? We very likely still cover you. Start a <a href="/book">booking</a> and our assistant
-        adds the flat {surcharge} out-of-area surcharge up front, or <a href="/contact">get in touch</a>.
+        Just outside these towns? We very likely still cover you. Start a <a href="/book/">booking</a> and our assistant
+        adds the flat {surcharge} out-of-area surcharge up front, or <a href="/contact/">get in touch</a>.
       </p>
     </div>
   </section>

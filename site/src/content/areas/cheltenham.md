@@ -25,8 +25,8 @@ Period and town-centre homes often have wool, Axminster or Wilton carpets, while
 
 ## Honest about what's achievable
 
-We always tell you up front what a clean can and cannot do. Fresh spills and general soiling respond very well; some older staining and any bleach damage is permanent, and we would rather say so before we start than disappoint you on the day. Our [care guides](/guides) explain which stains lift and which do not.
+We always tell you up front what a clean can and cannot do. Fresh spills and general soiling respond very well; some older staining and any bleach damage is permanent, and we would rather say so before we start than disappoint you on the day. Our [care guides](/guides/) explain which stains lift and which do not.
 
 ## Booking in Cheltenham
 
-The quickest way to a price is our [online assistant](/book): describe your carpets, or send a photo, and it identifies the fibre, recommends the right method, and gives you a fully itemised quote in minutes. No call-back, no waiting.
+The quickest way to a price is our [online assistant](/book/): describe your carpets, or send a photo, and it identifies the fibre, recommends the right method, and gives you a fully itemised quote in minutes. No call-back, no waiting.

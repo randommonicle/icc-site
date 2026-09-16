@@ -29,4 +29,4 @@ You get a fully itemised quote that includes the £15 out-of-area surcharge up f
 
 ## Book a Stroud visit
 
-Start with our [online assistant](/book) for an instant quote, or read our [carpet care guides](/guides) on wool and natural fibres first.
+Start with our [online assistant](/book/) for an instant quote, or read our [carpet care guides](/guides/) on wool and natural fibres first.

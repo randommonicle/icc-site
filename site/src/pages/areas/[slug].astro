@@ -82,7 +82,7 @@ const services = [
 
   <section class="area-page">
     <div class="area-hero">
-      <div class="section-label area-hero-label"><a href="/areas">Service Areas</a></div>
+      <div class="section-label area-hero-label"><a href="/areas/">Service Areas</a></div>
       <h1>Carpet Cleaning in {town}</h1>
       {tier === 'core' ? (
         <div class="area-badge area-badge-core">Core service area &mdash; no travel surcharge</div>
@@ -108,9 +108,9 @@ const services = [
 
       <div class={`area-surcharge area-surcharge-${tier}`}>
         {tier === 'core' ? (
-          <p><strong>No travel surcharge.</strong> {town} is within our core Cheltenham, Gloucester and Winchcombe service area, so you pay the standard per-room pricing on our <a href="/services">services page</a>.</p>
+          <p><strong>No travel surcharge.</strong> {town} is within our core Cheltenham, Gloucester and Winchcombe service area, so you pay the standard per-room pricing on our <a href="/services/">services page</a>.</p>
         ) : (
-          <p><strong>A flat {surcharge} out-of-area surcharge applies.</strong> {town} sits outside our core Cheltenham, Gloucester and Winchcombe area, so a flat {surcharge} travel surcharge is added and shown up front &mdash; no hidden charges, and you will have the full price before you commit. Everything else follows the standard pricing on our <a href="/services">services page</a>.</p>
+          <p><strong>A flat {surcharge} out-of-area surcharge applies.</strong> {town} sits outside our core Cheltenham, Gloucester and Winchcombe area, so a flat {surcharge} travel surcharge is added and shown up front &mdash; no hidden charges, and you will have the full price before you commit. Everything else follows the standard pricing on our <a href="/services/">services page</a>.</p>
         )}
       </div>
 
@@ -118,7 +118,7 @@ const services = [
         <h2 class="area-services-title">What we clean in {town}</h2>
         <div class="area-services-grid">
           {services.map((s) => (
-            <a class="area-service-card" href="/services">
+            <a class="area-service-card" href="/services/">
               <span class="area-service-icon"><Icon name={s.icon} size={22} color="var(--teal)" /></span>
               <span class="area-service-name">{s.name}</span>
               <span class="area-service-desc">{s.desc}</span>
@@ -142,8 +142,8 @@ const services = [
       <div class="area-cta">
         <h2 class="area-cta-title">Get a quote for your {town} carpets</h2>
         <p class="area-cta-sub">Our AI assistant helps assess your carpet, gives you an honest view of what can and cannot be cleaned, and an itemised price before we arrive, with the method confirmed on the day.</p>
-        <a class="btn-primary" href="/book">Get an Instant Quote</a>
-        <p class="area-cta-back"><a href="/areas">&larr; All service areas</a></p>
+        <a class="btn-primary" href="/book/">Get an Instant Quote</a>
+        <p class="area-cta-back"><a href="/areas/">&larr; All service areas</a></p>
       </div>
     </article>
   </section>

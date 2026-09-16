@@ -7,6 +7,11 @@ import sitemap from '@astrojs/sitemap';
 // update it the moment the real domain is registered.
 export default defineConfig({
   site: 'https://www.intelligentclean.co.uk',
+  // Directory-style output (/about/index.html) means the canonical URL of every
+  // page ends in a slash. Declaring it makes the dev server, the sitemap and the
+  // link form agree, and every internal href is written with the slash so no
+  // click is a 301 hop (SEO audit T-03, 14 Sept 2026; test/internal-links.test.js).
+  trailingSlash: 'always',
   // /booking-action is a token-authorised operator utility page (D-027), not public
   // content — keep it out of the sitemap (it is also noindex/no-referrer in its head).
   integrations: [sitemap({ filter: (page) => !page.includes('/booking-action') })],

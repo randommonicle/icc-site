@@ -29,4 +29,4 @@ As well as carpets we clean sofas, armchairs and other upholstery, treat stains 
 
 ## Get a Gloucester quote
 
-Tell our [AI assistant](/book) about your carpets and it will identify the fibre, recommend a method and give you an itemised price in minutes — or see our [services and pricing](/services) first.
+Tell our [AI assistant](/book/) about your carpets and it will identify the fibre, recommend a method and give you an itemised price in minutes — or see our [services and pricing](/services/) first.

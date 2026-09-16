@@ -33,7 +33,7 @@ The common failure with natural fibres is moisture:
 
 ## How we clean natural fibres
 
-The safe approach is the opposite of soaking. We identify the fibre first, then clean with a low-moisture or dry method that uses minimal water, lifts soil with gentle mechanical action, and dries quickly so moisture never has time to cause browning or shrinkage. It is the same principle behind cleaning [wool carpets](/guides/cleaning-wool-carpets) safely, taken a step further because plant fibres are even less forgiving.
+The safe approach is the opposite of soaking. We identify the fibre first, then clean with a low-moisture or dry method that uses minimal water, lifts soil with gentle mechanical action, and dries quickly so moisture never has time to cause browning or shrinkage. It is the same principle behind cleaning [wool carpets](/guides/cleaning-wool-carpets/) safely, taken a step further because plant fibres are even less forgiving.
 
 ## Caring for natural fibres at home
 
@@ -42,4 +42,4 @@ The safe approach is the opposite of soaking. We identify the fibre first, then 
 - **Never saturate** a natural-fibre floor, and avoid supermarket carpet shampoos, which are too wet and often too alkaline.
 - **Manage humidity** in the room — these fibres respond to damp air as well as spills.
 
-For anything beyond a small fresh spill, a professional clean is much safer, and essential for a valuable natural-fibre rug. If you are not sure what your floor is made of, our [AI assistant](/book) can help identify it from a photo and recommend the right approach before any work is booked.
+For anything beyond a small fresh spill, a professional clean is much safer, and essential for a valuable natural-fibre rug. If you are not sure what your floor is made of, our [AI assistant](/book/) can help identify it from a photo and recommend the right approach before any work is booked.

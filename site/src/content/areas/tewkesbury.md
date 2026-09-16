@@ -29,4 +29,4 @@ Your quote is itemised and includes the £15 surcharge up front, so you know the
 
 ## Get a Tewkesbury quote
 
-Our [AI assistant](/book) gives you an instant, itemised price; our [services page](/services) has the full pricing list.
+Our [AI assistant](/book/) gives you an instant, itemised price; our [services page](/services/) has the full pricing list.

@@ -29,4 +29,4 @@ Our quotes are itemised and include the £15 surcharge from the outset. We are h
 
 ## Book a Cirencester clean
 
-Get an instant, itemised quote from our [online assistant](/book), or browse our [care guides](/guides) on getting the best from wool and natural fibres.
+Get an instant, itemised quote from our [online assistant](/book/), or browse our [care guides](/guides/) on getting the best from wool and natural fibres.

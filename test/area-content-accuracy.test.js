@@ -92,7 +92,8 @@ test("home service cards deepen into /services, and every anchor they use exists
   const hrefs = [...home.matchAll(/class="service-card" href="([^"]+)"/g)].map((m) => m[1]);
   assert.strictEqual(hrefs.length, 4, "expected four service cards on the home page");
   for (const href of hrefs) {
-    assert.ok(href.startsWith("/services#"), `service card should link into /services, got ${href}`);
+    // The slash form: /services/#id, not /services#id (T-03, test/internal-links.test.js).
+    assert.ok(href.startsWith("/services/#"), `service card should link into /services/ (trailing slash) then an anchor, got ${href}`);
     const id = href.split("#")[1];
     assert.match(
       services,

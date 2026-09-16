@@ -35,8 +35,8 @@ const areas = (await getCollection('areas', ({ data }) => !data.draft)).sort(
         <h1 class="hero-title">Smarter Cleaning.<br /><span class="accent">Done Properly.</span></h1>
         <p class="hero-sub">Cheltenham and Gloucestershire's AI-assisted carpet cleaning service. Get an instant quote, understand your carpet type, and book in minutes.</p>
         <div class="hero-actions">
-          <a class="btn-primary" href="/book">Chat with Our AI</a>
-          <a class="btn-outline" href="/book">Book a Visit</a>
+          <a class="btn-primary" href="/book/">Chat with Our AI</a>
+          <a class="btn-outline" href="/book/">Book a Visit</a>
         </div>
         {/* TODO(trust-stats): reinstate quantified track-record metrics only when
             substantiated (a real completed-job count or verified review rating).
@@ -60,7 +60,7 @@ const areas = (await getCollection('areas', ({ data }) => !data.draft)).sort(
             fetchpriority="high"
           />
         </div>
-        <a class="hero-chat-teaser" href="/book">
+        <a class="hero-chat-teaser" href="/book/">
           <div class="chat-teaser-dot"></div>
           <div class="chat-teaser-text">AI Assistant is online. Get an instant quote now.</div>
           <div class="chat-teaser-arrow">&rsaquo;</div>
@@ -82,10 +82,10 @@ const areas = (await getCollection('areas', ({ data }) => !data.draft)).sort(
     <h2 class="section-title">Specialist Cleaning Services</h2>
     <p class="section-sub">Every carpet is different. We match the cleaning method to the fibre, construction, and soiling type every time.</p>
     <div class="services-grid">
-      <a class="service-card" href="/services#residential"><div class="service-card-icon"><Icon name="home" color="#fff" /></div><div><div class="service-card-title">Residential Carpet Cleaning</div><div class="service-card-desc">Hot water extraction, low-moisture, and dry cleaning options for all domestic carpet types including wool, synthetic, and natural fibres.</div><div class="service-price">From £{priceOf('base_room')} per room</div></div></a>
-      <a class="service-card" href="/services#commercial"><div class="service-card-icon"><Icon name="building" color="#fff" /></div><div><div class="service-card-title">Commercial Contracts</div><div class="service-card-desc">Regular maintenance programmes for offices, hospitality venues, and rental properties across Gloucestershire.</div><div class="service-price">Contact for tailored pricing</div></div></a>
-      <a class="service-card" href="/services#stain-treatment"><div class="service-card-icon"><Icon name="wine" color="#fff" /></div><div><div class="service-card-title">Stain Treatment</div><div class="service-card-desc">Specialist treatment for red wine, pet staining, bleach damage, and ingrained soiling. Pre-assessment included.</div><div class="service-price">From £{priceOf('stain')}</div></div></a>
-      <a class="service-card" href="/services#upholstery"><div class="service-card-icon"><Icon name="sofa" color="#fff" /></div><div><div class="service-card-title">Upholstery Cleaning</div><div class="service-card-desc">Safe, effective cleaning for sofas, chairs, and curtains using fabric-appropriate methods.</div><div class="service-price">From £{priceOf('upholstery_chair')} per item</div></div></a>
+      <a class="service-card" href="/services/#residential"><div class="service-card-icon"><Icon name="home" color="#fff" /></div><div><div class="service-card-title">Residential Carpet Cleaning</div><div class="service-card-desc">Hot water extraction, low-moisture, and dry cleaning options for all domestic carpet types including wool, synthetic, and natural fibres.</div><div class="service-price">From £{priceOf('base_room')} per room</div></div></a>
+      <a class="service-card" href="/services/#commercial"><div class="service-card-icon"><Icon name="building" color="#fff" /></div><div><div class="service-card-title">Commercial Contracts</div><div class="service-card-desc">Regular maintenance programmes for offices, hospitality venues, and rental properties across Gloucestershire.</div><div class="service-price">Contact for tailored pricing</div></div></a>
+      <a class="service-card" href="/services/#stain-treatment"><div class="service-card-icon"><Icon name="wine" color="#fff" /></div><div><div class="service-card-title">Stain Treatment</div><div class="service-card-desc">Specialist treatment for red wine, pet staining, bleach damage, and ingrained soiling. Pre-assessment included.</div><div class="service-price">From £{priceOf('stain')}</div></div></a>
+      <a class="service-card" href="/services/#upholstery"><div class="service-card-icon"><Icon name="sofa" color="#fff" /></div><div><div class="service-card-title">Upholstery Cleaning</div><div class="service-card-desc">Safe, effective cleaning for sofas, chairs, and curtains using fabric-appropriate methods.</div><div class="service-price">From £{priceOf('upholstery_chair')} per item</div></div></a>
     </div>
   </div>
 
@@ -96,7 +96,7 @@ const areas = (await getCollection('areas', ({ data }) => !data.draft)).sort(
       <p class="section-sub">Cheltenham, Gloucester and Winchcombe are our core area, with no travel surcharge. Everywhere else in the county carries a flat £{priceOf('out_of_area')} out-of-area surcharge, shown up front before you book.</p>
       <div class="home-areas-grid">
         {areas.map((a) => (
-          <a class="home-area-chip" href={`/areas/${a.id}`}>
+          <a class="home-area-chip" href={`/areas/${a.id}/`}>
             <span class="home-area-town">{a.data.town}</span>
             <span class={`home-area-tag home-area-tag-${a.data.tier}`}>
               {a.data.tier === 'core' ? 'No surcharge' : 'Wider area'}
@@ -104,7 +104,7 @@ const areas = (await getCollection('areas', ({ data }) => !data.draft)).sort(
           </a>
         ))}
       </div>
-      <a class="home-areas-cta" href="/areas">See all service areas &rarr;</a>
+      <a class="home-areas-cta" href="/areas/">See all service areas &rarr;</a>
     </div>
   </div>
 </BaseLayout>

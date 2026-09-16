@@ -27,7 +27,7 @@ Older homes around Winchcombe, Greet, Gretton and Sudeley often have wool, Axmin
 
 ## The wider GL54 towns
 
-Winchcombe's postcode district stretches a long way east into the Cotswolds. Bourton-on-the-Water, Stow-on-the-Wold and Northleach all share the GL54 prefix but sit well outside our five-mile core, so they carry the same flat £15 out-of-area surcharge as the rest of the [wider Gloucestershire towns](/areas). It is quoted up front, never added afterwards. If you are unsure which side of the line you are on, our [assistant](/book) will tell you before you commit to anything.
+Winchcombe's postcode district stretches a long way east into the Cotswolds. Bourton-on-the-Water, Stow-on-the-Wold and Northleach all share the GL54 prefix but sit well outside our five-mile core, so they carry the same flat £15 out-of-area surcharge as the rest of the [wider Gloucestershire towns](/areas/). It is quoted up front, never added afterwards. If you are unsure which side of the line you are on, our [assistant](/book/) will tell you before you commit to anything.
 
 ## Honest, itemised, no surprises
 
@@ -35,4 +35,4 @@ Your quote is fully itemised, so the price you see is the price you pay. We are 
 
 ## Book a Winchcombe visit
 
-Start with our [online assistant](/book) for an instant quote, or read our [carpet care guides](/guides) on wool and natural fibres first.
+Start with our [online assistant](/book/) for an instant quote, or read our [carpet care guides](/guides/) on wool and natural fibres first.

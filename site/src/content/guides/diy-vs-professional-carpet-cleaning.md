@@ -55,4 +55,4 @@ We would rather be straightforward about our own interest here, so: a good deal 
 
 Plenty of carpet care genuinely belongs at home, and none of it needs a machine. Prompt, correct treatment of a spill does more for a carpet than any annual deep clean, and it costs nothing. Our guide to [carpet care at home](/guides/carpet-care-at-home/) covers how to blot a spill properly, and [which stains are permanent](/guides/which-carpet-stains-are-permanent/) sets out honestly what will and will not come out.
 
-If you would like a view on your own carpet before deciding either way, our [assistant](/book) will identify the fibre from a description or a photo and tell you plainly what it needs, including when the answer is that it does not need us yet.
+If you would like a view on your own carpet before deciding either way, our [assistant](/book/) will identify the fibre from a description or a photo and tell you plainly what it needs, including when the answer is that it does not need us yet.

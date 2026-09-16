@@ -2,17 +2,21 @@
 // Site navigation. Real multi-page links replace the Phase 0 showSection()
 // single-page toggles. The active route is marked with aria-current for both
 // accessibility and the highlight style.
+// Every internal href takes the trailing-slash form (astro.config.mjs
+// trailingSlash: 'always'): the built pages, canonicals and sitemap are all
+// /about/, and the slash-less form was a 301 hop on every click (SEO audit
+// T-03, 14 Sept 2026). test/internal-links.test.js holds the site to it.
 const path = Astro.url.pathname;
 const isActive = (href: string) =>
-  href === '/' ? path === '/' : path === href || path.startsWith(href + '/');
+  href === '/' ? path === '/' : path === href || path.startsWith(href);
 const links = [
   { href: '/', label: 'Home' },
-  { href: '/services', label: 'Services' },
-  { href: '/areas', label: 'Areas' },
-  { href: '/guides', label: 'Guides' },
-  { href: '/about', label: 'About' },
-  { href: '/book', label: 'Book' },
-  { href: '/contact', label: 'Contact' },
+  { href: '/services/', label: 'Services' },
+  { href: '/areas/', label: 'Areas' },
+  { href: '/guides/', label: 'Guides' },
+  { href: '/about/', label: 'About' },
+  { href: '/book/', label: 'Book' },
+  { href: '/contact/', label: 'Contact' },
 ];
 ---
 <nav>
@@ -37,5 +41,5 @@ const links = [
       </li>
     ))}
   </ul>
-  <a class="nav-cta" href="/book">Get a Quote</a>
+  <a class="nav-cta" href="/book/">Get a Quote</a>
 </nav>
