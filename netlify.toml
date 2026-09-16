@@ -134,6 +134,17 @@
     Cache-Control = "no-store, no-cache, must-revalidate"
     X-Robots-Tag = "noindex, nofollow"
 
+# Astro's build output under /_astro/ carries a content hash in every filename
+# (about.CrE_nXI8.css, lato-latin-400-normal.BEhtfm5r.woff2), so a file at a
+# given URL never changes: cache it for a year. Without this Netlify's default
+# (max-age=0, must-revalidate) made every page view revalidate every stylesheet
+# and font (SEO audit T-09, 14 Sept 2026). /logo.jpg is unhashed and stays on
+# the default.
+[[headers]]
+  for = "/_astro/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
 # ---------------------------------------------------------------------------
 # PRE-LAUNCH ONLY — DELETE THIS BLOCK AT THE DOMAIN CUTOVER (D-013)
 # ---------------------------------------------------------------------------

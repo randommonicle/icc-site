@@ -1,0 +1,87 @@
+---
+// Custom 404. Astro writes this to dist/404.html and Netlify serves it, with a
+// 404 status, for any path that does not exist. Before this page a mistyped URL
+// dead-ended on Netlify's default "Page not found" with no navigation, no brand
+// and no way back (SEO audit T-12, 14 Sept 2026). Rendered through BaseLayout
+// so the nav, footer and metadata are the site's own; the head carries a
+// per-page noindex so the error page itself never enters the index.
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+<BaseLayout
+  title="Page not found | Intelligent Carpet Cleaning"
+  description="That page does not exist. Find our carpet and upholstery cleaning services, prices, care guides and the booking assistant from here."
+>
+  <meta slot="head" name="robots" content="noindex" />
+
+  <section class="page-hero">
+    <div class="page-hero-inner">
+      <div class="section-label" style="color:var(--teal-light);">Error 404</div>
+      <h1>We can't find that page</h1>
+      <p>The link may be out of date or the address mistyped. Everything on the site is one click away below.</p>
+    </div>
+  </section>
+
+  <section class="not-found">
+    <ul class="not-found-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/services/">Services and prices</a></li>
+      <li><a href="/areas/">Where we clean</a></li>
+      <li><a href="/guides/">Carpet care guides</a></li>
+      <li><a href="/contact/">Contact us</a></li>
+    </ul>
+    <a class="btn-primary" href="/book/">Get a quote &amp; book</a>
+    <p class="not-found-help">Or call us on <a href="tel:01452452356">01452 452356</a>.</p>
+  </section>
+</BaseLayout>
+
+<style>
+  /* Same header band as the other secondary pages (contact, services). */
+  .page-hero {
+    background: linear-gradient(135deg, var(--navy-dark), var(--navy));
+    padding: 4rem 2rem;
+    margin-top: 70px; /* clear the fixed nav */
+  }
+  .page-hero-inner { max-width: 1100px; margin: 0 auto; }
+  .page-hero h1 {
+    font-family: "Raleway", sans-serif;
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #fff;
+    margin: 0.5rem 0 0.75rem;
+    letter-spacing: -0.02em;
+  }
+  .page-hero p {
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 1rem;
+    font-weight: 300;
+    max-width: 640px;
+    line-height: 1.7;
+  }
+  .not-found {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 3rem 2rem 4rem;
+  }
+  .not-found-links {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 2rem;
+  }
+  .not-found-links a {
+    color: var(--teal);
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .not-found-links a:hover { text-decoration: underline; }
+  .not-found-help {
+    margin-top: 1.5rem;
+    color: var(--text-mid);
+  }
+  .not-found-help a { color: var(--teal); }
+  @media (max-width: 640px) {
+    .page-hero h1 { font-size: 2rem; }
+  }
+</style>
