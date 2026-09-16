@@ -101,18 +101,26 @@ test("the self-hosted font weights are the ones the site actually uses", () => {
 });
 
 test("font subsets are pinned, not the default multi-script bundle", () => {
-  const imports = [...layout.matchAll(/@fontsource\/[\w-]+\/([\w-]+)\.css/g)].map((m) => m[1]);
-  assert.ok(imports.length > 0, "expected self-hosted font imports");
-  for (const spec of imports) {
+  const bookPage = read("site", "src", "pages", "book.astro");
+  const specsIn = (src) => [...src.matchAll(/@fontsource\/[\w-]+\/([\w-]+)\.css/g)].map((m) => m[1]);
+  const layoutImports = specsIn(layout);
+  const bookImports = specsIn(bookPage);
+  assert.ok(layoutImports.length > 0, "expected self-hosted font imports in the layout");
+  for (const spec of [...layoutImports, ...bookImports]) {
     assert.match(
       spec,
       /^latin(-ext)?-\d+$/,
       `"${spec}" pulls every script Fontsource ships for that family; pin the subset`
     );
   }
-  // Lato renders customer-typed names in the chat, so it needs latin-ext.
+  // Lato renders customer-typed names in the chat, so the chat page needs latin-ext;
+  // the layout must NOT carry it, or every page ships 18 KB only /book uses (T-10).
   assert.ok(
-    imports.some((s) => s.startsWith("latin-ext")),
-    "the body font must include latin-ext for accented names"
+    bookImports.some((s) => s.startsWith("latin-ext")),
+    "book.astro must import latin-ext for accented names in the chat"
+  );
+  assert.ok(
+    !layoutImports.some((s) => s.startsWith("latin-ext")),
+    "BaseLayout must not import latin-ext; only /book renders customer text (SEO audit T-10)"
   );
 });
