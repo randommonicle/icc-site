@@ -1,6 +1,6 @@
 ---
 title: "Hire Machine or Professional Clean?"
-description: "An honest comparison of hired and home carpet cleaning machines against a professional clean: what they do differently, what can go wrong, and when it matters most."
+description: "An honest comparison of hired and home carpet cleaning machines with a professional clean: what differs, what can go wrong, and when it matters most."
 summary: "Hired and home machines use the same extraction principle as professional equipment, but at lower temperature and suction and with far more water. What that means for your carpet."
 order: 18
 updated: "2026-07-19"

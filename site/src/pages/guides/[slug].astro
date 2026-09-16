@@ -68,7 +68,10 @@ const breadcrumbSchema = {
   ],
 };
 ---
-<BaseLayout title={`${title} | Intelligent Carpet Cleaning`} description={description}>
+{/* The 30-character brand suffix pushed three guide titles past 60 (SEO audit O-02);
+    Google shows the site name beside each result anyway, so the guides carry a short
+    section suffix instead. */}
+<BaseLayout title={`${title} | ICC Care Guides`} description={description}>
   <Fragment slot="head">
     <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
     <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />

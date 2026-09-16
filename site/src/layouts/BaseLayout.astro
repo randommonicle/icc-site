@@ -31,6 +31,10 @@ import '../styles/global.css';
 // Trading day from the single source (D-006). The JSON-LD hours are the ones
 // Google shows, so they must match the booking engine and the Business Profile.
 import tradingHours from '../../../shared/config/tradingHours.js';
+// The served towns from the same config the surcharge logic reads (D-011), so
+// the areaServed list below can never disagree with what the booking engine
+// treats as core and wider.
+import serviceArea from '../../../shared/config/serviceArea.js';
 
 interface Props {
   title: string;
@@ -43,16 +47,27 @@ const siteUrl = (Astro.site?.href ?? 'https://www.intelligentclean.co.uk/').repl
 
 // Site-wide LocalBusiness structured data. Only confirmed contact/geo facts —
 // no cleaning-method or USP claims (those wait on the verified Texatherm brief).
+// Shape follows the 14 Sept 2026 SEO audit's section 9 draft (S-05): `url` carries
+// the trailing slash the home canonical uses, `logo` is set (Google's minimum is
+// 112 px; logo.jpg is 900 x 491), `areaServed` is generated from the service-area
+// config as typed places, and the base is Gloucester (D-044). No street address,
+// postcode, geo or sameAs: the address is withheld by D-016 and no listing URL
+// exists yet (add sameAs when the Business Profile is verified). aggregateRating
+// stays absent until real reviews exist (D-015).
+const villages = ["Bishop's Cleeve", 'Charlton Kings', 'Prestbury'];
 const localBusiness = {
   '@context': 'https://schema.org',
   '@type': 'LocalBusiness',
   '@id': `${siteUrl}/#business`,
   name: 'Intelligent Carpet Cleaning',
+  slogan: 'Intelligence you can trust',
   description: 'Specialist carpet and upholstery cleaning based in Gloucester, serving Cheltenham and the whole of Gloucestershire.',
-  url: siteUrl,
+  url: `${siteUrl}/`,
+  logo: `${siteUrl}/logo.jpg`,
   image: `${siteUrl}/logo.jpg`,
   telephone: '+441452452356',
   email: 'hello@intelligentclean.co.uk',
+  founder: { '@type': 'Person', name: 'Mark McClymont' },
   address: {
     '@type': 'PostalAddress',
     addressLocality: 'Gloucester',
@@ -60,14 +75,25 @@ const localBusiness = {
     addressCountry: 'GB',
   },
   areaServed: [
-    'Cheltenham', 'Gloucester', 'Stroud', 'Tewkesbury', 'Cirencester',
-    'Winchcombe', 'Bishops Cleeve', 'Charlton Kings', 'Prestbury', 'Gloucestershire',
+    ...serviceArea.core_towns.map((name: string) => ({ '@type': 'City', name })),
+    ...serviceArea.wider_towns.map((name: string) => ({ '@type': 'City', name })),
+    ...villages.map((name) => ({ '@type': 'Place', name })),
+    { '@type': 'AdministrativeArea', name: 'Gloucestershire' },
   ],
   // Per-day hours (D-027): one OpeningHoursSpecification entry per open day, Sunday
   // absent. `closes` is a public-schedule modelling choice (the 1pm last start plus a
   // typical job length), not the soft operational close — see tradingHours.js.
   openingHoursSpecification: tradingHours.openingHoursSpecification(),
   priceRange: '££',
+  currenciesAccepted: 'GBP',
+  knowsAbout: [
+    'Carpet cleaning',
+    'Upholstery cleaning',
+    'Stain treatment',
+    'Ozone decontamination',
+    'Disinfectant fogging',
+    'Pressure washing',
+  ],
 };
 ---
 <!DOCTYPE html>

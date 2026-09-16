@@ -21,6 +21,19 @@ const serviceLd = {
     'Professional ozone decontamination and disinfectant fogging for healthcare, end-of-tenancy, void and odour-affected properties across Cheltenham and Gloucestershire. Carried out by an operator certified in infection control and bio-hazard fogging.',
 };
 
+
+// Breadcrumb: Home › Services › this page (SEO audit S-02). Same three-item shape as
+// the area and guide templates; top-level pages carry none.
+const breadcrumbLd = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: `${siteUrl}/` },
+    { '@type': 'ListItem', position: 2, name: 'Services', item: `${siteUrl}/services/` },
+    { '@type': 'ListItem', position: 3, name: 'Decontamination & Fogging', item: new URL(Astro.url.pathname, Astro.site).href },
+  ],
+};
+
 const useCases = [
   {
     icon: 'shield-check',
@@ -45,10 +58,13 @@ const useCases = [
 ];
 ---
 <BaseLayout
-  title="Decontamination & Fogging, Cheltenham & Gloucestershire | Intelligent Carpet Cleaning"
-  description="Ozone decontamination and disinfectant fogging for healthcare, end-of-tenancy, void and odour-affected properties across Gloucestershire. Certified in infection control and bio-hazard fogging, and insured. Request a quote."
+  title="Ozone Decontamination & Fogging in Gloucestershire"
+  description="Ozone decontamination and disinfectant fogging for healthcare, end-of-tenancy and odour-affected properties across Gloucestershire. Certified and insured."
 >
-  <script type="application/ld+json" slot="head" set:html={JSON.stringify(serviceLd)} />
+  <Fragment slot="head">
+    <script type="application/ld+json" set:html={JSON.stringify(breadcrumbLd)} />
+    <script type="application/ld+json" set:html={JSON.stringify(serviceLd)} />
+  </Fragment>
 
   <section class="page-hero">
     <div class="page-hero-inner">
