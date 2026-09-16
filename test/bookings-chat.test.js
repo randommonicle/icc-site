@@ -130,6 +130,36 @@ test("an oversize job is handed to Mark instead of dead-ending at the slots cap"
   assert.ok(/across two days/i.test(STATIC_SYSTEM_PROMPT), "the approved customer wording is present");
 });
 
+// G4 (14 Sept copy reviews, accepted by Ben 16 Sept 2026): the quote is what the visitor
+// came for, so the booking script asks about the job, gives the price, and asks whether
+// they would like to book BEFORE it asks for a name, phone, email or address. Pinned by
+// position inside the BOOKING PROCESS block so a later prompt edit cannot quietly put the
+// four contact questions back in front of the price.
+test("the booking script quotes the job before it asks for any contact detail (G4)", () => {
+  const start = STATIC_SYSTEM_PROMPT.indexOf("BOOKING PROCESS:");
+  const end = STATIC_SYSTEM_PROMPT.indexOf("QUOTE_LINES FIELD INSTRUCTIONS:");
+  assert.ok(start > 0 && end > start, "the BOOKING PROCESS block is present and precedes the quote_lines instructions");
+  const block = STATIC_SYSTEM_PROMPT.slice(start, end);
+  const at = (needle) => {
+    const i = block.indexOf(needle);
+    assert.ok(i >= 0, `the booking script must still say: ${needle}`);
+    return i;
+  };
+  const rooms = at("Rooms to be cleaned");
+  const postcode = at("town or postcode of the property");
+  const price = at("Tell the customer the estimated duration, total price, and the 10% deposit amount");
+  const askToBook = at("Then ask whether they would like to book it");
+  const name = at("Customer full name");
+  const phone = at("Phone number");
+  const email = at("Email address");
+  const address = at("Full address including postcode");
+  const date = at("Preferred date");
+  assert.ok(rooms < postcode && postcode < price, "the job questions (rooms first, postcode last) come before the price");
+  assert.ok(price < askToBook && askToBook < name, "the price and the would-you-like-to-book question come before the first contact detail");
+  assert.ok(name < phone && phone < email && email < address && address < date, "contact details are taken in order, then the date");
+  assert.match(block, /The quote comes BEFORE any personal details/, "the rule is stated in words as well as by order");
+});
+
 // --- specialist services beyond carpets (D-038): assistant stays carpet-only,
 // names the services, points to Mark, and never confirms forensic/trauma work.
 test("the prompt names ICC's specialist services and keeps the assistant from quoting them", () => {
