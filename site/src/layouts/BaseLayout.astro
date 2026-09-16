@@ -78,7 +78,13 @@ const localBusiness = {
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
-    <link rel="icon" type="image/jpeg" href="/logo.jpg" />
+    <!-- Square icons cropped from the logo's emblem by scripts/make-favicons.mjs.
+         Google shows a result's favicon only when it is square and a multiple of
+         48 px (icon-192); the old 900 x 491 logo.jpg was ignored and squashed the
+         tab icon (SEO audit T-14). logo.jpg stays for Open Graph below. -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
