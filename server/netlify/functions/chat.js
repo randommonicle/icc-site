@@ -684,7 +684,7 @@ function validateBooking(b, opts){
   const bookingDate = new Date(y, m-1, d);
   if(isNaN(bookingDate.getTime())) return "Invalid date";
   const daysOut = Math.floor((bookingDate - today) / (24*60*60*1000));
-  if(daysOut < 6) return "Date too soon — minimum 7 days notice";
+  if(daysOut < 6) return "Date too soon, we need at least 7 days' notice";
   if(daysOut > 90) return "Date too far ahead";
 
   // Per-day window for this weekday. A closed day (Sunday) has no window.

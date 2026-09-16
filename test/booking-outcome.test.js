@@ -48,22 +48,52 @@ for (const [name, src] of [["book.astro", bookAstro], ["index.html", indexHtml]]
     assert.strictEqual(bookingRefusal({ success: true, provisional: true, emailStatus: { operator: true, customer: true } }), null);
   });
 
-  test(name + ": a genuine refusal (error, no success) keeps the server's own instruction", () => {
-    const slotTaken = bookingRefusal({ error: "Time slot no longer available. Please choose another time." });
-    assert.strictEqual(slotTaken, "Sorry - Time slot no longer available. Please choose another time. Please choose another time.");
-    const storeFailed = bookingRefusal({ error: "We couldn't confirm your booking just now. Please call 01452 452356 to book." });
-    assert.match(storeFailed, /^Sorry - We couldn't confirm your booking just now\. Please call 01452 452356 to book\./);
-    const validation = bookingRefusal({ error: "Invalid email" });
-    assert.match(validation, /^Sorry - Invalid email/);
+  // Copy review E2 (14 Sept 2026): the server's own customer-facing sentences are shown
+  // as written, with nothing appended. Before, every refusal was wrapped as
+  // "Sorry - <reason> Please choose another time.", so the slot-taken reply said
+  // "choose another time" twice and a rejected email address was answered with
+  // "choose another time".
+  test(name + ": the server's complete sentences (409 / 429 / 502 / 503) are shown as written, nothing appended", () => {
+    const slotTaken = bookingRefusal({ error: "Time slot no longer available. Please choose another time." }, 409);
+    assert.strictEqual(slotTaken, "Time slot no longer available. Please choose another time.");
+    assert.strictEqual((slotTaken.match(/choose another time/g) || []).length, 1, "the instruction appears once");
+    const storeFailed = bookingRefusal({ error: "We couldn't confirm your booking just now. Please call 01452 452356 to book." }, 502);
+    assert.strictEqual(storeFailed, "We couldn't confirm your booking just now. Please call 01452 452356 to book.");
+    assert.strictEqual(bookingRefusal({ error: "We couldn't confirm your booking just now. Please call 01452 452356 to book." }, 503), storeFailed, "503 reads like 502");
+    const tooMany = bookingRefusal({ error: "Too many requests. Please wait a little and try again, or call us on 01452 452356." }, 429);
+    assert.strictEqual(tooMany, "Too many requests. Please wait a little and try again, or call us on 01452 452356.");
+    assert.ok(!/Sorry - /.test(slotTaken + storeFailed + tooMany), "the spaced hyphen wrapper is gone");
+  });
+
+  test(name + ": a 400 (a rejected detail) asks for the correct detail, never for another time", () => {
+    const email = bookingRefusal({ error: "Invalid email" }, 400);
+    assert.strictEqual(email, "Sorry, I couldn't complete the booking: Invalid email. Tell me the correct details and I'll try again, or call 01452 452356.");
+    const soon = bookingRefusal({ error: "Date too soon, we need at least 7 days' notice" }, 400);
+    assert.match(soon, /^Sorry, I couldn't complete the booking: Date too soon, we need at least 7 days' notice\. Tell me the correct details/);
+    assert.ok(!/choose another time/.test(email), "a rejected email address is not answered with 'choose another time'");
+    // A server reason that already ends in a full stop does not double it.
+    assert.match(bookingRefusal({ error: "Invalid phone." }, 400), /: Invalid phone\. Tell me/);
+    assert.match(bookingRefusal({ error: "Invalid phone.  " }, 400), /: Invalid phone\. Tell me/);
+  });
+
+  test(name + ": any other status gets the call-us line, with the server's text kept in brackets for diagnosis", () => {
+    const misconfigured = bookingRefusal({ error: "Anthropic API key not configured" }, 500);
+    assert.strictEqual(misconfigured, "Sorry, I couldn't complete your booking just now (Anthropic API key not configured). Please call 01452 452356 or email hello@intelligentclean.co.uk and we'll book it for you.");
+    const forbidden = bookingRefusal({ error: "Forbidden" }, 403);
+    assert.match(forbidden, /^Sorry, I couldn't complete your booking just now \(Forbidden\)\. Please call 01452 452356/);
+    // A status the client never learned (undefined / NaN) is treated the same way: never as a complete sentence.
+    assert.match(bookingRefusal({ error: "Invalid email" }), /^Sorry, I couldn't complete your booking just now \(Invalid email\)\. Please call/);
   });
 
   test(name + ": a body with neither success nor error is a refusal with the call-us fallback, never a confirmation card", () => {
     // Before the fix an empty or malformed 200 body fell through to the confirmation
     // card, claiming a booking that may not exist.
-    for (const body of [{}, null, undefined, "not json", { success: false }, { success: "true" }]) {
-      const r = bookingRefusal(body);
-      assert.strictEqual(typeof r, "string", "must refuse for " + JSON.stringify(body));
-      assert.match(r, /call 01452 452356/);
+    for (const body of [{}, null, undefined, "not json", { success: false }, { success: "true" }, { error: "" }, { error: 42 }]) {
+      for (const status of [200, 400, 409, 500, undefined]) {
+        const r = bookingRefusal(body, status);
+        assert.strictEqual(typeof r, "string", "must refuse for " + JSON.stringify(body) + " / " + status);
+        assert.strictEqual(r, "Sorry, I couldn't complete your booking just now. Please call 01452 452356 or email hello@intelligentclean.co.uk and we'll book it for you.");
+      }
     }
   });
 }
@@ -89,9 +119,9 @@ test("the confirmation card prints the server's deposit (bookData.deposit) befor
   }
 });
 
-test("processBooking gates on bookingRefusal, and no longer on bookData.error first, in both clients", () => {
+test("processBooking gates on bookingRefusal WITH the HTTP status, and no longer on bookData.error first, in both clients", () => {
   for (const [name, src] of [["book.astro", bookAstro], ["index.html", indexHtml]]) {
-    assert.match(src, /const refusal = bookingRefusal\(bookData\);/, name + " must decide the outcome through bookingRefusal");
+    assert.match(src, /const refusal = bookingRefusal\(bookData, bookRes\.status\);/, name + " must decide the outcome through bookingRefusal, passing the response status (E2 keys the wording on it)");
     assert.ok(!/if\(bookData\.error\)\{/.test(src), name + " must not test bookData.error before success (the L-041 defect)");
   }
 });
