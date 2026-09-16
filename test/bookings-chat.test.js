@@ -186,17 +186,17 @@ test("validateBooking accepts a start inside the day's window and rejects one af
   const mon = futureDow(MON); // earliest 09:30
   assert.strictEqual(validateBooking(baseBooking({ date: mon, start_time: "09:30", slots_needed: 1 }), PG), null);
   assert.strictEqual(validateBooking(baseBooking({ date: mon, start_time: "13:00", slots_needed: 1 }), PG), null, "1pm is bookable");
-  assert.match(validateBooking(baseBooking({ date: mon, start_time: "13:30", slots_needed: 1 }), PG) || "", /start_time/, "after the 1pm last start");
-  assert.match(validateBooking(baseBooking({ date: mon, start_time: "16:00", slots_needed: 1 }), PG) || "", /start_time/);
+  assert.match(validateBooking(baseBooking({ date: mon, start_time: "13:30", slots_needed: 1 }), PG) || "", /start time isn't one we offer/, "after the 1pm last start");
+  assert.match(validateBooking(baseBooking({ date: mon, start_time: "16:00", slots_needed: 1 }), PG) || "", /start time isn't one we offer/);
 });
 
 test("validateBooking enforces each weekday's own earliest start", () => {
   // 09:30 is fine on Monday but too early on Tuesday (opens 10:30) and Thursday (10:00).
   assert.strictEqual(validateBooking(baseBooking({ date: futureDow(MON), start_time: "09:30", slots_needed: 1 }), PG), null);
-  assert.match(validateBooking(baseBooking({ date: futureDow(TUE), start_time: "09:30", slots_needed: 1 }), PG) || "", /start_time/);
-  assert.match(validateBooking(baseBooking({ date: futureDow(TUE), start_time: "10:00", slots_needed: 1 }), PG) || "", /start_time/);
+  assert.match(validateBooking(baseBooking({ date: futureDow(TUE), start_time: "09:30", slots_needed: 1 }), PG) || "", /start time isn't one we offer/);
+  assert.match(validateBooking(baseBooking({ date: futureDow(TUE), start_time: "10:00", slots_needed: 1 }), PG) || "", /start time isn't one we offer/);
   assert.strictEqual(validateBooking(baseBooking({ date: futureDow(TUE), start_time: "10:30", slots_needed: 1 }), PG), null);
-  assert.match(validateBooking(baseBooking({ date: futureDow(THU), start_time: "09:30", slots_needed: 1 }), PG) || "", /start_time/);
+  assert.match(validateBooking(baseBooking({ date: futureDow(THU), start_time: "09:30", slots_needed: 1 }), PG) || "", /start time isn't one we offer/);
   assert.strictEqual(validateBooking(baseBooking({ date: futureDow(THU), start_time: "10:00", slots_needed: 1 }), PG), null);
 });
 
@@ -211,12 +211,12 @@ test("a job may start at 1pm regardless of length — the close is soft (D-027)"
 
 test("validateBooking caps slots at the store's cap (Postgres 7, Blobs 9)", () => {
   const mon = futureDow(MON);
-  assert.match(validateBooking(baseBooking({ date: mon, start_time: "12:00", slots_needed: 8 }), PG) || "", /slots_needed/);
+  assert.match(validateBooking(baseBooking({ date: mon, start_time: "12:00", slots_needed: 8 }), PG) || "", /job length/);
   assert.strictEqual(validateBooking(baseBooking({ date: mon, start_time: "12:00", slots_needed: 7 }), PG), null);
   // No opts -> the Blobs default cap (9) still applies on the flag-off path, but the
   // per-day window is enforced there too.
   assert.strictEqual(validateBooking(baseBooking({ date: mon, start_time: "12:00", slots_needed: 8 })), null);
-  assert.match(validateBooking(baseBooking({ date: mon, start_time: "09:00", slots_needed: 1 })) || "", /start_time/, "09:00 is before every day's earliest");
+  assert.match(validateBooking(baseBooking({ date: mon, start_time: "09:00", slots_needed: 1 })) || "", /start time isn't one we offer/, "09:00 is before every day's earliest");
 });
 
 // --- handleBooking: fail-closed Postgres write -----------------------------
@@ -552,4 +552,21 @@ test("the CUSTOMER email keeps the confirmed wording for an on-time booking (D-0
   const { customer } = await runBooking(baseBooking({ start_time: "12:00", slots_needed: 2 }));
   assert.match(customer.body.subject, /Booking Confirmation/);
   assert.match(customer.body.html, /Booking Confirmation<\/h1>/);
+});
+
+// Copy review D2 (14 Sept 2026): the customer reads "Friday 25 September 2026", not the
+// payload's ISO date; the operator email keeps the ISO form Mark files by. Parsed as
+// local components (L-005), so the day cannot shift under the function's UTC runtime.
+test("the CUSTOMER email prints a readable date in the Date row; the operator email keeps ISO", async () => {
+  const date = futureWeekday(21);
+  const [y, m, d] = date.split("-").map(Number);
+  const readable = chat.readableBookingDate(date);
+  assert.match(readable, /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday) \d{1,2} [A-Z][a-z]+ \d{4}$/, "weekday day month year, no comma");
+  assert.strictEqual(new Date(y, m - 1, d).getDate(), Number(readable.split(" ")[1]), "the day number is the payload's day (L-005)");
+  const { customer, operator } = await runBooking(baseBooking({ date, start_time: "12:00", slots_needed: 2 }));
+  assert.match(customer.body.html, new RegExp("<strong>Date</strong></td><td[^>]*>" + readable.replace(/ /g, "\\s") + "<"), "customer Date row is the readable form");
+  assert.ok(!new RegExp("<strong>Date</strong></td><td[^>]*>" + date + "<").test(customer.body.html), "customer Date row no longer shows the ISO date");
+  assert.match(operator.body.html, new RegExp("<strong>Date</strong></td><td[^>]*>" + date + "<"), "operator Date row keeps ISO");
+  assert.strictEqual(chat.readableBookingDate("not-a-date"), "not-a-date", "unparseable input is returned as-is");
+  assert.strictEqual(chat.readableBookingDate("2026-09-25"), "Friday 25 September 2026");
 });

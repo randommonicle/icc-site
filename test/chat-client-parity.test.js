@@ -65,8 +65,8 @@ test("book.astro reads the citations payload the server attaches", () => {
   assert.match(bookAstro, /function renderCitations\(/, "book.astro needs renderCitations()");
   assert.match(
     bookAstro,
-    /Based on ICC's expert guidance/,
-    "the KB provenance caption is the customer-visible half of D-019"
+    /From ICC's carpet care reference/,
+    "the KB provenance caption is the customer-visible half of D-019 (worded 'Based on ICC's expert guidance' until the 14 Sept 2026 copy review, C4)"
   );
 });
 

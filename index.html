@@ -87,7 +87,6 @@
   .chat-window-info{flex:1;}
   .chat-window-name{font-family:"Raleway",sans-serif;font-size:0.95rem;font-weight:700;color:#fff;}
   .chat-window-status{font-size:0.72rem;color:rgba(255,255,255,0.7);}
-  .chat-status-dot{display:inline-block;width:6px;height:6px;background:#4ade80;border-radius:50%;margin-right:4px;}
   .chat-messages{height:480px;overflow-y:auto;padding:1.5rem;display:flex;flex-direction:column;gap:1rem;background:var(--chat-bg);}
   .chat-messages::-webkit-scrollbar{width:4px;}
   .chat-messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
@@ -250,43 +249,43 @@
 
 <section id="chat-section">
   <div class="chat-page-header">
-    <h1>AI Cleaning Assistant</h1>
-    <p>Instant quotes, carpet advice, stain guidance, and booking. Our AI knows carpets inside out.</p>
+    <h1>Get your quote and book your clean</h1>
+    <p>Describe your carpet and the assistant will suggest a method, price the job line by line, and book you in, with the method confirmed on the day. It's an AI working from ICC's own carpet care reference, and it hands over to Mark when a question needs a person.</p>
   </div>
   <div class="chat-container-outer">
     <div class="chat-window">
       <div class="chat-window-header">
         <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid rgba(255,255,255,0.3);flex-shrink:0;">&#129504;</div>
         <div class="chat-window-info">
-          <div class="chat-window-name">ICC Assistant</div>
-          <div class="chat-window-status"><span class="chat-status-dot"></span>Online &mdash; Intelligent Carpet Cleaning</div>
+          <div class="chat-window-name">ICC booking assistant</div>
+          <div class="chat-window-status">AI assistant for Intelligent Carpet Cleaning</div>
         </div>
       </div>
       <div class="chat-messages" id="chatMessages">
         <div class="msg-row">
           <div class="msg-avatar"><img src="/logo.jpg" alt="ICC"></div>
           <div>
-            <div class="msg-bubble bot" id="welcomeBubble">Hello and welcome to Intelligent Carpet Cleaning. I am here to help you with quotes, carpet advice, stain guidance, and booking.<br><br>To get started, could you tell me about your carpet and what you need? For example, the room type, approximate size, and any concerns such as staining or heavy soiling.</div>
+            <div class="msg-bubble bot" id="welcomeBubble">Hi, welcome to Intelligent Carpet Cleaning. I'm the booking assistant, an AI, and I can quote for your carpets, advise on stains and cleaning methods, and book you in.<br><br>To start, tell me which rooms you'd like cleaned and roughly how big they are, plus anything you're concerned about such as stains or heavy soiling. You can also add a photo with the camera icon.</div>
             <div class="msg-time">Now</div>
           </div>
         </div>
       </div>
       <div class="quick-suggestions" id="quickSuggestions">
-        <div class="suggestion-chip" onclick="sendSuggestion('I need a quote for my lounge carpet')">Get a quote</div>
-        <div class="suggestion-chip" onclick="sendSuggestion('How do I identify what type of carpet I have?')">Identify my carpet</div>
-        <div class="suggestion-chip" onclick="sendSuggestion('Is professional cleaning better than a Rug Doctor hire?')">DIY vs professional</div>
-        <div class="suggestion-chip" onclick="sendSuggestion('I have a red wine stain, can you help?')">Stain advice</div>
+        <div class="suggestion-chip" onclick="sendSuggestion('I\'d like a quote for my carpets.')">Get a quote</div>
+        <div class="suggestion-chip" onclick="sendSuggestion('Can you help me work out what type of carpet I have?')">What carpet do I have?</div>
+        <div class="suggestion-chip" onclick="sendSuggestion('Is professional cleaning better than hiring a machine myself?')">DIY vs professional</div>
+        <div class="suggestion-chip" onclick="sendSuggestion('Can you help with a stain on my carpet?')">Stain advice</div>
       </div>
       <div class="chat-input-area">
-        <label for="imageUpload" style="width:38px;height:38px;background:rgba(26,138,122,0.15);border:1px solid rgba(26,138,122,0.3);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:16px;transition:background 0.2s;" title="Upload carpet photo">&#128247;</label>
+        <label for="imageUpload" style="width:38px;height:38px;background:rgba(26,138,122,0.15);border:1px solid rgba(26,138,122,0.3);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:16px;transition:background 0.2s;" title="Upload a photo of your carpet">&#128247;</label>
         <input type="file" id="imageUpload" accept="image/*" style="display:none" onchange="handleImageUpload(event)">
-        <textarea class="chat-input" id="chatInput" placeholder="Ask about quotes, carpet types, stains, or upload a photo..." rows="1" onkeydown="handleKeyDown(event)" oninput="autoResize(this);onInputActivity();"></textarea>
+        <textarea class="chat-input" id="chatInput" placeholder="Ask about a quote, your carpet or a stain, or add a photo with the camera icon" rows="1" onkeydown="handleKeyDown(event)" oninput="autoResize(this);onInputActivity();"></textarea>
         <button class="chat-send-btn" id="sendBtn" onclick="sendMessage()">&#9658;</button>
       </div>
       <div id="imagePreviewArea" style="display:none;padding:0.5rem 1.25rem;background:#fff;border-top:1px solid var(--border);">
         <div style="display:flex;align-items:center;gap:8px;background:rgba(26,138,122,0.08);border:1px solid rgba(26,138,122,0.2);border-radius:8px;padding:8px 12px;">
           <img id="imagePreviewThumb" style="width:48px;height:48px;object-fit:cover;border-radius:6px;" src="">
-          <div style="flex:1;font-size:0.8rem;color:var(--text-mid);" id="imagePreviewName">Image ready to send</div>
+          <div style="flex:1;font-size:0.8rem;color:var(--text-mid);" id="imagePreviewName">Photo ready to send</div>
           <button onclick="clearImage()" style="background:none;border:none;cursor:pointer;color:var(--text-light);font-size:1rem;">&#10005;</button>
         </div>
       </div>
@@ -432,10 +431,10 @@ let conversationHistory=[];
   const wb = document.getElementById("welcomeBubble");
   if(!wb) return;
   while(wb.firstChild) wb.removeChild(wb.firstChild);
-  wb.appendChild(document.createTextNode("Hi, welcome to Intelligent Carpet Cleaning. I'm the booking assistant, here to help you with quotes, carpet advice, stain guidance, and booking."));
+  wb.appendChild(document.createTextNode("Hi, welcome to Intelligent Carpet Cleaning. I'm the booking assistant, an AI, and I can quote for your carpets, advise on stains and cleaning methods, and book you in."));
   wb.appendChild(document.createElement("br"));
   wb.appendChild(document.createElement("br"));
-  wb.appendChild(document.createTextNode("To get started, could you tell me about your carpet and what you need? For example, the room type, approximate size, and any concerns such as staining or heavy soiling."));
+  wb.appendChild(document.createTextNode("To start, tell me which rooms you'd like cleaned and roughly how big they are, plus anything you're concerned about such as stains or heavy soiling. You can also add a photo with the camera icon."));
 })();
 
 // Inactivity timer - 3 minutes between checks, max 3 reminders then session ends
@@ -469,7 +468,7 @@ function endConversation(){
   cancelInactivityTimer();
   const input=document.getElementById("chatInput");
   const btn=document.getElementById("sendBtn");
-  if(input){ input.disabled=true; input.placeholder="Chat ended — refresh the page to start a new conversation."; }
+  if(input){ input.disabled=true; input.placeholder="This chat has ended. Refresh the page to start a new one."; }
   if(btn) btn.disabled=true;
   // TODO(chat-log persistence): when the Phase 2 messages table lands (Slice 4e/5),
   // POST the transcript here for Mark's review. Deferred until then — consent and
@@ -478,20 +477,18 @@ function endConversation(){
 
 function handleInactivity(){
   inactivityCount++;
-  const input=document.getElementById("chatInput");
-  const btn=document.getElementById("sendBtn");
   if(inactivityCount===1){
-    appendMessage("bot","Still there? No rush at all, happy to help whenever you're ready.");
+    appendMessage("bot","Still there? No rush. I'm here whenever you're ready.");
     scheduleInactivityCheck();
   } else if(inactivityCount===2){
-    appendMessage("bot","Just checking in again. If now isn't a good moment, feel free to come back any time and we'll pick up from wherever you like.");
+    appendMessage("bot","Just checking in again. If now isn't a good moment, that's fine. This chat stays open while the page is open, and you can start a fresh one whenever you like.");
     scheduleInactivityCheck();
   } else {
-    appendMessage("bot","I'll leave you to it for now. Come back any time you'd like a quote or to get booked in. You can also reach us directly on 01452 452356 or at hello@intelligentclean.co.uk. Take care!");
+    appendMessage("bot","I'll leave you to it for now. Come back any time for a quote or to book, or call us on 01452 452356 or email hello@intelligentclean.co.uk. Bye for now.");
+    // S3 (copy review, 14 Sept 2026): stop reminding, but do NOT lock the box. A customer
+    // who went to measure a room or find a photo came back to a dead chat and a refresh
+    // that started from nothing. Only a real goodbye disables the input (endConversation).
     cancelInactivityTimer();
-    input.disabled=true;
-    btn.disabled=true;
-    input.placeholder="Chat session ended. Refresh the page to start a new conversation.";
   }
 }
 
@@ -565,7 +562,7 @@ function renderCitations(bub,citations){
   if(kb.length){
     const titles=kb.map(function(cit){return String(cit&&cit.title?cit.title:"reference");});
     const kbLine=document.createElement("div");
-    kbLine.textContent="Based on ICC's expert guidance: "+titles.join(", ")+".";
+    kbLine.textContent="From ICC's carpet care reference: "+titles.join(", ")+".";
     box.appendChild(kbLine);
   }
   if(web.length){
@@ -614,7 +611,7 @@ function handleImageUpload(event){
     const mediaType = file.type || "image/jpeg";
     pendingImage = {base64, mediaType, name: file.name};
     document.getElementById("imagePreviewThumb").src = dataUrl;
-    document.getElementById("imagePreviewName").textContent = file.name + " - ready to send";
+    document.getElementById("imagePreviewName").textContent = file.name + ", ready to send";
     document.getElementById("imagePreviewArea").style.display = "block";
   };
   reader.readAsDataURL(file);
@@ -669,7 +666,11 @@ async function processBooking(booking){
     const isAvailable = !requestedSlots.some(function(s){return availData.booked&&availData.booked.includes(s);});
 
     if(!isAvailable){
-      const parts=booking.date.split("-");const readableDate=new Date(parts[0],parts[1]-1,parts[2]).toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});appendMessage("bot","Sorry, that time has just been taken by another booking. The remaining available times for "+readableDate+" are: "+(availData.available||[]).join(", ")+". Which would you prefer?");
+      const parts=booking.date.split("-");const readableDate=new Date(parts[0],parts[1]-1,parts[2]).toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});const remaining=(availData.available||[]).map(String);
+      // E1: a full day gets a different sentence, not "are: ." (copy review, 14 Sept 2026).
+      appendMessage("bot", remaining.length
+        ? "Sorry, that time has just been taken. On "+readableDate+" you could still start at "+(remaining.length>1 ? remaining.slice(0,-1).join(", ")+" or "+remaining[remaining.length-1] : remaining[0])+". Which would you prefer?"
+        : "Sorry, that time has just been taken and nothing else is free on "+readableDate+". Tell me another date and I'll check it.");
       return;
     }
 
@@ -699,13 +700,16 @@ async function processBooking(booking){
     bub.style.cssText = "border-left:3px solid #1a8a7a;";
     // Build the confirmation block via DOM nodes so booking fields are text-only.
     function strong(txt){ const s=document.createElement("strong"); s.textContent=String(txt||""); return s; }
+    // D2: the customer sees "Friday 25 September 2026", not the payload's ISO date.
+    // Formatted by hand, the same way chat.js formats the email, so screen and email agree.
+    const readableDate = (function(){ const p=String(booking.date||"").split("-").map(Number); if(p.length!==3||p.some(isNaN)) return booking.date; const d=new Date(p[0],p[1]-1,p[2]); if(isNaN(d.getTime())) return booking.date; return ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()]+" "+d.getDate()+" "+["January","February","March","April","May","June","July","August","September","October","November","December"][d.getMonth()]+" "+d.getFullYear(); })();
     const title = document.createElement("strong");
     title.style.color = "#1a8a7a";
-    title.textContent = "Booking Confirmed";
+    title.textContent = "Booking confirmed";
     bub.appendChild(title);
     bub.appendChild(document.createElement("br"));
-    bub.appendChild(document.createTextNode("Your appointment is secured for "));
-    bub.appendChild(strong(booking.date));
+    bub.appendChild(document.createTextNode("Your appointment is booked for "));
+    bub.appendChild(strong(readableDate));
     bub.appendChild(document.createTextNode(" at "));
     bub.appendChild(strong(booking.start_time));
     bub.appendChild(document.createTextNode("."));
@@ -714,11 +718,36 @@ async function processBooking(booking){
     // Honest on either email failing (Mark's operator email or the customer's), L-029.
     var emailStatus = bookData.emailStatus || {};
     if(emailStatus.customer === false || emailStatus.operator === false){
-      bub.appendChild(document.createTextNode("Your booking is recorded. If you don't receive a confirmation, or don't hear from us shortly, please call us on 01452 452356."));
+      bub.appendChild(document.createTextNode("Your booking is saved, but we couldn't send all of the confirmation emails. Please call 01452 452356 to confirm it with us."));
     } else {
-      bub.appendChild(document.createTextNode("Confirmation emails have been sent to "));
+      bub.appendChild(document.createTextNode("We've emailed a confirmation to "));
       bub.appendChild(strong(booking.email));
-      bub.appendChild(document.createTextNode(" and to our team."));
+      bub.appendChild(document.createTextNode(" and let Mark know. If you can't see it, check your junk folder."));
+    }
+    // Deposit pay link (D-004): the server threads depositPayUrl into the response only
+    // when a live https Stripe checkout link exists (auto-confirm + structured pricing).
+    // Show a pay button and word the footer to match; otherwise keep the "Mark will be in
+    // touch" fallback. Mirrors emailSnippets.depositInstructionLine so the on-screen card
+    // and the confirmation email never contradict. https-only, DOM nodes only (L-003).
+    // The deposit is the action the business needs, so it comes BEFORE the calendar link
+    // (S9), and the concrete fact behind "securely" sits under the button (D8), the same
+    // sentence the email shows.
+    const payUrl = (typeof bookData.depositPayUrl === "string" && bookData.depositPayUrl.startsWith("https://")) ? bookData.depositPayUrl : null;
+    if(payUrl){
+      bub.appendChild(document.createElement("br"));
+      bub.appendChild(document.createElement("br"));
+      const pa = document.createElement("a");
+      pa.href = payUrl;
+      pa.target = "_blank";
+      pa.rel = "noopener";
+      pa.style.cssText = "display:inline-block;background:#1a8a7a;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-size:0.85rem;margin-top:6px;";
+      pa.textContent = "Pay your deposit securely";
+      bub.appendChild(pa);
+      bub.appendChild(document.createElement("br"));
+      const payNote = document.createElement("span");
+      payNote.style.cssText = "font-size:0.78rem;color:#718096;";
+      payNote.textContent = "Payment is handled securely by our payment provider. We never see your card details.";
+      bub.appendChild(payNote);
     }
     // Calendar link: only render if it looks like a Google Calendar URL
     if(bookData.calLink && typeof bookData.calLink === "string" && bookData.calLink.startsWith("https://calendar.google.com/")){
@@ -729,28 +758,11 @@ async function processBooking(booking){
       a.target = "_blank";
       a.rel = "noopener";
       a.style.cssText = "display:inline-block;background:#1a8a7a;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-size:0.85rem;margin-top:6px;";
-      a.textContent = "Add to My Calendar";
+      a.textContent = "Add to my calendar";
       bub.appendChild(a);
     }
     bub.appendChild(document.createElement("br"));
     bub.appendChild(document.createElement("br"));
-    // Deposit pay link (D-004): the server threads depositPayUrl into the response only
-    // when a live https Stripe checkout link exists (auto-confirm + structured pricing).
-    // Show a pay button and word the footer to match; otherwise keep the "Mark will be in
-    // touch" fallback. Mirrors emailSnippets.depositInstructionLine so the on-screen card
-    // and the confirmation email never contradict. https-only, DOM nodes only (L-003).
-    const payUrl = (typeof bookData.depositPayUrl === "string" && bookData.depositPayUrl.startsWith("https://")) ? bookData.depositPayUrl : null;
-    if(payUrl){
-      const pa = document.createElement("a");
-      pa.href = payUrl;
-      pa.target = "_blank";
-      pa.rel = "noopener";
-      pa.style.cssText = "display:inline-block;background:#1a8a7a;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-size:0.85rem;margin-top:6px;";
-      pa.textContent = "Pay your deposit securely";
-      bub.appendChild(pa);
-      bub.appendChild(document.createElement("br"));
-      bub.appendChild(document.createElement("br"));
-    }
     // The deposit on the card is the server's figure of record (copy review B-3):
     // chat.js recomputes it from quote_lines and returns it as bookData.deposit, the
     // same figure the emails and the Stripe link use. The model's own BOOKING_READY
@@ -759,8 +771,8 @@ async function processBooking(booking){
     const footer = document.createElement("span");
     footer.style.cssText = "font-size:0.82rem;color:#718096;";
     footer.textContent = payUrl
-      ? "Pay your deposit of " + depositShown + " using the button above to secure your slot. Questions? Call 01452 452356."
-      : "Mark will be in touch to arrange your deposit of " + depositShown + ". Questions? Call 01452 452356.";
+      ? "Your deposit is " + depositShown + ", which is 10% of the quote and is applied to your final bill. Please pay it now using the button above. Questions? Call 01452 452356."
+      : "Mark will be in touch to arrange your deposit of " + depositShown + " (10% of the quote, applied to your final bill). Questions? Call 01452 452356.";
     bub.appendChild(footer);
     const t = document.createElement("div");
     t.className = "msg-time";
@@ -772,7 +784,7 @@ async function processBooking(booking){
     msgs.appendChild(confirmDiv);
     msgs.scrollTop = msgs.scrollHeight;
   }catch(e){
-    appendMessage("bot","I have all your details noted. Please call 01452 452356 or email hello@intelligentclean.co.uk to confirm your booking.");
+    appendMessage("bot","Something went wrong while I was confirming your booking, so it may not have gone through. Please call 01452 452356 or email hello@intelligentclean.co.uk and we'll book it for you.");
   }
 }
 
@@ -898,7 +910,7 @@ async function sendMessage(){
         // server-confirmed outcome, so any premature "all booked in" prose is dropped.
         const cleanReply=reply.slice(0,bookingAt).replace(/CONVERSATION_END/g,"").trim();
         if(cleanReply) appendMessage("bot",cleanReply,citations);
-        appendMessage("bot","One moment, confirming your slot...");
+        appendMessage("bot","One moment while I check the slot is still free and book it in.");
         await processBooking(booking);
       } else if(bookingAttempted){
         // Marker and "{" present but the payload would not parse. Never silently drop it
@@ -906,7 +918,7 @@ async function sendMessage(){
         // so a parse failure is visible, not silent.
         const cleanReply=reply.slice(0,bookingAt).replace(/CONVERSATION_END/g,"").trim();
         if(cleanReply) appendMessage("bot",cleanReply,citations);
-        appendMessage("bot","Sorry, I couldn't finish confirming that automatically. Please call 01452 452356 or email hello@intelligentclean.co.uk and we'll get your booking sorted straight away.");
+        appendMessage("bot","Sorry, I couldn't finish confirming that automatically. Please call 01452 452356 or email hello@intelligentclean.co.uk and a person will book it in for you.");
       } else {
         const cleanReply=reply.replace(/CONVERSATION_END/g,"").trim();
         if(cleanReply) appendMessage("bot",cleanReply,citations);
@@ -917,15 +929,17 @@ async function sendMessage(){
     } else if(d.error){
       // Surface the real error so we can diagnose 403/429/500 instead of a
       // generic "I encountered an issue" fallback.
-      appendMessage("bot","Sorry, "+d.error+" If this persists, please call 01452 452356 or email hello@intelligentclean.co.uk.");
+      // The rate-limit reply (429) already tells the customer what to do (F1); wrap the rest
+      // so the detail stays visible for diagnosis without landing mid-sentence (E5).
+      appendMessage("bot", r.status === 429 ? String(d.error) : "Sorry, something went wrong on our side ("+d.error+"). Please try again in a moment, or call 01452 452356 or email hello@intelligentclean.co.uk.");
     } else if(r.status >= 400){
-      appendMessage("bot","Sorry, the chat service returned an error (status "+r.status+"). Please try again or call 01452 452356.");
+      appendMessage("bot","Sorry, the assistant isn't responding right now (error "+r.status+"). Please try again in a moment, or call 01452 452356.");
     } else {
-      appendMessage("bot","I apologise, I encountered an issue. Please try again or contact us directly on 01452 452356.");
+      appendMessage("bot","Sorry, that didn't go through. Please try again, or call us on 01452 452356.");
     }
   }catch(e){
     removeTyping();
-    appendMessage("bot","I am unable to connect at the moment. Please try again shortly or contact us directly.");
+    appendMessage("bot","I can't connect at the moment. Please check your connection and try again, or call us on 01452 452356.");
   }
   // Don't re-enable the input if the conversation was closed on a goodbye.
   if(!conversationClosed){ btn.disabled=false; input.focus(); }

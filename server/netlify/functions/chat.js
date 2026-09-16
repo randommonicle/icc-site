@@ -384,7 +384,7 @@ ${availableDatesList.join("\n")}`;
     return {
       statusCode: 500,
       headers: baseHeaders,
-      body: JSON.stringify({ error: "Failed to contact Anthropic API", detail: err.message })
+      body: JSON.stringify({ error: "we couldn't reach the assistant service", detail: err.message })
     };
   }
 };
@@ -676,53 +676,53 @@ function validateBooking(b, opts){
     if(b[f] === undefined || b[f] === null || b[f] === "") return `Missing field: ${f}`;
   }
 
-  if(typeof b.name !== "string" || b.name.length < 2 || b.name.length > 120) return "Invalid name";
-  if(typeof b.phone !== "string" || b.phone.length < 7 || b.phone.length > 30) return "Invalid phone";
-  if(typeof b.email !== "string" || b.email.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.email)) return "Invalid email";
-  if(typeof b.address !== "string" || b.address.length < 5 || b.address.length > 500) return "Invalid address";
-  if(typeof b.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.date)) return "Invalid date format";
+  if(typeof b.name !== "string" || b.name.length < 2 || b.name.length > 120) return "that name doesn't look right";
+  if(typeof b.phone !== "string" || b.phone.length < 7 || b.phone.length > 30) return "that phone number doesn't look right";
+  if(typeof b.email !== "string" || b.email.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.email)) return "that email address doesn't look right";
+  if(typeof b.address !== "string" || b.address.length < 5 || b.address.length > 500) return "that address doesn't look right";
+  if(typeof b.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.date)) return "that date doesn't look right";
 
   // Date must be in the bookable window. Parse as LOCAL components so the function's
   // UTC runtime cannot shift the weekday (date-parse-utc-safe).
   const today = new Date(); today.setHours(0,0,0,0);
   const [y,m,d] = b.date.split("-").map(Number);
   const bookingDate = new Date(y, m-1, d);
-  if(isNaN(bookingDate.getTime())) return "Invalid date";
+  if(isNaN(bookingDate.getTime())) return "that date doesn't look right";
   const daysOut = Math.floor((bookingDate - today) / (24*60*60*1000));
-  if(daysOut < 6) return "Date too soon, we need at least 7 days' notice";
-  if(daysOut > 90) return "Date too far ahead";
+  if(daysOut < 6) return "that date is too soon (we need at least 7 days' notice)";
+  if(daysOut > 90) return "that date is further ahead than we book at the moment (we offer dates up to about eight weeks out)";
 
   // Per-day window for this weekday. A closed day (Sunday) has no window.
   const dayWindow = tradingHours.startWindowFor(tradingHours.dayNameOf(bookingDate));
-  if(!dayWindow) return "Sundays are not bookable";
+  if(!dayWindow) return "we don't work on Sundays, so that date isn't available";
 
   // start_time is "HH:MM" (the assistant emits e.g. "9:30" / "13:00"; a leading zero
   // is tolerated). It must be no earlier than this day's earliest start and no later
   // than the 1pm last start. No end-of-day check — the finish is soft (D-027).
-  if(typeof b.start_time !== "string" || !/^\d{1,2}:\d{2}$/.test(b.start_time)) return "Invalid start_time";
+  if(typeof b.start_time !== "string" || !/^\d{1,2}:\d{2}$/.test(b.start_time)) return "that start time isn't one we offer on that day";
   const startMinutes = tradingHours.clockToMinutes(b.start_time);
-  if(startMinutes < dayWindow.earliestMinutes || startMinutes > dayWindow.lastStartMinutes) return "Invalid start_time";
+  if(startMinutes < dayWindow.earliestMinutes || startMinutes > dayWindow.lastStartMinutes) return "that start time isn't one we offer on that day";
 
   const slots = Number(b.slots_needed);
   // TODO(D-029/two-day-split): oversize jobs are routed to Mark by the assistant prompt
   // (interim); a future slice may auto-split them across two consecutive open days.
-  if(!Number.isInteger(slots) || slots < 1 || slots > maxSlots) return "Invalid slots_needed";
+  if(!Number.isInteger(slots) || slots < 1 || slots > maxSlots) return "the job length didn't pass our check, so I can't book it automatically";
 
   // Price floor — minimum call-out is £75. Anything under £30
   // is almost certainly a prompt-injection or tampered payload.
   if(b.estimated_price && typeof b.estimated_price === "string"){
     const match = b.estimated_price.replace(/,/g,"").match(/[\d.]+/);
     const priceNum = match ? parseFloat(match[0]) : 0;
-    if(priceNum < 30) return "Estimated price below minimum";
-    if(priceNum > 5000) return "Estimated price unrealistically high";
+    if(priceNum < 30) return "the quote didn't pass our price check, so I can't book it automatically";
+    if(priceNum > 5000) return "the quote didn't pass our price check, so I can't book it automatically";
   }
 
   // Image size cap — base64 grows ~4/3 the raw bytes. 4.5MB string ≈ 3.3MB image.
   if(b.image && typeof b.image === "object"){
     if(typeof b.image.base64 !== "string") return "Invalid image data";
-    if(b.image.base64.length > 4500000) return "Image too large (max ~3MB)";
+    if(b.image.base64.length > 4500000) return "the photo is too large (3MB is the limit)";
     const okTypes = ["image/jpeg","image/png","image/webp","image/gif"];
-    if(!okTypes.includes(b.image.mediaType)) return "Unsupported image type";
+    if(!okTypes.includes(b.image.mediaType)) return "that photo format isn't supported (JPEG, PNG, WebP or GIF work)";
   }
 
   // Optional boolean flags
@@ -748,6 +748,22 @@ function validateBooking(b, opts){
 // card. Returns the value untouched when present, a clear fallback when not.
 function depositLabel(value){
   return (typeof value === "string" && value.trim()) ? value : "To be confirmed";
+}
+
+// "Friday 25 September 2026" from a YYYY-MM-DD payload date, for the customer email
+// (copy review D2, 14 Sept 2026). Parsed as local components so the function's UTC
+// runtime can never shift the day (L-005); anything unparseable is returned as-is.
+// Formatted by hand rather than toLocaleDateString: ICU builds differ on the comma after
+// the weekday, and the on-screen card (book.astro) formats the same way, so the email
+// and the screen always agree.
+const READABLE_DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const READABLE_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+function readableBookingDate(ymd){
+  const parts = String(ymd || "").split("-").map(Number);
+  if(parts.length !== 3 || parts.some(isNaN)) return ymd;
+  const d = new Date(parts[0], parts[1]-1, parts[2]);
+  if(isNaN(d.getTime())) return ymd;
+  return READABLE_DAYS[d.getDay()] + " " + d.getDate() + " " + READABLE_MONTHS[d.getMonth()] + " " + d.getFullYear();
 }
 
 // Format a numeric amount as a GBP display string ("£475", "£47.50"). Used to render
@@ -1094,7 +1110,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
           <p style="font-size:15px;">Hi ${escHtml(booking.name.split(" ")[0])},</p>
           <p style="font-size:14px;color:#4a5568;">${customerOpener}</p>
           <table style="width:100%;border-collapse:collapse;margin:15px 0;">
-            <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;width:40%"><strong>Date</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.date)}</td></tr>
+            <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;width:40%"><strong>Date</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(readableBookingDate(booking.date))}</td></tr>
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Start Time</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.start_time)}</td></tr>
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Estimated Duration</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.slots_needed)} hour(s)</td></tr>
             <tr><td style="padding:8px 0;color:#4a5568;font-size:14px;"><strong>Address</strong></td><td style="padding:8px 0;font-size:14px;">${escHtml(booking.address)}</td></tr>
@@ -1111,7 +1127,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
             </ul>
           </div>${depositPayButtonHtml(customerDepositPayUrl)}
           <div style="margin-top:15px;text-align:center;">
-            <a href="${escHtml(calLink)}" style="display:inline-block;background:#1a8a7a;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;">Add to My Calendar</a>
+            <a href="${escHtml(calLink)}" style="display:inline-block;background:#1a8a7a;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;">Add to my calendar</a>
           </div>
           <p style="margin-top:20px;font-size:13px;color:#718096;">Questions? Call us on 01452 452356 or email hello@intelligentclean.co.uk</p>
           <div style="margin-top:20px;padding:15px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;">
@@ -1346,6 +1362,7 @@ async function generateJobCardPDF(booking, calLink, bookingId, provisional) {
 // Not used by the handler.
 exports.rateLimit = rateLimit;
 exports.depositLabel = depositLabel;
+exports.readableBookingDate = readableBookingDate;
 exports.validateBooking = validateBooking;
 exports.handleBooking = handleBooking;
 exports.checkAvailability = checkAvailability;

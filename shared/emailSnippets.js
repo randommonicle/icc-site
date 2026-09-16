@@ -55,8 +55,8 @@ function depositPayTextLine(url) {
 // (percentage, refundability, notice) stays single-sourced in policy.depositSentence().
 function depositInstructionLine(url) {
   return (typeof url === "string" && /^https:\/\//i.test(url))
-    ? "Please pay your deposit using the button below to secure your slot."
-    : "Mark will be in touch to arrange your deposit payment to confirm the slot.";
+    ? "Your deposit is 10% of the quote and is applied to your final bill. Please pay your deposit using the button below."
+    : "Mark will be in touch to arrange your deposit payment (10% of the quote, applied to your final bill).";
 }
 
 module.exports = { depositPayButtonHtml, depositPayTextLine, depositInstructionLine };
