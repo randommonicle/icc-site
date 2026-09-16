@@ -75,6 +75,20 @@ test("index.html's bookingRefusal is byte-identical to book.astro's (rollback pa
   assert.strictEqual(inIndex[1], inBook[1], "the rollback's bookingRefusal has drifted from book.astro; port the change into index.html");
 });
 
+// B-3 (14 Sept copy reviews): the deposit printed on the confirmation card must be the
+// server's figure of record (bookData.deposit, recomputed from quote_lines in chat.js
+// and returned in every success body), with the model's BOOKING_READY figure only as
+// the fallback. Pinned by source, in both clients, so the card cannot quietly go back
+// to printing the model's number.
+test("the confirmation card prints the server's deposit (bookData.deposit) before the model's, in both clients", () => {
+  const RE = /const depositShown = \(typeof bookData\.deposit === "string" && bookData\.deposit\) \? bookData\.deposit : \(booking\.deposit\|\|""\);/;
+  for (const [name, src] of [["book.astro", bookAstro], ["index.html", indexHtml]]) {
+    assert.match(src, RE, name + " must derive the card's deposit from bookData.deposit with booking.deposit as the fallback");
+    assert.ok(!/deposit of " \+ \(booking\.deposit\|\|""\)/.test(src), name + " must not print the model's deposit straight onto the card");
+    assert.strictEqual((src.match(/\+ depositShown \+/g) || []).length, 2, name + " prints depositShown in both footer variants");
+  }
+});
+
 test("processBooking gates on bookingRefusal, and no longer on bookData.error first, in both clients", () => {
   for (const [name, src] of [["book.astro", bookAstro], ["index.html", indexHtml]]) {
     assert.match(src, /const refusal = bookingRefusal\(bookData\);/, name + " must decide the outcome through bookingRefusal");

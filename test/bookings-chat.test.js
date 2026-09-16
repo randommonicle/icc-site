@@ -405,6 +405,57 @@ test("handleBooking: a thrown email send is a persisted booking with emailStatus
   assert.ok(errors.some((l) => /Booking email send threw/.test(l)), "the throw is logged with its message");
 });
 
+// --- B-3 (14 Sept copy reviews): the card shows the server's deposit, not the model's --
+// chat.js recomputes the price and the 10% deposit from quote_lines and uses THAT figure
+// for the emails and the Stripe link, but the confirm response never returned it, so
+// the on-screen card printed whatever the model wrote in BOOKING_READY. Every success
+// body now carries estimatedPrice + deposit of record.
+test("handleBooking returns the SERVER's price and deposit in every success body, not the model's BOOKING_READY figures", async () => {
+  // 115 + 55 + 65 = 235, deposit 23.50 (in-area postcode, no surcharge); the model said £240 / £24.
+  const structured = baseBooking({
+    estimated_price: "£240",
+    deposit: "£24",
+    quote_lines: [{ code: "large_room", qty: 1 }, { code: "hallway", qty: 1 }, { code: "stairs_to_13", qty: 1 }],
+  });
+  await underPostgres(async () => {
+    const ok = JSON.parse((await handleBooking(structured, "re_test", {}, fakeSupabase())).body);
+    assert.strictEqual(ok.success, true);
+    assert.strictEqual(ok.estimatedPrice, "£235", "the emails-sent body carries the server total");
+    assert.strictEqual(ok.deposit, "£23.50", "the emails-sent body carries the server deposit");
+
+    const noResend = JSON.parse((await handleBooking(structured, "", {}, fakeSupabase())).body);
+    assert.strictEqual(noResend.success, true);
+    assert.strictEqual(noResend.deposit, "£23.50", "the no-email-configured body carries the server deposit");
+  });
+  // The thrown-send body too: the figures are decided before any email is attempted.
+  const prevStore = process.env.BOOKINGS_STORE;
+  const prevFetch = global.fetch;
+  const prevError = console.error;
+  process.env.BOOKINGS_STORE = "postgres";
+  console.error = () => {};
+  global.fetch = async () => { throw new Error("fetch failed"); };
+  let threw;
+  try { threw = JSON.parse((await handleBooking(structured, "re_test", {}, fakeSupabase())).body); }
+  finally {
+    if (prevStore === undefined) delete process.env.BOOKINGS_STORE; else process.env.BOOKINGS_STORE = prevStore;
+    global.fetch = prevFetch;
+    console.error = prevError;
+  }
+  assert.strictEqual(threw.success, true);
+  assert.strictEqual(threw.deposit, "£23.50", "the thrown-send body carries the server deposit");
+  assert.strictEqual(threw.estimatedPrice, "£235");
+});
+
+test("handleBooking: without usable quote_lines the returned figures are the model's, normalised (never undefined)", async () => {
+  await underPostgres(async () => {
+    const plain = JSON.parse((await handleBooking(baseBooking(), "re_test", {}, fakeSupabase())).body);
+    assert.strictEqual(plain.estimatedPrice, "£200");
+    assert.strictEqual(plain.deposit, "£24");
+    const noDeposit = JSON.parse((await handleBooking(baseBooking({ deposit: undefined }), "re_test", {}, fakeSupabase())).body);
+    assert.strictEqual(noDeposit.deposit, "To be confirmed", "a missing deposit is the depositLabel fallback, not undefined");
+  });
+});
+
 // --- D-027: provisional booking (finish after the 15:00 auto-confirm line) ----
 // A late-finishing job is TAKEN and holds the slot, but is marked awaiting_operator
 // with a stored (hashed) single-use action token, and Mark's email carries the

@@ -943,11 +943,17 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
     }
   }
 
+  // Every success body carries the price and deposit OF RECORD (the server re-quote
+  // above when quote_lines were usable, otherwise the assistant's normalised strings),
+  // so the on-screen card shows the same figure as the emails and the Stripe link
+  // rather than whatever the model wrote in BOOKING_READY (copy review B-3, 14 Sep 2026).
+  const figures = { estimatedPrice: booking.estimated_price, deposit: booking.deposit };
+
   if (!resendKey) {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, provisional, message: "Booking recorded. Email sending not configured.", calLink })
+      body: JSON.stringify({ success: true, provisional, message: "Booking recorded. Email sending not configured.", calLink, ...figures })
     };
   }
 
@@ -1155,6 +1161,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
           : "Booking recorded, but a notification email failed to send.",
         calLink,
         depositPayUrl: customerDepositPayUrl,
+        ...figures,
         markEmail: markData,
         customerEmail: customerData,
         emailStatus: { operator: operatorEmailed, customer: customerEmailed }
@@ -1170,7 +1177,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, provisional, message: "Booking recorded but email sending failed.", calLink, depositPayUrl: customerDepositPayUrl, emailStatus: { operator: false, customer: false } })
+      body: JSON.stringify({ success: true, provisional, message: "Booking recorded but email sending failed.", calLink, depositPayUrl: customerDepositPayUrl, ...figures, emailStatus: { operator: false, customer: false } })
     };
   }
 }

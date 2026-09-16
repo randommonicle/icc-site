@@ -554,11 +554,16 @@ async function processBooking(booking){
       bub.appendChild(document.createElement("br"));
       bub.appendChild(document.createElement("br"));
     }
+    // The deposit on the card is the server's figure of record (copy review B-3):
+    // chat.js recomputes it from quote_lines and returns it as bookData.deposit, the
+    // same figure the emails and the Stripe link use. The model's own BOOKING_READY
+    // figure is only the fallback for a response that carries none.
+    const depositShown = (typeof bookData.deposit === "string" && bookData.deposit) ? bookData.deposit : (booking.deposit||"");
     const footer = document.createElement("span");
     footer.style.cssText = "font-size:0.82rem;color:#718096;";
     footer.textContent = payUrl
-      ? "Pay your deposit of " + (booking.deposit||"") + " using the button above to secure your slot. Questions? Call 01452 452356."
-      : "Mark will be in touch to arrange your deposit of " + (booking.deposit||"") + ". Questions? Call 01452 452356.";
+      ? "Pay your deposit of " + depositShown + " using the button above to secure your slot. Questions? Call 01452 452356."
+      : "Mark will be in touch to arrange your deposit of " + depositShown + ". Questions? Call 01452 452356.";
     bub.appendChild(footer);
     const t = document.createElement("div");
     t.className = "msg-time";
