@@ -206,6 +206,17 @@ test("a trigger that throws or answers anything but 202/200 abandons the row (qu
   assert.ok(ab.calls.log.some((l) => l === "operator turn abandon failed: unavailable " + TID));
 });
 
+test("a failed trigger whose row was ALREADY claimed answers 202 with the id, not 503: the turn is running and a retry would charge it twice (GPT round 1)", async () => {
+  const boom = Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+  for (const fetchImpl of [triggerFetch(0, boom), triggerFetch(500)]) {
+    const { res, json, calls } = await post(user("hi"), { fetchImpl, abandon: async () => ({ abandoned: false, reason: "not_queued" }) });
+    assert.strictEqual(res.statusCode, 202);
+    assert.deepStrictEqual(json, { turn_id: TID });
+    assert.ok(calls.log.some((l) => l === "operator turn claimed despite a failed trigger, the poll will find it: " + TID), calls.log.join(" | "));
+    assert.ok(!calls.log.some((l) => l.startsWith("operator turn abandon failed")));
+  }
+});
+
 test("a trigger answered 200 (the platform ran the function synchronously) still answers 202 and logs that background mode is not active", async () => {
   const { res, json, calls } = await post(user("hi"), { fetchImpl: triggerFetch(200) });
   assert.strictEqual(res.statusCode, 202);
@@ -232,7 +243,7 @@ test("triggerOrigin: the per-deploy host first, then the branch/prime host, then
 
 // --- GET: the poll ----------------------------------------------------------------------------
 
-test("the poll requires an admin (401/403 before any read) and a uuid turn (400 before any read)", async () => {
+test("the poll checks the id's shape BEFORE identity (a junk id never costs an auth round trip), then requires an admin before any read", async () => {
   for (const auth of [{ ok: false, status: 401, error: "Unauthorized" }, { ok: false, status: 403, error: "Forbidden" }]) {
     const { res, json, calls } = await get(TID, { requireAdminFn: async () => auth });
     assert.strictEqual(res.statusCode, auth.status);
@@ -240,8 +251,10 @@ test("the poll requires an admin (401/403 before any read) and a uuid turn (400 
     assert.strictEqual(calls.read.length, 0);
   }
   for (const bad of [undefined, "", "nope", "../x", TID + "1"]) {
-    const { res, calls } = await get(bad);
+    let authCalls = 0;
+    const { res, calls } = await get(bad, { requireAdminFn: async () => { authCalls++; return { ok: true, user: { id: UID } }; } });
     assert.strictEqual(res.statusCode, 400, String(bad));
+    assert.strictEqual(authCalls, 0, "requireAdmin is not consulted for a malformed id (GPT round 1: auth amplification)");
     assert.strictEqual(calls.read.length, 0);
   }
 });

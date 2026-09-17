@@ -66,4 +66,12 @@ test("admin.html operator panel polls GET ?turn= and waits longer than the serve
   assert.ok(block.includes('data.status === "queued" || data.status === "running"'), "queued and running keep polling");
   const timeout = block.indexOf("The assistant did not answer in time. Your question is back in the box.");
   assert.ok(timeout > 0 && timeout > block.indexOf("operatorHistory.pop(); input.value = q;"), "a timed-out turn puts the question back with one message");
+  // Every fetch in the panel is time-bounded: a hung request must not hold operatorBusy
+  // past the cap (cross-agent review, GPT round 1, 17 Sept 2026).
+  assert.ok(block.includes("signal: AbortSignal.timeout(OPERATOR_POST_TIMEOUT_MS)"), "the hand-off POST carries a timeout");
+  assert.ok(block.includes("signal: AbortSignal.timeout(OPERATOR_POLL_TIMEOUT_MS)"), "each poll carries a timeout");
+  const postT = block.match(/const OPERATOR_POST_TIMEOUT_MS = (\d+);/);
+  const pollT = block.match(/const OPERATOR_POLL_TIMEOUT_MS = (\d+);/);
+  assert.ok(postT && pollT && Number(pollT[1]) < Number(cap[1]) && Number(postT[1]) < Number(cap[1]), "both timeouts sit inside the cap");
+  assert.strictEqual((block.match(/await fetch\(/g) || []).length, 2, "the panel makes exactly the two fetches pinned above");
 });

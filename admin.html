@@ -1127,6 +1127,8 @@ const OPERATOR_MAX_HISTORY = 20;
 const OPERATOR_POLL_FIRST_MS = 3000;   // a warm one-tool turn answers in about 5 s
 const OPERATOR_POLL_EVERY_MS = 2000;
 const OPERATOR_WAIT_CAP_MS = 90000;    // above the server's 60 s turn deadline (pinned in test/admin-html-syntax.test.js)
+const OPERATOR_POST_TIMEOUT_MS = 15000; // the hand-off is gates + a row + a 202 (a few seconds); a hang must not freeze the panel
+const OPERATOR_POLL_TIMEOUT_MS = 10000; // one poll; a hung poll counts as a blip, the cap above still ends the wait
 
 function renderOperatorTranscript(){
   const box = document.getElementById("operatorTranscript");
@@ -1181,7 +1183,8 @@ async function sendOperatorQuestion(){
     res = await fetch("/api/v1/operator-chat", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + adminToken },
-      body: JSON.stringify({ messages: operatorHistory })
+      body: JSON.stringify({ messages: operatorHistory }),
+      signal: AbortSignal.timeout(OPERATOR_POST_TIMEOUT_MS)
     });
     try { data = await res.json(); } catch(e){ data = null; }
   } catch(e){
@@ -1226,8 +1229,9 @@ async function sendOperatorQuestion(){
 
 // Polls GET ?turn= until the turn is terminal (done / stopped / failed), the server
 // answers something other than 200 (an expired session, an unknown turn, an outage:
-// handed back as-is for the branches above), or the cap passes. A network blip between
-// polls is retried, not surfaced, until the cap.
+// handed back as-is for the branches above), or the cap passes. A network blip or a
+// hung poll (its own timeout) is retried, not surfaced, until the cap; without the
+// per-request timeout a single hung GET would hold operatorBusy for ever (GPT, 17 Sept).
 async function pollOperatorTurn(turnId){
   const started = Date.now();
   let delay = OPERATOR_POLL_FIRST_MS;
@@ -1237,7 +1241,8 @@ async function pollOperatorTurn(turnId){
     let res, data = null;
     try {
       res = await fetch("/api/v1/operator-chat?turn=" + encodeURIComponent(turnId), {
-        headers: { "Authorization": "Bearer " + adminToken }
+        headers: { "Authorization": "Bearer " + adminToken },
+        signal: AbortSignal.timeout(OPERATOR_POLL_TIMEOUT_MS)
       });
       try { data = await res.json(); } catch(e){ data = null; }
     } catch(e){ continue; }

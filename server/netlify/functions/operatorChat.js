@@ -169,7 +169,17 @@ async function handlePost(event, headers, deps) {
   } else if (status !== 202) {
     if (status !== null) log("operator turn trigger answered", status, q.id);
     const ab = await (d.abandon || store.abandonTurn)(supabase, q.id, nowMs());
-    if (!ab.abandoned) log("operator turn abandon failed:", ab.reason, q.id);
+    if (ab.abandoned) return json(503, headers, { error: "The assistant is unavailable right now (the turn could not be started)." });
+    if (ab.reason === "not_queued") {
+      // The background function claimed the row before the abandon reached it: the
+      // trigger WAS delivered and only its answer was lost (a dropped response, or the
+      // platform running the function synchronously past the 5 s bound). The turn is
+      // running or already recorded, so hand the client the id and let the poll find
+      // it; a 503 here would make the operator ask, and pay for, the same question twice.
+      log("operator turn claimed despite a failed trigger, the poll will find it:", q.id);
+      return json(202, headers, { turn_id: q.id });
+    }
+    log("operator turn abandon failed:", ab.reason, q.id);
     return json(503, headers, { error: "The assistant is unavailable right now (the turn could not be started)." });
   }
   log("operator turn queued:", q.id);
@@ -179,10 +189,14 @@ async function handlePost(event, headers, deps) {
 // deps (all injectable for the tests): requireAdminFn, supabase, read.
 async function handleGet(event, headers, deps) {
   const d = deps || {};
-  const auth = await (d.requireAdminFn || requireAdmin)(event);
-  if (!auth.ok) return json(auth.status, headers, { error: auth.error });
+  // The id's shape is checked BEFORE identity: a malformed id costs nothing and leaks
+  // nothing (400 either way), whereas requireAdmin is a Supabase Auth round trip that a
+  // junk request should not be able to trigger. A well-formed id still pays the round
+  // trip, as every admin GET does.
   const id = event.queryStringParameters && event.queryStringParameters.turn;
   if (!store.isUuid(id)) return json(400, headers, { error: "turn must be a uuid" });
+  const auth = await (d.requireAdminFn || requireAdmin)(event);
+  if (!auth.ok) return json(auth.status, headers, { error: auth.error });
   const supabase = d.supabase !== undefined ? d.supabase : getSupabaseAdmin();
   if (!supabase) return json(503, headers, { error: "Supabase not configured" });
 
