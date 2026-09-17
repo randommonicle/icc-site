@@ -67,6 +67,17 @@ test("enqueueTurn inserts a queued row for the verified user and returns its id;
   assert.deepStrictEqual(await store.enqueueTurn(null, UID, MSGS), { error: "unavailable" });
 });
 
+test("enqueueTurn with a client key inserts it as the row id; a unique violation answers 'exists'; a junk key never reaches the DB", async () => {
+  const sb = fakeClient([{ data: { id: TID }, error: null }]);
+  assert.deepStrictEqual(await store.enqueueTurn(sb, UID, MSGS, TID), { id: TID });
+  assert.deepStrictEqual(chainStep(sb.ops[0], "insert")[1], { id: TID, user_id: UID, status: "queued", messages: MSGS });
+  assert.deepStrictEqual(await store.enqueueTurn(fakeClient([{ data: null, error: { code: "23505", message: "duplicate key value violates unique constraint" } }]), UID, MSGS, TID), { error: "exists" });
+  assert.deepStrictEqual(await store.enqueueTurn(fakeClient([{ data: null, error: { code: "42P01", message: "relation does not exist" } }]), UID, MSGS, TID), { error: "unavailable" }, "only 23505 is 'exists'");
+  const none = fakeClient([]);
+  assert.deepStrictEqual(await store.enqueueTurn(none, UID, MSGS, "nope"), { error: "bad_id" });
+  assert.strictEqual(none.ops.length, 0);
+});
+
 test("claimTurn is ONE update filtered on id AND status = queued, returning the transcript; one row claims, zero rows does not", async () => {
   const sb = fakeClient([{ data: [{ user_id: UID, messages: MSGS }], error: null }]);
   assert.deepStrictEqual(await store.claimTurn(sb, TID, NOW), { claimed: true, userId: UID, messages: MSGS });

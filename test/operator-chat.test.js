@@ -170,7 +170,7 @@ test("happy path: prune, store the validated transcript for the verified user, t
   assert.deepStrictEqual(json, { turn_id: TID });
   assert.deepStrictEqual(calls.prune[0].slice(1), [T0]);
   assert.strictEqual(calls.enqueue.length, 1);
-  assert.deepStrictEqual(calls.enqueue[0].slice(1), [UID, messages]);
+  assert.deepStrictEqual(calls.enqueue[0].slice(1), [UID, messages, undefined], "no key sent: the database picks the id");
   assert.ok(calls.prune.length === 1 && calls.enqueue.length === 1);
   assert.strictEqual(d.fetchImpl.calls.length, 1, "the trigger is the only fetch");
   const call = d.fetchImpl.calls[0];
@@ -223,6 +223,41 @@ test("a trigger answered 200 (the platform ran the function synchronously) still
   assert.deepStrictEqual(json, { turn_id: TID });
   assert.strictEqual(calls.abandon.length, 0);
   assert.ok(calls.log.some((l) => l.startsWith("operator turn trigger answered 200, not 202: background mode is not active")), calls.log.join(" | "));
+});
+
+test("the idempotency key: a malformed turn_id is a 400 before admission; a known key resumes without admitting, storing or triggering; a racing duplicate insert answers the same 202 (GPT round 2)", async () => {
+  const KEY = "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff";
+  let admitted = 0;
+  const count = async () => { admitted++; return { admitted: true }; };
+  const bad = await post({ messages: [{ role: "user", content: "hi" }], turn_id: "not-a-uuid" }, { admit: count });
+  assert.strictEqual(bad.res.statusCode, 400);
+  assert.match(bad.json.error, /turn_id must be a uuid/);
+  assert.strictEqual(admitted, 0);
+
+  // Known key: the row exists for this user, so the answer is the same 202 and nothing else happens.
+  const known = await post({ messages: [{ role: "user", content: "hi" }], turn_id: KEY }, { admit: count, read: async () => ({ found: true, status: "running", result: null }) });
+  assert.strictEqual(known.res.statusCode, 202);
+  assert.deepStrictEqual(known.json, { turn_id: KEY });
+  assert.deepStrictEqual(known.calls.read[0].slice(1), [KEY, UID], "the pre-read is scoped to the caller");
+  assert.strictEqual(admitted, 0, "a resumed turn is not admitted again");
+  assert.strictEqual(known.calls.enqueue.length, 0);
+  assert.strictEqual(known.d.fetchImpl.calls.length, 0);
+  assert.ok(known.calls.log.includes("operator turn resumed by its key: " + KEY));
+
+  // Unknown key: the normal path, with the key handed to the insert as the row id.
+  const fresh = await post({ messages: [{ role: "user", content: "hi" }], turn_id: KEY }, { admit: count, enqueue: async () => ({ id: KEY }) });
+  assert.strictEqual(fresh.res.statusCode, 202);
+  assert.deepStrictEqual(fresh.json, { turn_id: KEY });
+  assert.strictEqual(admitted, 1);
+  assert.strictEqual(fresh.calls.enqueue[0][3], KEY, "the key becomes the row id");
+  assert.deepStrictEqual(fresh.d.fetchImpl.calls[0].body, { turn_id: KEY });
+
+  // Two sends racing past the pre-read: the insert's unique violation answers the same 202, no trigger.
+  const dup = await post({ messages: [{ role: "user", content: "hi" }], turn_id: KEY }, { enqueue: async () => ({ error: "exists" }) });
+  assert.strictEqual(dup.res.statusCode, 202);
+  assert.deepStrictEqual(dup.json, { turn_id: KEY });
+  assert.strictEqual(dup.d.fetchImpl.calls.length, 0);
+  assert.ok(dup.calls.log.includes("operator turn already queued under its key: " + KEY));
 });
 
 test("a failed prune is logged and never fatal", async () => {

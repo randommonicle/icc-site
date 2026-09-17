@@ -8,7 +8,7 @@
 -- Run with: supabase test db   (needs the local stack: supabase start -> Docker).
 
 begin;
-select plan(15);
+select plan(16);
 
 -- shape
 select has_table('operator_turns', 'operator_turns table exists');
@@ -34,6 +34,13 @@ select is(
   (select count(*) from operator_turns),
   0::bigint,
   'anon reads zero rows from operator_turns although a row exists'
+);
+reset role;
+set local role authenticated;
+select is(
+  (select count(*) from operator_turns),
+  0::bigint,
+  'authenticated reads zero rows too (the JWT role of a signed-in admin through PostgREST)'
 );
 reset role;
 

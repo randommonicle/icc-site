@@ -117,6 +117,12 @@ async function handlePost(event, headers, deps) {
   try { body = JSON.parse(event.body); } catch (e) { return json(400, headers, { error: "Invalid JSON" }); }
   const v = validateMessages(body && body.messages, limits);
   if (v.error) return json(400, headers, { error: v.error });
+  // The panel's idempotency key (optional, a v4 uuid it generated for this question):
+  // a hand-off whose 202 never reached the browser is re-sent with the same key and
+  // resumes the same turn instead of admitting, and paying for, a second one (the
+  // delivered-request / lost-response ambiguity, cross-agent review GPT round 2).
+  const clientId = body && body.turn_id;
+  if (clientId !== undefined && !store.isUuid(clientId)) return json(400, headers, { error: "turn_id must be a uuid" });
 
   // 4. configuration — no budget is charged for a misconfigured deploy. The key is checked
   // here although the model is called elsewhere: a turn admitted into a deploy without
@@ -127,6 +133,17 @@ async function handlePost(event, headers, deps) {
   if (!supabase) return json(503, headers, { error: "Supabase not configured" });
   const origin = triggerOrigin(d.env);
   if (!origin) return json(503, headers, { error: "Site URL not configured" });
+
+  // 4b. a known key resumes: the row exists for this user, so nothing is admitted, stored
+  // or triggered; the panel polls it as usual. A read outage falls through to the normal
+  // path, where the insert's unique violation catches a duplicate anyway.
+  if (clientId) {
+    const known = await (d.read || store.readTurn)(supabase, clientId, auth.user && auth.user.id);
+    if (known.found) {
+      log("operator turn resumed by its key:", clientId);
+      return json(202, headers, { turn_id: clientId });
+    }
+  }
 
   // 5. the atomic turn budget, keyed on the verified user id — BEFORE anything is stored.
   const admission = await (d.admit || admitOperatorTurn)(supabase, auth.user && auth.user.id);
@@ -144,7 +161,13 @@ async function handlePost(event, headers, deps) {
   // never fatal), then trigger the background function with the row id and nothing else.
   const pr = await (d.prune || store.pruneTurns)(supabase, nowMs());
   if (pr.error) log("operator turns prune failed:", pr.error);
-  const q = await (d.enqueue || store.enqueueTurn)(supabase, auth.user && auth.user.id, v.messages);
+  const q = await (d.enqueue || store.enqueueTurn)(supabase, auth.user && auth.user.id, v.messages, clientId);
+  if (q.error === "exists") {
+    // Two sends with the same key raced past the read above: the first one's row stands
+    // and is being run; this admission was charged for nothing, which is the cheap side.
+    log("operator turn already queued under its key:", clientId);
+    return json(202, headers, { turn_id: clientId });
+  }
   if (q.error) {
     log("operator turn enqueue failed:", q.error);
     return json(503, headers, { error: "The assistant is unavailable right now (the turn could not be queued)." });

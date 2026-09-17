@@ -32,15 +32,25 @@ const TERMINAL = new Set(["done", "stopped", "failed"]);
 function iso(ms) { return new Date(ms).toISOString(); }
 function isUuid(v) { return typeof v === "string" && UUID_RE.test(v); }
 
-async function enqueueTurn(supabase, userId, messages) {
+// `id` is optional: the admin page supplies its own v4 uuid per question as an
+// idempotency key, so a hand-off whose 202 was lost in transit can be re-sent with the
+// same key and land on the same row (a unique violation, 23505, answers "exists" and the
+// caller treats the turn as already admitted). Without an id the database generates one.
+async function enqueueTurn(supabase, userId, messages, id) {
   if (!supabase || typeof supabase.from !== "function") return { error: "unavailable" };
   if (!isUuid(userId)) return { error: "bad_identity" };
+  const row = { user_id: userId, status: "queued", messages };
+  if (id !== undefined) {
+    if (!isUuid(id)) return { error: "bad_id" };
+    row.id = id;
+  }
   let res;
   try {
-    res = await supabase.from(TABLE).insert({ user_id: userId, status: "queued", messages }).select("id").single();
+    res = await supabase.from(TABLE).insert(row).select("id").single();
   } catch (e) {
     return { error: "unavailable" };
   }
+  if (res && res.error && res.error.code === "23505") return { error: "exists" };
   if (!res || res.error || !res.data || !isUuid(res.data.id)) return { error: "unavailable" };
   return { id: res.data.id };
 }

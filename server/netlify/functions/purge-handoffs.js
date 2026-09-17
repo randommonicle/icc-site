@@ -25,9 +25,11 @@
 //
 // Since D-045 the same daily run also prunes operator_turns (the operator
 // assistant's background-turn rows, operatorTurnStore.pruneTurns): the endpoint
-// prunes on every question, so this is the backstop that makes "an hour, or the
-// next daily run at most" true when nobody asks anything for a while. A failure
-// there is logged and does not fail the handoff purge, which is the regulated one.
+// prunes on every question, so this is the backstop when nobody asks anything for
+// a while (a row younger than an hour at this run survives to the next one, so the
+// ceiling is about 25 hours). It runs FIRST and never throws, so a handoff-purge
+// failure cannot skip it and its own failure cannot fail the handoff purge, which is
+// the regulated one (cross-agent review, GEMPRO, 17 Sept 2026).
 //
 // CommonJS to match the functions and the plain-Node `node --test` runner.
 
@@ -53,14 +55,15 @@ async function purgeHandoffLeads(supabase, now) {
   return { deleted: Array.isArray(data) ? data.length : 0, cutoff };
 }
 
-// Both purges, in order; `log` injected so the unit test reads the lines. The
-// operator-turns prune never throws (the store maps errors) and never fails the run.
+// Both purges; `log` injected so the unit test reads the lines. The operator-turns
+// prune goes first because it never throws (the store maps errors) and must not be
+// skipped by a handoff-purge throw; the handoff purge keeps throwing loudly.
 async function runPurges(supabase, now, log) {
-  const { deleted, cutoff } = await purgeHandoffLeads(supabase, now);
-  log(`purge-handoffs: deleted ${deleted} handoff lead(s) older than ${HANDOFF_LEAD_RETENTION_MONTHS} months (created before ${cutoff})`);
   const turns = await pruneTurns(supabase, now.getTime());
   if (turns.error) log("purge-handoffs: operator turns prune failed:", turns.error);
   else log(`purge-handoffs: pruned ${turns.pruned} operator turn(s) older than an hour`);
+  const { deleted, cutoff } = await purgeHandoffLeads(supabase, now);
+  log(`purge-handoffs: deleted ${deleted} handoff lead(s) older than ${HANDOFF_LEAD_RETENTION_MONTHS} months (created before ${cutoff})`);
   return { deleted, turns: turns.error ? null : turns.pruned };
 }
 

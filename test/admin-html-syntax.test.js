@@ -74,4 +74,10 @@ test("admin.html operator panel polls GET ?turn= and waits longer than the serve
   const pollT = block.match(/const OPERATOR_POLL_TIMEOUT_MS = (\d+);/);
   assert.ok(postT && pollT && Number(pollT[1]) < Number(cap[1]) && Number(postT[1]) < Number(cap[1]), "both timeouts sit inside the cap");
   assert.strictEqual((block.match(/await fetch\(/g) || []).length, 2, "the panel makes exactly the two fetches pinned above");
+  // The idempotency key: one uuid per question, sent as turn_id, kept when the hand-off's
+  // answer was lost (network error or timeout) so re-asking resumes the same turn.
+  assert.ok(block.includes("crypto.randomUUID()"), "a key is generated per question");
+  assert.ok(block.includes("body: JSON.stringify({ messages: operatorHistory, turn_id: key })"), "the key travels as turn_id");
+  assert.strictEqual((block.match(/operatorPending = \{ key: key, text: q \};/g) || []).length, 2, "the key is kept on the network-error branch and on the poll timeout");
+  assert.ok(block.includes("(operatorPending && operatorPending.text === q) ? operatorPending.key : crypto.randomUUID()"), "the same text reuses the pending key");
 });

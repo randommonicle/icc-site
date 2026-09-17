@@ -1123,6 +1123,10 @@ function downloadXML(){
 let operatorHistory = [];      // [{ role: "user"|"assistant", content: string }]
 let operatorStatus = [];       // transient status lines (not replayed)
 let operatorBusy = false;
+// A question whose hand-off answer was lost (a network error or a timeout): re-asking the
+// SAME text reuses its key, so the server resumes that turn instead of admitting a second
+// one. Cleared on every definite outcome. (D-045 cross-agent review, GPT round 2.)
+let operatorPending = null;      // { key, text } or null
 const OPERATOR_MAX_HISTORY = 20;
 const OPERATOR_POLL_FIRST_MS = 3000;   // a warm one-tool turn answers in about 5 s
 const OPERATOR_POLL_EVERY_MS = 2000;
@@ -1177,17 +1181,21 @@ async function sendOperatorQuestion(){
   // The replayed history must start with the user (the server rejects anything else).
   while(operatorHistory.length && operatorHistory[0].role !== "user") operatorHistory.shift();
   operatorSetStatus("Looking that up… (a longer question can take up to a minute)", false);
+  const key = (operatorPending && operatorPending.text === q) ? operatorPending.key : crypto.randomUUID();
+  operatorPending = null;
 
   let res, data = null;
   try {
     res = await fetch("/api/v1/operator-chat", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + adminToken },
-      body: JSON.stringify({ messages: operatorHistory }),
+      body: JSON.stringify({ messages: operatorHistory, turn_id: key }),
       signal: AbortSignal.timeout(OPERATOR_POST_TIMEOUT_MS)
     });
     try { data = await res.json(); } catch(e){ data = null; }
   } catch(e){
+    // Delivered or not, nobody knows: keep the key so re-asking resumes rather than repeats.
+    operatorPending = { key: key, text: q };
     operatorHistory.pop(); input.value = q;
     operatorSetStatus("Could not reach the server. Your question is back in the box.", true);
     operatorBusy = false; if(btn) btn.disabled = false;
@@ -1198,7 +1206,7 @@ async function sendOperatorQuestion(){
   let timedOut = false;
   if(res.status === 202 && data && typeof data.turn_id === "string"){
     const polled = await pollOperatorTurn(data.turn_id);
-    if(polled.timedOut){ timedOut = true; res = null; data = null; }
+    if(polled.timedOut){ timedOut = true; res = null; data = null; operatorPending = { key: key, text: q }; }
     else { res = polled.res; data = polled.data; }
   }
 
