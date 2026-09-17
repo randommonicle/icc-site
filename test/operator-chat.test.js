@@ -252,12 +252,26 @@ test("the idempotency key: a malformed turn_id is a 400 before admission; a know
   assert.strictEqual(fresh.calls.enqueue[0][3], KEY, "the key becomes the row id");
   assert.deepStrictEqual(fresh.d.fetchImpl.calls[0].body, { turn_id: KEY });
 
-  // Two sends racing past the pre-read: the insert's unique violation answers the same 202, no trigger.
-  const dup = await post({ messages: [{ role: "user", content: "hi" }], turn_id: KEY }, { enqueue: async () => ({ error: "exists" }) });
+  // Two sends racing past the pre-read: the insert's unique violation answers the same 202
+  // once a scoped re-read shows the row is the caller's; no trigger.
+  let reads = 0;
+  const dup = await post({ messages: [{ role: "user", content: "hi" }], turn_id: KEY }, {
+    enqueue: async () => ({ error: "exists" }),
+    read: async () => (++reads === 1 ? { found: false, reason: "not_found" } : { found: true, status: "queued", result: null }),
+  });
   assert.strictEqual(dup.res.statusCode, 202);
   assert.deepStrictEqual(dup.json, { turn_id: KEY });
   assert.strictEqual(dup.d.fetchImpl.calls.length, 0);
+  assert.strictEqual(reads, 2, "the pre-read, then the scoped re-read after the unique violation");
   assert.ok(dup.calls.log.includes("operator turn already queued under its key: " + KEY));
+
+  // A key that collides with a row that is NOT the caller's: 409, never a 202 whose poll
+  // would 404 (an existence oracle for ids; GPT round 3).
+  const foreign = await post({ messages: [{ role: "user", content: "hi" }], turn_id: KEY }, { enqueue: async () => ({ error: "exists" }), read: async () => ({ found: false, reason: "not_found" }) });
+  assert.strictEqual(foreign.res.statusCode, 409);
+  assert.deepStrictEqual(foreign.json, { error: "That turn id is already in use." });
+  assert.strictEqual(foreign.d.fetchImpl.calls.length, 0);
+  assert.ok(foreign.calls.log.includes("operator turn key collides with a row that is not the caller's: " + KEY));
 });
 
 test("a failed prune is logged and never fatal", async () => {

@@ -165,6 +165,15 @@ async function handlePost(event, headers, deps) {
   if (q.error === "exists") {
     // Two sends with the same key raced past the read above: the first one's row stands
     // and is being run; this admission was charged for nothing, which is the cheap side.
+    // Re-read SCOPED to the caller before saying so: a key that collides with another
+    // admin's row must not be answered 202 (its poll would 404, an existence oracle for
+    // ids; cross-agent review GPT round 3). That is a 409, and it costs the guesser an
+    // admission each time.
+    const mine = await (d.read || store.readTurn)(supabase, clientId, auth.user && auth.user.id);
+    if (!mine.found) {
+      log("operator turn key collides with a row that is not the caller's:", clientId);
+      return json(409, headers, { error: "That turn id is already in use." });
+    }
     log("operator turn already queued under its key:", clientId);
     return json(202, headers, { turn_id: clientId });
   }
