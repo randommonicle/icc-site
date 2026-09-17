@@ -146,7 +146,7 @@ icc-site/                        # monorepo layout (D-014): site/ + server/ + sh
 │       └── supabaseClient.js   # Service-role Supabase client singleton
 ├── shared/                     # config single source: models, pricing, service area, knowledge (D-006/D-007)
 ├── supabase/                   # migrations + pgTAP tests (D-002)
-├── scripts/                    # ops utilities: delete-booking.js; db-env.sh + db-push.sh + db-migration-repair.sh + check-hosted-migrations.sh (hosted migrations, D-043)
+├── scripts/                    # ops utilities: delete-booking.js; db-env.sh + db-push.sh + db-migration-repair.sh + check-hosted-migrations.sh (hosted migrations, D-043); launch-check.mjs (post-launch cutover verification, docs/LAUNCH_CUTOVER.md)
 ├── .githooks/                  # tracked pre-push guard: no push of main while hosted lacks a local migration (activate: git config core.hooksPath .githooks)
 ├── app/                        # field-app placeholder (D-012) — empty until the Phase 2 API exists
 ├── test/                       # node --test suite

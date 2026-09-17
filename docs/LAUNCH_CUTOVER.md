@@ -208,6 +208,24 @@ smoke-test to yourself.
 
 ## Post-launch verification checklist
 
+**How to verify the cutover:** run `scripts/launch-check.mjs` instead of working
+through the list below by hand. It runs the checks that can be automated (200
+status, the noindex headers, robots.txt, the sitemap, canonical/og:url, and, on
+the real domain, the apex and http-to-https redirects) against a live origin
+and prints one PASS/FAIL/SKIP line per check plus a summary, exiting 1 if
+anything FAILs. `test/launch-check.test.js` drives it with a scripted fake
+fetch, so a broken check fails the unit tests, not just a live run.
+
+Run it against the pre-launch host first (the noindex check is expected to
+FAIL there on purpose, since that host is deliberately kept out of the index):
+
+    node scripts/launch-check.mjs https://super-frangollo-c3a14a.netlify.app
+
+Then, after STEP 3, against the real domain, which also brings the apex and
+http-to-https redirect checks into play (they SKIP on a `*.netlify.app` origin):
+
+    node scripts/launch-check.mjs https://www.intelligentclean.co.uk
+
 - [ ] `https://` valid on apex + www; apex 301-redirects to www; `http` → `https`.
 - [ ] `curl -sI https://www.intelligentclean.co.uk/` has **no** `noindex`; `/admin` still does.
 - [ ] `robots.txt` and `sitemap-index.xml` resolve on the real domain; sitemap URLs are all `www.`.
