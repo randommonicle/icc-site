@@ -1108,8 +1108,12 @@ function downloadXML(){
 }
 
 // --- D-040 operator assistant panel ------------------------------------------
-// Stateless server: the browser holds the transcript and resends it (bounded to the
-// last OPERATOR_MAX_HISTORY messages, which is the server's cap too). Rendering is
+// The browser holds the transcript and resends it (bounded to the last
+// OPERATOR_MAX_HISTORY messages, which is the server's cap too). Since D-045 a question
+// is a hand-off: POST answers 202 with a turn id while the turn runs in a background
+// function, and the panel polls GET ?turn= (first after OPERATOR_POLL_FIRST_MS, then
+// every OPERATOR_POLL_EVERY_MS) until the turn is done, stopped or failed, or until
+// OPERATOR_WAIT_CAP_MS, which must exceed the server's turn deadline. Rendering is
 // textContent ONLY (createElement + textContent, never innerHTML, no markdown, no
 // links): the reply may quote customer-typed text, and inert rendering is the control
 // that keeps an injected string from doing anything but sit there (L-003, D-040).
@@ -1120,6 +1124,9 @@ let operatorHistory = [];      // [{ role: "user"|"assistant", content: string }
 let operatorStatus = [];       // transient status lines (not replayed)
 let operatorBusy = false;
 const OPERATOR_MAX_HISTORY = 20;
+const OPERATOR_POLL_FIRST_MS = 3000;   // a warm one-tool turn answers in about 5 s
+const OPERATOR_POLL_EVERY_MS = 2000;
+const OPERATOR_WAIT_CAP_MS = 90000;    // above the server's 60 s turn deadline (pinned in test/admin-html-syntax.test.js)
 
 function renderOperatorTranscript(){
   const box = document.getElementById("operatorTranscript");
@@ -1167,7 +1174,7 @@ async function sendOperatorQuestion(){
   if(operatorHistory.length > OPERATOR_MAX_HISTORY) operatorHistory = operatorHistory.slice(-OPERATOR_MAX_HISTORY);
   // The replayed history must start with the user (the server rejects anything else).
   while(operatorHistory.length && operatorHistory[0].role !== "user") operatorHistory.shift();
-  operatorSetStatus("Looking that up…", false);
+  operatorSetStatus("Looking that up… (a longer question can take up to a minute)", false);
 
   let res, data = null;
   try {
@@ -1184,19 +1191,29 @@ async function sendOperatorQuestion(){
     return;
   }
 
+  // 202: the turn is queued behind a turn id; poll until it is terminal or the cap.
+  let timedOut = false;
+  if(res.status === 202 && data && typeof data.turn_id === "string"){
+    const polled = await pollOperatorTurn(data.turn_id);
+    if(polled.timedOut){ timedOut = true; res = null; data = null; }
+    else { res = polled.res; data = polled.data; }
+  }
+
   const text = data && Array.isArray(data.content) && data.content[0] ? String(data.content[0].text || "") : "";
-  if(res.ok && data && !data.stopped && text){
+  if(res && res.ok && data && data.status === "done" && text){
     operatorHistory.push({ role: "assistant", content: text });
     operatorSetStatus(data.truncated ? "That reply was cut short by the length limit; ask for a narrower list." : "", false);
   } else {
     // Not a reply: put the question back and say why. Nothing is replayed as an assistant turn.
     operatorHistory.pop(); input.value = q;
     let why;
-    if(res.status === 429 && data && data.retry_after){
+    if(timedOut){
+      why = "The assistant did not answer in time. Your question is back in the box.";
+    } else if(res && res.status === 429 && data && data.retry_after){
       why = (data.error || "Too many turns.") ;
-    } else if(res.status === 401 || res.status === 403){
+    } else if(res && (res.status === 401 || res.status === 403)){
       why = "Your session has expired. Sign out and back in.";
-    } else if(data && data.stopped){
+    } else if(data && data.status === "stopped"){
       why = text || "That turn ran out of steps. Ask something narrower.";
     } else {
       why = (data && data.error) || "The assistant could not answer that. Try again.";
@@ -1205,6 +1222,29 @@ async function sendOperatorQuestion(){
   }
   operatorBusy = false;
   if(btn) btn.disabled = false;
+}
+
+// Polls GET ?turn= until the turn is terminal (done / stopped / failed), the server
+// answers something other than 200 (an expired session, an unknown turn, an outage:
+// handed back as-is for the branches above), or the cap passes. A network blip between
+// polls is retried, not surfaced, until the cap.
+async function pollOperatorTurn(turnId){
+  const started = Date.now();
+  let delay = OPERATOR_POLL_FIRST_MS;
+  while(Date.now() - started < OPERATOR_WAIT_CAP_MS){
+    await new Promise(function(r){ setTimeout(r, delay); });
+    delay = OPERATOR_POLL_EVERY_MS;
+    let res, data = null;
+    try {
+      res = await fetch("/api/v1/operator-chat?turn=" + encodeURIComponent(turnId), {
+        headers: { "Authorization": "Bearer " + adminToken }
+      });
+      try { data = await res.json(); } catch(e){ data = null; }
+    } catch(e){ continue; }
+    if(res.status === 200 && data && (data.status === "queued" || data.status === "running")) continue;
+    return { res: res, data: data };
+  }
+  return { timedOut: true };
 }
 </script>
 </body>

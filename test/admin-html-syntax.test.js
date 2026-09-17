@@ -33,7 +33,7 @@ test("admin.html operator panel renders with textContent only and mirrors the se
   assert.ok(block.includes(".textContent = st.text"), "status lines are rendered via textContent");
   // A stopped/failed turn is never replayed as an assistant reply (the server 400s a
   // transcript that does not alternate): the only assistant push sits inside the ok branch.
-  const okBranch = code.indexOf("if(res.ok && data && !data.stopped && text){");
+  const okBranch = code.indexOf('if(res && res.ok && data && data.status === "done" && text){');
   const pushStmt = 'operatorHistory.push({ role: "assistant"';
   const push = code.indexOf(pushStmt);
   assert.ok(okBranch > 0 && push > okBranch && code.indexOf('role: "assistant"', push + pushStmt.length) < 0, "assistant replies are pushed only for a real, complete turn");
@@ -44,4 +44,26 @@ test("admin.html operator panel renders with textContent only and mirrors the se
   assert.ok(m, "OPERATOR_MAX_HISTORY is declared");
   assert.strictEqual(Number(m[1]), LIMITS.maxHistory);
   assert.ok(html.includes('id="operatorSection"') && html.includes('id="operatorTranscript"') && html.includes('maxlength="4000"'));
+});
+
+// D-045: the panel polls a background turn. The client's patience must exceed the server's
+// turn deadline (else the panel gives up on a turn the server is still allowed to finish),
+// the poll must carry the turn id as a query string to the same endpoint, and a timed-out
+// turn puts the question back like every other refusal.
+test("admin.html operator panel polls GET ?turn= and waits longer than the server's turn deadline", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "admin.html"), "utf8");
+  const start = html.indexOf("// --- D-040 operator assistant panel");
+  const block = html.slice(start, html.indexOf("</script>", start));
+  const { deadlineMs } = require("../server/netlify/functions/operatorTurnRunner.js");
+  const cap = block.match(/const OPERATOR_WAIT_CAP_MS = (\d+);/);
+  assert.ok(cap, "OPERATOR_WAIT_CAP_MS is declared");
+  assert.ok(Number(cap[1]) > deadlineMs({}), "the client cap (" + cap[1] + ") exceeds the server's default deadline (" + deadlineMs({}) + ")");
+  const first = block.match(/const OPERATOR_POLL_FIRST_MS = (\d+);/);
+  const every = block.match(/const OPERATOR_POLL_EVERY_MS = (\d+);/);
+  assert.ok(first && every && Number(first[1]) >= 1000 && Number(every[1]) >= 1000, "polls are at least a second apart");
+  assert.ok(block.includes('fetch("/api/v1/operator-chat?turn=" + encodeURIComponent(turnId)'), "the poll hits the same endpoint with the turn id");
+  assert.ok(block.includes('if(res.status === 202 && data && typeof data.turn_id === "string"){'), "a 202 with a turn id is what starts the poll");
+  assert.ok(block.includes('data.status === "queued" || data.status === "running"'), "queued and running keep polling");
+  const timeout = block.indexOf("The assistant did not answer in time. Your question is back in the box.");
+  assert.ok(timeout > 0 && timeout > block.indexOf("operatorHistory.pop(); input.value = q;"), "a timed-out turn puts the question back with one message");
 });
