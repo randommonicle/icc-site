@@ -50,14 +50,16 @@ dashboard immediately.
    our function to send it to. So the order is: I deploy the dormant
    `stripe-webhook` function → I give you the endpoint URL → you add it at
    Developers → **Webhooks** → **https://dashboard.stripe.com/test/webhooks** →
-   "Add endpoint", paste the URL, select the event **`checkout.session.completed`**
-   → then copy the **Signing secret** `whsec_…` it shows.
-
-   TODO(D-045/stripe-invoice-events): since 16 Sept 2026 the same endpoint also needs the
-   four events the handler reflects for invoices, `invoice.paid`, `invoice.finalized`,
-   `invoice.voided` and `invoice.marked_uncollectible` (added to the existing endpoint,
-   which does not rotate the signing secret, so no Netlify change). Ben is adding them;
-   rewrite this step once confirmed. Until then paid state arrives via "Refresh status".
+   "Add endpoint", paste the URL, select the events the handler reflects:
+   **`checkout.session.completed`** (the deposit, D-004) and, for invoicing (D-026),
+   **`invoice.paid`**, **`invoice.finalized`**, **`invoice.voided`** and
+   **`invoice.marked_uncollectible`** (everything else in the `invoice.` group is
+   acknowledged and ignored) → then copy the **Signing secret** `whsec_…` it shows.
+   Done for the Test-mode endpoint `we_1UDUugC2VndEP1xO8hQL187P` on 8 Sept 2026
+   (deposit event) and 17 Sept 2026 (the four invoice events, added in the Dashboard's
+   Workbench → Webhooks → Edit destination; adding events does not rotate the signing
+   secret, so no Netlify change was needed; read back via the API as exactly the five).
+   The live endpoint at go-live (Part 2) needs the same five.
 
 7. **When I say go**, add these three to **Netlify → Site settings → Environment
    variables** (add for **all scopes**, never a single scope, L-018):

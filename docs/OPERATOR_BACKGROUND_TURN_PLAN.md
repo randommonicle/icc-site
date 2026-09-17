@@ -41,5 +41,5 @@
 - [x] Migration: catalog verification queries shipped in the file; run locally with the noted results; pgTAP 15/15; the hosted apply and re-verification are step 7.
 - [x] Tests that can fail: the claim race carries its own negative control; the client-cap pin reads the constant from the HTML; the store's fake builder records every filter.
 - [x] Docs: D-045, D-040 pointer, L-042 addendum, ROADMAP, NEXT_SESSION, the checkpoint log.
-- [x] Deferred anchors: `TODO(D-045/stripe-invoice-events)` in `docs/STRIPE_SETUP.md` (Ben's action, doc rewrite owed). Nothing else deferred.
+- [x] Deferred anchors: none left. The `TODO(D-045/stripe-invoice-events)` marker in `docs/STRIPE_SETUP.md` was resolved the same evening: Ben added the four `invoice.*` events in the Dashboard, the API read back exactly the five, the step was rewritten.
 - [ ] Step 7: migration applied to hosted by Ben and catalog-verified; push (per-action go-ahead); deploy `ready`; the cold two-tool ride; log lines `operator turn queued:` and `operator turn recorded: done ms=`; the cold duration into L-042.
