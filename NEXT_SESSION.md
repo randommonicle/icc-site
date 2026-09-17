@@ -14,6 +14,72 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session (2026-09-17): the operator assistant's turn moved to a Netlify background function with polling (D-045, resolves L-042); 7 commits on `claude/operator-background-turn`, BUILT and tested, UNPUSHED: the `operator_turns` migration must be applied to hosted and catalog-verified before the push (D-043), then the deploy and the cold ride. Stripe `invoice.*` events: Ben's Dashboard shows a sandbox with no destinations, open.
+
+*Diagnoses in this note are unverified unless marked.* **Wrap-up context: this harness cannot self-invoke /context and no figure was read; no compaction occurred; treated green.**
+
+**State verified at the start (17 Sept, evening).** `origin/main` = `main` = `30bd902` (the 16 Sept docs commit), tree clean, no open PRs. Suite at that tip 557 tests, 546 pass, 0 fail, 11 skip once `site/dist` was rebuilt (the on-disk build was from 10 Sept and reddened the two `[build]` guards on its own). The handover's "cheap first move is prompt caching on the operator's static block" was already true: `operatorChat.js` sent `cache_control: ephemeral` on the static prompt since the 13 Sept build, so caching was not an available lever. Netlify account (API): `type_slug: credit-personal`, `background_functions: { included: true }`, 1,000 plan credits, 0 used this period, a Stripe payment method on file (the Personal plan is $9 a month on the pricing page; predates this work, not needed for it, background functions are on Free too). Netlify env names (values not read): no `OPERATOR_TURN_DEADLINE_MS`, no `OPERATOR_TURN_LIMIT`, so the new 60 s default applies on deploy.
+
+**Ben's decisions this session.** (1) Option three for L-042, a background function with polling, "the most stable"; (2) the plan as put (runner extraction, migration, store + background function, endpoint, admin page, docs) and D-045; (3) Ben does the Stripe events himself. Asked whether the switch adds a recurring cost: no, everything it adds is usage-metered (about 25 credits a month at 20 questions a day; Anthropic spend per completed turn unchanged); the one fixed cost in the picture is the pre-existing Personal plan.
+
+**What landed (oldest first, all `node --test` green, on `claude/operator-background-turn`, unpushed).**
+- `8d4792e` refactor: the turn extracted into `operatorTurnRunner.js` (`runOperatorTurn(messages, deps)` returns `{ kind: done | stopped | failed }`; the caller anchors `deadlineAt`); no behaviour change, the existing suite untouched; `test/operator-turn-runner.test.js`. The checkpoint log `docs/OPERATOR_BACKGROUND_TURN_PLAN.md` opened.
+- `a68a18f` db: `supabase/migrations/20260917220000_operator_turns.sql` (id, user_id, status check-constrained to five states, messages jsonb array-checked, result, created_at, started_at, finished_at; RLS on, no policies, no functions) with the five catalog verification queries in the file; run on the local stack (Postgres 17.6) after `db reset` with exactly the noted results; `supabase/tests/operator_turns_test.sql` (15 pgTAP tests; whole pgTAP suite passes). The anon/authenticated grants listed on the new table (including TRUNCATE) are Supabase's default privileges, identical on `jobs` and `operator_rate`; RLS with no policies blocks the DML, proven by a real anon read in pgTAP; TRUNCATE is not reachable through PostgREST. Pre-existing and project-wide, noted, not changed.
+- `844546f` feat: `operatorTurnStore.js` (enqueue / claim / record / abandon / read / prune, the only module that knows the table, never throws) and `operatorTurn-background.js` (config before claim, claim by compare-and-set, run with the deadline anchored at entry, record once, a throw recorded as failed). `[integration]` claim race on the local stack: ten clients, one queued row, exactly one claims; the same update without the status filter lets all ten claim.
+- `c23fa35` feat: `operatorChat.js` POST stores the transcript, triggers the background function with the id only, answers 202; a failed trigger abandons the row and answers 503; a 200 from the trigger is logged as "background mode is not active"; GET `?turn=` polls the caller's own row. Deadline default 8500 to 60000 (runner, `.env.example`, tests); the operator prompt says Gloucester (D-044). `test/operator-chat.test.js` rewritten.
+- `0241f97` feat: `admin.html` polls (3 s, then 2 s, cap 90 s); one timeout message; `admin-html-syntax` gains the "client cap exceeds the server deadline" pin.
+- `1302b1a` feat: the daily `purge-handoffs` run also prunes `operator_turns` (the backstop that makes "an hour, or the next daily run" true); `operator turn queued: <id>` logged on the happy path.
+- Docs (this commit): D-045; D-040 status pointer; L-042 addendum; ROADMAP ticks; this entry; the checkpoint log closed with the checklist walk.
+- Suite at wrap: **585 tests, 573 pass, 0 fail, 12 skip** (the twelfth skip is the new `[integration]` claim race; with `ICC_SUPABASE_IT=1` against the local stack the two operator integration files pass 17/17).
+
+**Local proof of the new seam (offline).** `netlify functions:serve --offline` answered **202 Accepted with an empty body** to a POST on `/.netlify/functions/operatorTurn-background`, so the CLI recognises the `-background` suffix; the poll path answered 401 first with `Access-Control-Allow-Methods: GET, POST, OPTIONS`. Trap: the CLI loads the root `.env` even offline, so that server carried the PRODUCTION Supabase URL; the probe's claim on a random uuid hit a table that does not exist on hosted yet (an error, no write). The server was killed straight after. Do not probe the background function locally with `.env` loaded once the table exists on hosted; point `SUPABASE_URL` at the local stack instead.
+
+**Stripe (Ben, in progress).** Ben opened the Dashboard: Workbench → Webhooks inside a **sandbox** named "Intelligent Cleaning" shows no destinations at all. The endpoint that delivered `checkout.session.completed` on 16 Sept therefore lives in another environment (another sandbox, or the legacy Test mode). Told him not to add an endpoint there (its signing secret would not match the one in Netlify) and to find the environment whose Workbench → Events shows the 16 Sept activity. If no environment shows it, the honest path is a new destination in the visible sandbox plus rotating both Stripe env vars and a redeploy, a bigger change; not proposed until he has looked. `docs/STRIPE_SETUP.md:53` still lists only `checkout.session.completed`; update it when the four events (`invoice.paid`, `invoice.finalized`, `invoice.voided`, `invoice.marked_uncollectible`) are on.
+
+**Housekeeping.** Worktree `handover-review-01dfe2` unregistered and its branch deleted (merged; its untracked `.agents/` and `AGENTS.md` were tooling output); the empty directory is held open by another process and clears when it closes. `handover-next-steps-6d2e41` has cleared. Docker Desktop started for the local stack (the containers auto-start with it).
+
+**Next actions (ordered).**
+1. **Apply the migration to hosted** (Ben; see the 2026-09-15 entry for the procedure used last time). Then run the five catalog queries in `supabase/migrations/20260917220000_operator_turns.sql` one at a time and compare with the expected results written in the file; the pre-push hook refuses the push until hosted carries all 13 local migrations.
+2. **Push `claude/operator-background-turn` to `main`** (Ben's per-action go-ahead; push to main deploys). Confirm the Netlify deploy `ready` via the API.
+3. **The ride, cold, straight after the deploy** (Ben signed in to the admin page): a two-tool question ("What did I take in September and which invoices are unpaid?"). Expect 202 from POST, the panel answering within its cap, and in the function logs `operator turn queued: <id>` (operatorChat) and `operator turn recorded: done ms=<n> <id>` (operatorTurn-background); no `trigger answered` line and no `trigger failed: TimeoutError`. Then a one-tool question warm. Record the cold duration in L-042's addendum.
+4. `docs/STRIPE_SETUP.md:53` once Ben confirms the events; the next invoice ride flips to paid without "Refresh status".
+5. Still open from 16 Sept: the "Forgot password?" flow (ROADMAP), the two owner copy calls ("Get an Instant Quote" buttons, the home H1).
+
+**Traps / working agreements (this session).**
+- The Bash tool strips backslashes inside heredocs: three `\d` regexes written through a node heredoc landed as `d`; fixed with Edit. Regex-bearing edits go through Edit/Write (memory: bash-tool-strips-backslashes).
+- A data-modifying CTE cannot sit inside a subquery in Postgres; pgTAP claim/record proofs run as top-level updates whose effect is read back.
+- `sed -i` and `Write` produce LF; git's `autocrlf=true` normalises on commit, the warnings are noise.
+- The `[build]` guards measure whatever `site/dist` is on disk; rebuild before trusting a red.
+
+**Citations for this entry** (quoted text = the line as read today; "How verified" = the command run).
+
+| Claim | Path | Line | Quoted text | How verified |
+|---|---|---|---|---|
+| Trigger call, id only | `server/netlify/functions/operatorChat.js` | 154 | `const res = await (d.fetchImpl \|\| fetch)(origin + BACKGROUND_PATH, {` | `grep -n -F` |
+| 200-from-trigger detection | `server/netlify/functions/operatorChat.js` | 168 | `log("operator turn trigger answered 200, not 202: background mode is not active for this deploy", q.id);` | `grep -n -F` |
+| Happy-path log line | `server/netlify/functions/operatorChat.js` | 175 | `log("operator turn queued:", q.id);` | `grep -n -F` |
+| Trigger origin order | `server/netlify/functions/operatorChat.js` | 66 | `for (const k of ["DEPLOY_URL", "DEPLOY_PRIME_URL", "URL", "PUBLIC_SITE_URL"]) {` | `grep -n -F` |
+| Poll scoped to the caller | `server/netlify/functions/operatorChat.js` | 189 | `const t = await (d.read \|\| store.readTurn)(supabase, id, auth.user && auth.user.id);` | `grep -n -F` |
+| Claim before any run | `server/netlify/functions/operatorTurn-background.js` | 61 | `const c = await claim(supabase, id, entryMs);` | `grep -n -F` |
+| Deadline anchored at entry | `server/netlify/functions/operatorTurn-background.js` | 71 | `deadlineAt: entryMs + (d.deadline \|\| deadlineMs()), handleTool: d.handleTool,` | `grep -n -F` |
+| The status filter on the claim | `server/netlify/functions/operatorTurnStore.js` | 56 | `.eq("status", "queued")` | `grep -n -F` |
+| Retention constant | `server/netlify/functions/operatorTurnStore.js` | 27 | `const RETENTION_MS = 60 * 60 * 1000; // an hour: …` | `grep -n -F` |
+| Deadline default 60 s | `server/netlify/functions/operatorTurnRunner.js` | 43 | `… ? n : 60000;` | `grep -n -F` |
+| Gloucester in the operator prompt | `server/netlify/functions/operatorTurnRunner.js` | 46 | `… a carpet cleaning business in Gloucester run by Mark. …` | `grep -n -F` |
+| Client cap | `admin.html` | 1129 | `const OPERATOR_WAIT_CAP_MS = 90000;    // above the server's 60 s turn deadline …` | `grep -n -F` |
+| The poll loop | `admin.html` | 1231 | `async function pollOperatorTurn(turnId){` | `grep -n -F` |
+| The table | `supabase/migrations/20260917220000_operator_turns.sql` | 23 | `create table operator_turns (` | `grep -n -F` |
+| Daily prune backstop | `server/netlify/functions/purge-handoffs.js` | 61 | `const turns = await pruneTurns(supabase, now.getTime());` | `grep -n -F` |
+| Redirect (GET passes through) | `netlify.toml` | 107 | `from = "/api/v1/operator-chat"` | `grep -n -F` |
+| Cap-above-deadline pin | `test/admin-html-syntax.test.js` | 60 | `assert.ok(Number(cap[1]) > deadlineMs({}), …` | `grep -n -F` |
+| Race negative control | `test/operator-turn-store.test.js` | 190 | `assert.strictEqual(loose.filter((r) => !r.error && r.data.length === 1).length, 10, "without the status filter all ten 'claim' the row, …` | `grep -n -F` |
+| Account plan and capability | Netlify API | account JSON | `"type_slug": "credit-personal"` … `"background_functions": { "included": true }` | `GET /api/v1/accounts` |
+| Env var names | Netlify API | env list | `OPERATOR_* set: OPERATOR_EMAIL, OPERATOR_FROM` | `GET /api/v1/accounts/{slug}/env?site_id=…` (names only) |
+| Local 202 for the suffix | `netlify functions:serve --offline` | response | `HTTP/1.1 202 Accepted` | `curl -i -X POST …/operatorTurn-background` |
+| This session's commits | git | `8d4792e` … `1302b1a` | `refactor(operator): extract the bounded turn …` through `feat(operator): daily prune of operator_turns …` | `git log --oneline main..HEAD` |
+
+---
+
 ## This session (2026-09-16): handover read and verified; Ben's decisions on the 14 Sept reviews taken and BUILT (B-3, E2, G4, Gloucester base D-044, Mark named on About); the SEO quick-wins branch built with two new build guards; docs housekeeping; three idle worktrees pruned. then the whole copy review and the SEO leftovers (13 code commits + docs on `claude/handover-review-01dfe2`); the push, the deploy and the rides follow below.
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: this harness cannot self-invoke /context and no figure was read; no compaction occurred; treated green.**

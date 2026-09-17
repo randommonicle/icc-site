@@ -53,6 +53,12 @@ dashboard immediately.
    "Add endpoint", paste the URL, select the event **`checkout.session.completed`**
    → then copy the **Signing secret** `whsec_…` it shows.
 
+   TODO(D-045/stripe-invoice-events): since 16 Sept 2026 the same endpoint also needs the
+   four events the handler reflects for invoices, `invoice.paid`, `invoice.finalized`,
+   `invoice.voided` and `invoice.marked_uncollectible` (added to the existing endpoint,
+   which does not rotate the signing secret, so no Netlify change). Ben is adding them;
+   rewrite this step once confirmed. Until then paid state arrives via "Refresh status".
+
 7. **When I say go**, add these three to **Netlify → Site settings → Environment
    variables** (add for **all scopes**, never a single scope, L-018):
    - `STRIPE_SECRET_KEY` = the `sk_test_…` key
