@@ -106,6 +106,19 @@ test("recordTurn is ONE update filtered on id AND status = running with the term
   assert.deepStrictEqual(await store.recordTurn(fakeClient([{ data: null, error: { message: "boom" } }]), TID, { kind: "done", result: {} }, NOW), { recorded: false, reason: "unavailable" });
 });
 
+test("abandonTurn moves a still-queued row to failed (id AND status = queued); a claimed or terminal row is left alone", async () => {
+  const sb = fakeClient([{ data: [{ id: TID }], error: null }]);
+  assert.deepStrictEqual(await store.abandonTurn(sb, TID, NOW), { abandoned: true });
+  const op = sb.ops[0];
+  assert.deepStrictEqual(chainStep(op, "update")[1], { status: "failed", finished_at: "2026-09-17T22:00:00.000Z" });
+  assert.deepStrictEqual(op.chain.filter((c) => c[0] === "eq").map((c) => c.slice(1)), [["id", TID], ["status", "queued"]], "only a queued row, or a running turn's result would be overwritten");
+  assert.deepStrictEqual(await store.abandonTurn(fakeClient([{ data: [], error: null }]), TID, NOW), { abandoned: false, reason: "not_queued" });
+  assert.deepStrictEqual(await store.abandonTurn(fakeClient([{ data: null, error: { message: "boom" } }]), TID, NOW), { abandoned: false, reason: "unavailable" });
+  const none = fakeClient([]);
+  assert.deepStrictEqual(await store.abandonTurn(none, "nope", NOW), { abandoned: false, reason: "bad_id" });
+  assert.strictEqual(none.ops.length, 0);
+});
+
 test("readTurn selects by id AND user_id (own rows only) and maps found / not_found / unavailable", async () => {
   const row = { status: "done", result: { content: [] }, created_at: "c", started_at: "s", finished_at: "f" };
   const sb = fakeClient([{ data: row, error: null }]);

@@ -98,6 +98,9 @@
 
 # D-040 operator assistant: Mark-only, read-only, admin-gated (requireAdmin) with a
 # Postgres atomic turn budget; origin allowlist + per-IP limit as defence in depth.
+# POST admits a turn and hands it to operatorTurn-background (D-045; the endpoint calls
+# that function at its own /.netlify/functions/ path, no rule needed); GET ?turn=<id> is
+# the admin page's poll for the result (the same rule, query string passed through).
 [[redirects]]
   from = "/api/v1/operator-chat"
   to = "/.netlify/functions/operatorChat"

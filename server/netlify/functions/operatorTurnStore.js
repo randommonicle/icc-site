@@ -1,5 +1,5 @@
 // D-045 operator assistant background turn — the turn store (operator_turns, migration
-// 20260917220000). The ONLY module that knows the table. Four writes and one read, each a
+// 20260917220000). The ONLY module that knows the table. Five writes and one read, each a
 // single PostgREST statement through the service-role client:
 //
 //   enqueueTurn  insert a `queued` row for the requireAdmin-verified user (the endpoint,
@@ -11,6 +11,8 @@
 //                nothing and spends nothing)
 //   recordTurn   update `running` -> done | stopped | failed filtered on id AND status, so
 //                the first terminal state stands
+//   abandonTurn  update `queued` -> `failed` filtered on id AND status: the endpoint could
+//                not start the background function, so the row must never be claimable
 //   readTurn     the poll: select filtered on id AND user_id (own rows only)
 //   pruneTurns   delete rows older than RETENTION_MS (the endpoint calls it on every start,
 //                the way operator_admit prunes stale windows)
@@ -81,6 +83,26 @@ async function recordTurn(supabase, id, outcome, nowMs) {
   return rows.length === 1 ? { recorded: true } : { recorded: false, reason: "not_running" };
 }
 
+// The endpoint could not start the background function after queueing: the row goes
+// `queued` -> `failed` so the poll (if any) is told, and nothing can claim it later.
+async function abandonTurn(supabase, id, nowMs) {
+  if (!supabase || typeof supabase.from !== "function") return { abandoned: false, reason: "unavailable" };
+  if (!isUuid(id)) return { abandoned: false, reason: "bad_id" };
+  let res;
+  try {
+    res = await supabase.from(TABLE)
+      .update({ status: "failed", finished_at: iso(nowMs == null ? Date.now() : nowMs) })
+      .eq("id", id)
+      .eq("status", "queued")
+      .select("id");
+  } catch (e) {
+    return { abandoned: false, reason: "unavailable" };
+  }
+  if (!res || res.error) return { abandoned: false, reason: "unavailable" };
+  const rows = Array.isArray(res.data) ? res.data : [];
+  return rows.length === 1 ? { abandoned: true } : { abandoned: false, reason: "not_queued" };
+}
+
 async function readTurn(supabase, id, userId) {
   if (!supabase || typeof supabase.from !== "function") return { found: false, reason: "unavailable" };
   if (!isUuid(id)) return { found: false, reason: "bad_id" };
@@ -114,4 +136,4 @@ async function pruneTurns(supabase, nowMs) {
   return { pruned: Array.isArray(res.data) ? res.data.length : 0 };
 }
 
-module.exports = { enqueueTurn, claimTurn, recordTurn, readTurn, pruneTurns, isUuid, TABLE, RETENTION_MS };
+module.exports = { enqueueTurn, claimTurn, recordTurn, abandonTurn, readTurn, pruneTurns, isUuid, TABLE, RETENTION_MS };

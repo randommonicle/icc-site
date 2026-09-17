@@ -202,10 +202,10 @@ test("a hostile tool result cannot widen the turn: it travels as data, only the 
 
 // --- pure helpers ----------------------------------------------------------------------------
 
-test("deadlineMs: a clean integer 1000..60000 or the default (a typo never loosens it)", () => {
-  assert.strictEqual(runner.deadlineMs({}), 8500);
+test("deadlineMs: a clean integer 1000..60000 or the 60 s default (a typo never loosens it, and never tightens it back to the old 8.5 s)", () => {
+  assert.strictEqual(runner.deadlineMs({}), 60000);
   assert.strictEqual(runner.deadlineMs({ OPERATOR_TURN_DEADLINE_MS: "20000" }), 20000);
-  for (const bad of ["999", "60001", "abc", "8500ms", "", "-1", "8.5"]) assert.strictEqual(runner.deadlineMs({ OPERATOR_TURN_DEADLINE_MS: bad }), 8500, bad);
+  for (const bad of ["999", "60001", "abc", "8500ms", "", "-1", "8.5"]) assert.strictEqual(runner.deadlineMs({ OPERATOR_TURN_DEADLINE_MS: bad }), 60000, bad);
 });
 
 test("makeBudgetedCallModel counts every call and refuses past the cap with BudgetExhausted", async () => {

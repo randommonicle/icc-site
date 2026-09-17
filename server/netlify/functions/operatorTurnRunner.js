@@ -23,8 +23,10 @@ const { createReadOnlyClient } = require("./readOnlyClient.js");
 const { ALLOWLIST, TOOL_DEFINITIONS, handleOperatorTool } = require("./operatorTools.js");
 const { runAssistantTurn, withSingleTextBlock } = require("./assistantLoop.js");
 
-// The bounds of a turn. Deadline default sits under Netlify's 10 s synchronous-function
-// ceiling; raise OPERATOR_TURN_DEADLINE_MS only if the site's limit has been raised.
+// The bounds of a turn. The wall-clock deadline is anchored by the caller: since D-045
+// that is the background function's own entry (15 min platform ceiling), so the default
+// is a spend and patience bound, not a platform bound; OPERATOR_TURN_DEADLINE_MS overrides
+// it within 1000..60000.
 const LIMITS = {
   maxHistory: 20,          // messages replayed per request
   maxMessageChars: 4000,
@@ -38,10 +40,10 @@ const LIMITS = {
 function deadlineMs(env) {
   const raw = (env || process.env).OPERATOR_TURN_DEADLINE_MS;
   const n = Number.parseInt(raw, 10);
-  return Number.isInteger(n) && n >= 1000 && n <= 60000 && String(n) === String(raw).trim() ? n : 8500;
+  return Number.isInteger(n) && n >= 1000 && n <= 60000 && String(n) === String(raw).trim() ? n : 60000;
 }
 
-const STATIC_SYSTEM_PROMPT = `You are the operations assistant for Intelligent Carpet Cleaning, a carpet cleaning business in Cheltenham run by Mark. You are talking to Mark (the owner) or Ben (his business partner) inside the admin dashboard. You answer questions about the business's own records — jobs, invoices, cash received, expenses and the operational profit and loss — using the tools provided. That is all you do.
+const STATIC_SYSTEM_PROMPT = `You are the operations assistant for Intelligent Carpet Cleaning, a carpet cleaning business in Gloucester run by Mark. You are talking to Mark (the owner) or Ben (his business partner) inside the admin dashboard. You answer questions about the business's own records — jobs, invoices, cash received, expenses and the operational profit and loss — using the tools provided. That is all you do.
 
 RULES
 1. READ ONLY. You cannot create, change, send, pay, refund, book, cancel or email anything, and you must never say or imply that you have. When asked to do something, report what the records show and point to where it is done: booking and job status on the job cards; invoices (create, send, refresh status) on the completed job's invoice panel; expenses and the P&L in the Finances section; payments in Stripe.
