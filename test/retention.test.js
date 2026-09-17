@@ -9,7 +9,7 @@ const {
   HANDOFF_LEAD_RETENTION_MONTHS,
   handoffLeadCutoffISO,
 } = require("../shared/config/retention.js");
-const { purgeHandoffLeads } = require("../server/netlify/functions/purge-handoffs.js");
+const { purgeHandoffLeads, runPurges } = require("../server/netlify/functions/purge-handoffs.js");
 
 // A chainable, thenable fake. delete()/eq()/lt()/select() record onto `state`;
 // awaiting anywhere resolves the planned {data,error}. `calls` captures the state
@@ -82,4 +82,30 @@ test("purgeHandoffLeads throws on a DB error (so the handler fails loudly, not s
     () => purgeHandoffLeads(supabase, new Date("2026-06-19T10:00:00.000Z")),
     /boom/
   );
+});
+
+// D-045: the daily run also prunes operator_turns (created_at older than an hour). The
+// fake answers the SAME planned result to both statements, so the second statement is
+// pinned by its shape: a delete on operator_turns bounded on created_at, no kind guard.
+test("runPurges prunes operator turns after the handoff leads, in the same run, and a prune failure does not fail the run", async () => {
+  const supabase = fakeSupabase({ result: { data: [{ id: "a" }], error: null } });
+  const lines = [];
+  const out = await runPurges(supabase, new Date("2026-09-17T22:00:00.000Z"), (...a) => lines.push(a.join(" ")));
+  assert.deepStrictEqual(out, { deleted: 1, turns: 1 });
+  assert.strictEqual(supabase._calls.length, 2);
+  const turns = supabase._calls[1];
+  assert.strictEqual(turns.table, "operator_turns");
+  assert.strictEqual(turns.op, "delete");
+  assert.deepStrictEqual(turns.lt, [["created_at", "2026-09-17T21:00:00.000Z"]], "an hour before now");
+  assert.deepStrictEqual(turns.eq, [], "no other filter: every stale turn goes, whatever its state");
+  assert.ok(lines.some((l) => l === "purge-handoffs: pruned 1 operator turn(s) older than an hour"), lines.join(" | "));
+
+  // A failing prune is logged, the handoff count still returns, nothing throws.
+  const failing = fakeSupabase({ result: { data: null, error: { message: "boom" } } });
+  await assert.rejects(() => runPurges(failing, new Date("2026-09-17T22:00:00.000Z"), () => {}), /boom/, "the handoff purge is the regulated one and still fails loudly");
+  const mixed = { n: 0, from(table) { const b = fakeSupabase({ result: this.n++ === 0 ? { data: [], error: null } : { data: null, error: { message: "boom" } } }); return b.from(table); } };
+  const l2 = [];
+  const out2 = await runPurges(mixed, new Date("2026-09-17T22:00:00.000Z"), (...a) => l2.push(a.join(" ")));
+  assert.deepStrictEqual(out2, { deleted: 0, turns: null });
+  assert.ok(l2.some((l) => l === "purge-handoffs: operator turns prune failed: unavailable"), l2.join(" | "));
 });

@@ -180,6 +180,7 @@ test("happy path: prune, store the validated transcript for the verified user, t
   assert.ok(call.init.signal, "the trigger call is time-bounded");
   assert.ok(!call.url.includes("anthropic"), "the model is never called here");
   assert.strictEqual(calls.abandon.length, 0);
+  assert.ok(calls.log.includes("operator turn queued: " + TID), "the happy path leaves one line for the ride to find: " + calls.log.join(" | "));
 });
 
 test("the row is stored BEFORE the trigger: an enqueue failure is a 503 with no trigger and no abandon", async () => {

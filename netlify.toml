@@ -15,7 +15,9 @@
 # Scheduled retention purge (A5 / D-023, UK GDPR Art.5(1)(e)): once a day, delete
 # handoff-lead rows older than the retention period in shared/config/retention.js
 # (the "no longer than 6 months" the privacy notice promises). The function is
-# kind-guarded and only removes already-expired rows (see purge-handoffs.js).
+# kind-guarded and only removes already-expired rows (see purge-handoffs.js). The same
+# run prunes operator_turns older than an hour (D-045), the backstop for the per-question
+# prune in operatorChat.js.
 [functions."purge-handoffs"]
   schedule = "@daily"
 

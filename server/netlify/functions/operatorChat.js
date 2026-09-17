@@ -172,6 +172,7 @@ async function handlePost(event, headers, deps) {
     if (!ab.abandoned) log("operator turn abandon failed:", ab.reason, q.id);
     return json(503, headers, { error: "The assistant is unavailable right now (the turn could not be started)." });
   }
+  log("operator turn queued:", q.id);
   return json(202, headers, { turn_id: q.id });
 }
 

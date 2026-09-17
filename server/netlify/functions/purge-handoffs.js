@@ -23,9 +23,16 @@
 //   - Logs a COUNT only, never PII (the rows, incl. contact/question/transcript,
 //     are being deleted; there is nothing to keep).
 //
+// Since D-045 the same daily run also prunes operator_turns (the operator
+// assistant's background-turn rows, operatorTurnStore.pruneTurns): the endpoint
+// prunes on every question, so this is the backstop that makes "an hour, or the
+// next daily run at most" true when nobody asks anything for a while. A failure
+// there is logged and does not fail the handoff purge, which is the regulated one.
+//
 // CommonJS to match the functions and the plain-Node `node --test` runner.
 
 const { getSupabaseAdmin } = require("./supabaseClient.js");
+const { pruneTurns } = require("./operatorTurnStore.js");
 const {
   handoffLeadCutoffISO,
   HANDOFF_LEAD_RETENTION_MONTHS,
@@ -46,6 +53,17 @@ async function purgeHandoffLeads(supabase, now) {
   return { deleted: Array.isArray(data) ? data.length : 0, cutoff };
 }
 
+// Both purges, in order; `log` injected so the unit test reads the lines. The
+// operator-turns prune never throws (the store maps errors) and never fails the run.
+async function runPurges(supabase, now, log) {
+  const { deleted, cutoff } = await purgeHandoffLeads(supabase, now);
+  log(`purge-handoffs: deleted ${deleted} handoff lead(s) older than ${HANDOFF_LEAD_RETENTION_MONTHS} months (created before ${cutoff})`);
+  const turns = await pruneTurns(supabase, now.getTime());
+  if (turns.error) log("purge-handoffs: operator turns prune failed:", turns.error);
+  else log(`purge-handoffs: pruned ${turns.pruned} operator turn(s) older than an hour`);
+  return { deleted, turns: turns.error ? null : turns.pruned };
+}
+
 exports.handler = async function () {
   const supabase = getSupabaseAdmin();
   if (!supabase) {
@@ -53,11 +71,8 @@ exports.handler = async function () {
     return { statusCode: 200, body: JSON.stringify({ ok: true, skipped: true }) };
   }
   try {
-    const { deleted, cutoff } = await purgeHandoffLeads(supabase, new Date());
-    console.log(
-      `purge-handoffs: deleted ${deleted} handoff lead(s) older than ${HANDOFF_LEAD_RETENTION_MONTHS} months (created before ${cutoff})`
-    );
-    return { statusCode: 200, body: JSON.stringify({ ok: true, deleted }) };
+    const { deleted, turns } = await runPurges(supabase, new Date(), console.log);
+    return { statusCode: 200, body: JSON.stringify({ ok: true, deleted, turns }) };
   } catch (e) {
     console.log("purge-handoffs error:", e.message);
     return { statusCode: 500, body: JSON.stringify({ ok: false, error: "purge failed" }) };
@@ -66,3 +81,4 @@ exports.handler = async function () {
 
 // Exported for unit tests (test/retention.test.js).
 exports.purgeHandoffLeads = purgeHandoffLeads;
+exports.runPurges = runPurges;
