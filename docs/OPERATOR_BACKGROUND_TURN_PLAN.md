@@ -1,0 +1,29 @@
+# Operator assistant background turn — Build Plan & Checkpoint Log
+
+**Goal.** Move the D-040 operator assistant's turn off the 10 s synchronous-function ceiling (L-042: the first turn after every deploy, and any two-tool question, died on the 8.5 s deadline) by running it in a Netlify background function, with the admin page polling for the result. Stability over cleverness (Ben, 17 Sept 2026: "option three, it seems the most stable").
+
+**Provenance.** L-042 (first live ride, 16 Sept 2026) and ROADMAP "Operator assistant turn headroom". Options weighed 17 Sept: pre-warm on login (fixes only the cold turn), trim the turn (fixes only the warm two-tool case; prompt caching was already in place at `operatorChat.js:220`), or a background function (removes the ceiling). Gate checked before planning: the Netlify account is `type_slug: credit-personal` and the API reports `background_functions: { included: true }` (1,000 credits a month, 0 used this period); the docs list background functions on the Free, Personal and Pro credit plans, 15 minutes per invocation, a 202 on invocation. Follows the `docs/*_PLAN.md` + checkpoint-log precedent.
+
+**Deploy posture.** Built on `claude/operator-background-turn`, each commit `node --test` green, pushed to `main` as ONE batch only after the `operator_turns` migration is applied to hosted Supabase by Ben and catalog-verified (D-043 pre-push hook enforces this; push to main deploys). Then one real ride: a two-tool question asked cold, straight after the deploy.
+
+**Shape.** `POST /api/v1/operator-chat` keeps every gate (origin, requireAdmin, per-IP, body, config, atomic admission) and, instead of running the turn, inserts an `operator_turns` row (`queued`, the verified user id, the validated transcript), triggers `operatorTurn-background` over HTTPS with `{ turn_id }`, and answers 202 `{ turn_id }`. The background function claims the row by compare-and-set (`queued -> running`, filtered on id AND status; zero rows claimed means nothing runs, which is the named primary spend defence for a public function URL and makes any platform retry a no-op), runs the turn with the deadline anchored at its own entry (default now 60 s), and records `done` / `stopped` / `failed` only where `status = 'running'`. `GET /api/v1/operator-chat?turn=<uuid>` (requireAdmin, own rows only, 404 otherwise) returns the state; the panel polls (first at 3 s, then every 2 s, cap 90 s). Rows older than an hour are pruned on each start call. D-045 records the contract change from D-040's "stateless with bounded replay".
+
+**Spend.** No new recurring job. Per turn: one background invocation for the length of the turn plus two to five cheap polls (Netlify: 2 credits per 10k requests, 10 credits per GB-hour), roughly 0.04 credits; about 25 credits a month at 20 questions a day. Anthropic spend per completed turn unchanged (D-040 pricing stands).
+
+---
+
+## Checklist
+
+- [x] 1. Runner extraction (no behaviour change): `operatorTurnRunner.js` holds the turn; `operatorChat.js` calls it; the existing suite untouched and green; the runner's own contract tests added.
+- [ ] 2. Migration `operator_turns` (RLS enabled, no policies, service role only) with catalog verification queries in the file; local `db reset` green.
+- [ ] 3. `operatorTurnStore.js` (the only module that knows the table: enqueue / claim / finish / read / prune) + `operatorTurn-background.js` (claim, run, record; a throw lands as `failed`). Unit tests with a fake store; `[integration]` claim race (exactly one of N claims wins; both win when the status filter is dropped, the proof it can fail).
+- [ ] 4. `operatorChat.js`: enqueue + trigger + 202; `GET ?turn=` poll; header and deadline comments rewritten; the Cheltenham word in the operator prompt fixed; `netlify.toml` CORS gains GET; `.env.example` default. Tests: the gate cases unchanged, the trigger is the only fetch, trigger failure marks the row failed and answers 503, the poll shapes and scoping.
+- [ ] 5. `admin.html`: the polling loop, one timeout message, the wording of the waiting line; `admin-html-syntax` pins survive and gain "client cap exceeds the server deadline".
+- [ ] 6. Docs: D-045, L-042 addendum, ROADMAP ticks (and the stale "first invoicing ride still owed" at line 70), `docs/STRIPE_SETUP.md:53` events list once Ben has added them, NEXT_SESSION entry; close this log with the checklist walk.
+- [ ] 7. Migration applied to hosted by Ben, catalog-verified; push; deploy `ready`; the cold two-tool ride; background function log shows the turn line and the trigger answered 202.
+
+---
+
+## Checkpoint entries (newest last)
+
+- **1. Runner extraction** (this commit; no behaviour change). `server/netlify/functions/operatorTurnRunner.js` now holds LIMITS, deadlineMs, the static prompt (byte-identical, checked), STOPPED_TEXT, BudgetExhausted, the budgeted callModel, the dispatch guard, todayLine and `runOperatorTurn(messages, deps)`, which returns `{ kind: done | stopped | failed, ... }` instead of an HTTP response; the caller supplies `deadlineAt` (absolute), so the anchor stays the caller's decision. `operatorChat.js` keeps the six gates and maps the result to the same 200 / 200-stopped / 502 bodies as before, re-exporting the runner's pieces so `test/operator-chat.test.js` and `admin-html-syntax.test.js` run untouched (557 tests, 546 pass, 0 fail, 11 skip, after rebuilding `site/dist`, which was a 10 Sept build and reddened the two `[build]` guards on its own). `test/operator-turn-runner.test.js` pins the same turn contract against the result object; the duplicated turn tests leave `operator-chat.test.js` in step 4 when the endpoint stops running the turn.
