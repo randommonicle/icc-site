@@ -381,7 +381,7 @@ function logout(){
 // signed-in email against ADMIN_EMAILS (requireAdmin) on every request, and sign-ups are
 // disabled, so a link can only ever reach an account that already exists.
 const RECOVERY_MIN_PASSWORD_CHARS = 8;  // the client bar; Supabase enforces its own minimum too
-const AUTH_FETCH_TIMEOUT_MS = 15000;     // every browser fetch is time-bounded (17 Sept rule)
+const AUTH_FETCH_TIMEOUT_MS = 15000;     // the two recovery fetches are time-bounded, like the operator panel's (not yet every fetch on this page)
 let recoveryToken = "";                  // the session from the reset link; never logged, never stored, dropped on leaving the card
 
 function showLoginNote(msg){
@@ -424,6 +424,7 @@ async function requestPasswordReset(){
     return;
   }
   if(res.status === 429){ showLoginError("Too many reset emails in a short time. Wait a few minutes and try again."); return; }
+  if(res.status === 400 || res.status === 422){ showLoginError("Check the email address."); return; } // GoTrue refused the address itself
   if(!res.ok){ showLoginError("Could not send a reset email just now. Try again in a minute."); return; }
   showLoginNote("If that address has an admin account, a reset link is on its way. It expires in an hour; check spam if nothing arrives in a few minutes.");
 }
@@ -495,8 +496,10 @@ async function setNewPassword(){
   showLoginCard();
   showLoginNote("Password updated. Sign in with it.");
 }
-
-initPasswordRecovery();
+// The fragment is read once the whole script has run (the initPasswordRecovery() call sits
+// at the very end of the script), so a throw in here can never leave a later declaration
+// uninitialised for the rest of the page; and a throw is reported rather than swallowed.
+// --- end of password recovery ---
 
 // Slice 5e/5e-2: the Handoffs view lists human_handoff messages (Slice 4e/5a)
 // alongside the bookings grid and drives the draft -> send lifecycle below. Every
@@ -1418,6 +1421,10 @@ async function pollOperatorTurn(turnId){
   }
   return { timedOut: true };
 }
+
+// Password recovery: read the URL fragment now that every declaration above exists (see
+// the note at the end of the recovery block).
+try { initPasswordRecovery(); } catch(e){ showLoginError("That reset link did not work. Request a new one."); }
 </script>
 </body>
 </html>

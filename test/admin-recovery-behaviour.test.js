@@ -26,7 +26,9 @@ function loadPage({ hash = "", fetchImpl } = {}) {
   const els = {};
   const el = (id) => els[id] || (els[id] = { id, style: {}, value: "", textContent: "", focused: false, focus() { this.focused = true; } });
   const location = { hash, pathname: "/admin", search: "", origin: "https://admin.example" };
-  const history = { replaced: [], replaceState(_s, _t, url) { this.replaced.push(url); location.hash = ""; } };
+  // replaceState records the URL it was given AND what the page held as the token at that
+  // instant, so "wiped before the token is kept" is asserted as an order, not as two facts.
+  const history = { replaced: [], tokenAtWipe: [], replaceState(_s, _t, url) { this.replaced.push(url); this.tokenAtWipe.push(vm.runInContext("recoveryToken", ctx)); location.hash = ""; } };
   const sinks = []; // every string that reached console or storage
   const consoleStub = {};
   for (const m of ["log", "error", "warn", "info", "debug"]) consoleStub[m] = (...a) => sinks.push(a.map(String).join(" "));
@@ -49,6 +51,7 @@ function loadPage({ hash = "", fetchImpl } = {}) {
 test("a recovery fragment is wiped from the URL before the token is kept, and the recovery card replaces the sign-in card", () => {
   const p = loadPage({ hash: `#access_token=${TOKEN}&expires_in=3600&refresh_token=rt&token_type=bearer&type=recovery` });
   assert.deepStrictEqual(p.history.replaced, ["/admin"], "replaceState wiped the fragment, keeping only the path");
+  assert.deepStrictEqual(p.history.tokenAtWipe, [""], "at the instant of the wipe the page held no token yet: wipe first, keep second");
   assert.strictEqual(p.location.hash, "");
   assert.strictEqual(p.token(), TOKEN, "the access token is held in memory");
   assert.strictEqual(p.el("recoveryCard").style.display, "block");
@@ -162,5 +165,30 @@ test("requesting a reset: POST /auth/v1/recover with this origin + /admin as red
   await p.ctx.requestPasswordReset();
   assert.match(p.el("loginError").textContent, /Too many reset emails/);
   assert.strictEqual(p.el("loginNote").style.display, "none", "and the note by the error");
+  status = 400; // GoTrue's validation_failed for a malformed address
+  await p.ctx.requestPasswordReset();
+  assert.strictEqual(p.el("loginError").textContent, "Check the email address.");
+  status = 500;
+  await p.ctx.requestPasswordReset();
+  assert.match(p.el("loginError").textContent, /Try again in a minute/);
   assert.deepStrictEqual(p.sinks, []);
+});
+
+test("a throw inside the fragment handling is reported on the sign-in card and never stops the rest of the script", () => {
+  // A renamed element id is the realistic cause: getElementById returns null and the
+  // handler throws. The page must still finish loading (later declarations initialised).
+  const html = fs.readFileSync(path.join(__dirname, "..", "admin.html"), "utf8").replace(/\r\n/g, "\n");
+  const src = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const els = {};
+  const el = (id) => id === "recoveryCard" ? null : (els[id] || (els[id] = { id, style: {}, value: "", textContent: "", focus() {} }));
+  const ctx = {
+    document: { getElementById: el },
+    location: { hash: `#access_token=${TOKEN}&type=recovery`, pathname: "/admin", search: "", origin: "https://admin.example" },
+    history: { replaceState() { ctx.location.hash = ""; } },
+    console: {}, URLSearchParams, JSON, Promise, Date, Number, String, Math, Object, Array, Error, encodeURIComponent, setTimeout, clearTimeout,
+  };
+  vm.createContext(ctx);
+  assert.doesNotThrow(() => vm.runInContext(src, ctx, { filename: "admin.html" }), "the script completes");
+  assert.match(el("loginError").textContent, /did not work/);
+  assert.strictEqual(typeof vm.runInContext("operatorHistory", ctx), "object", "a declaration far below the recovery block is initialised (no TDZ)");
 });

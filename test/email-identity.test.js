@@ -54,22 +54,38 @@ test("privacyNoticeUrl: an injected base wins over the env and a trailing slash 
   assert.strictEqual(id.privacyNoticeUrl("", env), "https://ignored.example/privacy", "an empty base falls through to the env");
 });
 
-// The invariant. Each pattern is a way a copy was written before; a hit outside the
-// shared module means a seventh copy has landed and the values can drift again.
+// The invariant. Each pattern is a way a copy was written before, plus the likeliest
+// next way (a Resend payload with a literal from or reply_to instead of the shared
+// value; reviewer, 18 Sept). A hit outside the shared module means a seventh copy has
+// landed and the values can drift again. Word boundaries keep OPERATOR_EMAIL_CC and the
+// like out of it.
 const COPY_PATTERNS = [
-  /process\.env\.PUBLIC_SITE_URL/,
-  /process\.env\.CUSTOMER_FROM/,
-  /process\.env\.CUSTOMER_REPLY_TO/,
-  /process\.env\.OPERATOR_EMAIL/,
-  /process\.env\.OPERATOR_FROM/,
+  /process\.env\.PUBLIC_SITE_URL\b/,
+  /process\.env\.CUSTOMER_FROM\b/,
+  /process\.env\.CUSTOMER_REPLY_TO\b/,
+  /process\.env\.OPERATOR_EMAIL\b/,
+  /process\.env\.OPERATOR_FROM\b/,
   /onboarding@resend\.dev/,
   /ben\.graham240689@gmail\.com/,
   /function privacyNoticeUrl\b/,
+  /\b(from|reply_to)\s*:\s*["'`]/,
 ];
 
-test("no function file declares its own copy of the email identity (the shared module is the only source)", () => {
-  const files = fs.readdirSync(FN_DIR).filter((f) => f.endsWith(".js")).map((f) => path.join(FN_DIR, f));
-  assert.ok(files.length > 20, "found only " + files.length + " function files");
+// Every JS file that could send or link: the functions, shared/ (minus the source module
+// itself) and scripts/.
+function sweptFiles() {
+  const out = [];
+  const add = (dir) => { if (fs.existsSync(dir)) for (const f of fs.readdirSync(dir)) if (/\.(m?js)$/.test(f)) out.push(path.join(dir, f)); };
+  add(FN_DIR);
+  add(path.resolve(__dirname, "..", "shared"));
+  add(path.resolve(__dirname, "..", "shared", "config"));
+  add(path.resolve(__dirname, "..", "scripts"));
+  return out.filter((f) => path.resolve(f) !== SHARED);
+}
+
+test("no function, shared or script file declares its own copy of the email identity (the shared module is the only source)", () => {
+  const files = sweptFiles();
+  assert.ok(files.length > 30, "found only " + files.length + " files to sweep");
   const hits = [];
   for (const f of files) {
     const lines = fs.readFileSync(f, "utf8").split("\n");
@@ -84,9 +100,16 @@ test("no function file declares its own copy of the email identity (the shared m
   assert.ok(/CUSTOMER_REPLY_TO/.test(shared) && /onboarding@resend\.dev/.test(shared), "the shared module holds the values");
 });
 
-test("the invariant check can fail: a fixture line with an env read is reported (negative control)", () => {
-  const fixture = 'const replyTo = process.env.CUSTOMER_REPLY_TO || "hello@intelligentclean.co.uk";';
-  assert.ok(COPY_PATTERNS.some((p) => p.test(fixture)));
+test("the invariant check can fail: fixture lines with an env read or a literal payload address are reported; a suffixed name is not (negative control)", () => {
+  for (const fixture of [
+    'const replyTo = process.env.CUSTOMER_REPLY_TO || "hello@intelligentclean.co.uk";',
+    '  reply_to: "hello@intelligentclean.co.uk",',
+    "  from: 'Intelligent Carpet Cleaning <hello@intelligentclean.co.uk>',",
+    'const base = process.env.PUBLIC_SITE_URL;',
+  ]) assert.ok(COPY_PATTERNS.some((p) => p.test(fixture)), "must be caught: " + fixture);
+  for (const clean of ["const cc = process.env.OPERATOR_EMAIL_CC;", "  from: customerFrom,", "  reply_to: replyTo,"]) {
+    assert.ok(!COPY_PATTERNS.some((p) => p.test(clean)), "must not be caught: " + clean);
+  }
   const comment = "// mirrors PUBLIC_SITE_URL in chat.js";
   assert.ok(/^\s*\/\//.test(comment), "comment lines are skipped by the sweep");
 });
