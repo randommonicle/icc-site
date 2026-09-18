@@ -1,6 +1,6 @@
 # ICC Platform — Developer Guide
 
-**Last updated:** June 2026
+**Last updated:** 18 September 2026 (status lines; the structure dates from June 2026)
 **Author:** Ben Graham (build lead)
 **Client:** Mark McClymont, Intelligent Carpet Cleaning, Cheltenham
 **Purpose:** Single source of truth for anyone (human or AI) picking up this codebase. It covers what the platform is, how it is built today, where it is going, the conventions we hold to, and the hard-won gotchas. If you read one file before touching code, read this one, then [NEXT_SESSION.md](NEXT_SESSION.md) for the live state.
@@ -222,7 +222,7 @@ These are the same standards we hold on the ASH app and PropOS. They are not opt
 
 ### Branching and deploys
 - Stage all work on branches off `main`. Never push directly to `main`.
-- Ben deploys by deliberate merge; always stage on a branch and merge only on his go-ahead. **Current status (June 2026): the site is deployed on Netlify but pre-launch** — not on the `intelligentclean.co.uk` domain and not marketed, so real booking traffic is effectively nil and a merge to `main` is low-risk. The hard rule **"never merge mid-traffic without explicit sign-off" tightens back up at launch** (domain cutover + marketing); until then, merge verified, branch-based work on Ben's go-ahead without heavy ceremony.
+- Ben deploys by deliberate merge; always stage on a branch and merge only on his go-ahead. **Current status (18 September 2026): the site is deployed on Netlify but pre-launch** — the domain `intelligentclean.co.uk` is registered and `ALLOWED_ORIGINS` is set to it, but its DNS does not yet point at Netlify and the site is still `noindex` (the cutover runbook is [docs/LAUNCH_CUTOVER.md](docs/LAUNCH_CUTOVER.md)); nothing is marketed, so real booking traffic is effectively nil and a merge to `main` is low-risk. The hard rule **"never merge mid-traffic without explicit sign-off" tightens back up at launch** (domain cutover + marketing); until then, merge verified, branch-based work on Ben's go-ahead without heavy ceremony.
 - One logical change per branch; descriptive branch names (e.g. `feat/area-pages`, `docs/scaffold-and-roadmap`, `hardening/booking-rate-limit`).
 
 ### Tests and verification

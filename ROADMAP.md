@@ -4,7 +4,7 @@ The phased forward plan, derived from [docs/DESIGN.md](docs/DESIGN.md) §12 and 
 
 **Status key (RAG):** 🟢 done · 🟡 in progress · 🔴 not started · ⚪ deferred/optional
 
-**Last updated:** 25 August 2026 (new items from the August Mark meeting threaded into Phases 1–4 and the field-app track; see [NEXT_SESSION.md](NEXT_SESSION.md) 25 Aug entry and the minutes in the deliverables folder).
+**Last updated:** 18 September 2026 (status ticks only: brand copy live, the D-045 background turn deployed, the domain chosen; the August 2026 Mark-meeting items were threaded into Phases 1–4 and the field-app track on 25 August, see [NEXT_SESSION.md](NEXT_SESSION.md) 25 Aug entry and the minutes in the deliverables folder).
 
 ---
 
@@ -39,7 +39,7 @@ Front end and content:
 - [x] Move the AI knowledge into a single maintainable source shared between site content and the assistant prompt (D-006) — `shared/config/knowledge.js` (Slice 4a).
 - [x] Expand the AI knowledge base (fibre science, stain chemistry, method justification, history).
 - [~] **Add decontamination / fogging / ozone and pressure washing** (Mark, Aug 2026; promoted to **D-038**, 9 Sep 2026). Decontamination / fogging / ozone and pressure washing are added as enquiry-led services under the kept "Intelligent Carpet Cleaning" name. **In progress:** `/services/decontamination-fogging` + `/services/pressure-washing` pages with request-a-quote CTAs and per-page Service JSON-LD. **Deferred future phase:** per-service triage/quote bots (feasible as a per-service mode on the chat function, but qualify-and-hand-to-Mark intake, not an instant-price bot; needs a vetted citable KB + guardrails per higher-stakes domain).
-- [ ] **Update brand copy** (Mark, Aug 2026): tagline to "Intelligence you can trust"; About "a local team" to "local specialist"; experience stated as **"over 15 years"** (Ben's decision; the true figure is 16, Mark asked for 18, so "over 15 years" is accurate and clears D-015 / L-009).
+- [x] **Update brand copy** (Mark, Aug 2026): tagline to "Intelligence you can trust"; About "a local team" to "local specialist"; experience stated as **"over 15 years"** (Ben's decision; the true figure is 16, Mark asked for 18, so "over 15 years" is accurate and clears D-015 / L-009). **Live (verified 18 Sept 2026):** the tagline is in the nav, the footer and the JSON-LD `slogan` (`site/src/layouts/BaseLayout.astro`); the About page names Mark as the sole operator with "over 15 years" and describes the business as "Gloucester-based carpet specialists" (D-044 moved the base to Gloucester; the literal phrase "local specialist" was not used, the sense is).
 
 Findability:
 - [x] Per-page unique title + meta description, one clear H1 per page.
@@ -77,7 +77,7 @@ Carry the Phase 0 hardening items above into this phase.
 - [ ] **One-week booking offset** (Mark, Aug 2026): never offer a slot in the enquiry's own week; an **urgent override** emails Mark for approval and, on approval, populates the calendar.
 - [ ] **Smart allocation by travel time** (Mark, Aug 2026): add 15–20 min between consecutive jobs so Mark can travel between them. Do not cluster jobs by area; take the booking and add the buffer.
 - [ ] **Admin "Forgot password?" flow** (Ben, 16 Sept 2026, after a reset by script): a link on `admin.html` calling `resetPasswordForEmail`, a recovery handler on the same page that reads the token from the link and sets the new password, and the redirect URL allowlisted in Supabase Auth. Until then `scripts/admin-set-password.js` resets a password from the local `.env` (service role).
-- [x] **Operator assistant turn headroom** (first live ride, 16 Sept 2026, L-042): cold first turns and two-tool questions hit the 8.5 s deadline; warm one-tool turns took 4.3 to 6.5 s. **Built 17 Sept 2026 (D-045):** the turn runs in a Netlify background function with the admin page polling, deadline default 60 s; deploy and the cold ride owed (NEXT_SESSION.md).
+- [x] **Operator assistant turn headroom** (first live ride, 16 Sept 2026, L-042): cold first turns and two-tool questions hit the 8.5 s deadline; warm one-tool turns took 4.3 to 6.5 s. **Built 17 Sept 2026 (D-045):** the turn runs in a Netlify background function with the admin page polling, deadline default 60 s. **Deployed 18 Sept 2026** (`030efa4`, background mode proven live by a 202 probe); the cold ride with Ben signed in is the remaining proof (NEXT_SESSION.md).
 - [ ] **Complaints handling in the chat assistant** (Mark, Aug 2026): a customer supplies a **customer-reference number** and a complaint; the assistant handles it to a point (for a returned stain, ask for a photo and distinguish a new stain from the treated area) before escalating to Mark. Ties to job-record lookup + the existing escalation path (D-019/D-020).
 
 ---
@@ -140,7 +140,7 @@ When the app is scoped, give it its own roadmap section here.
 Resolved with Mark (June 2026):
 - 🔄 **Service area:** was Cheltenham + Gloucester + Winchcombe core (no surcharge) + flat £15 elsewhere (D-011). **Being revised (Mark, Aug 2026)** to a Gloucester-centred tiered model: free within ~10 miles of Gloucester, then £5/£10/£15; Winchcombe moves to ~£5. See the Phase 2 item and the pending D-011 amendment.
 - ✅ **Field app:** built concurrently with the website and fully integrated via the shared API, not deferred (D-012).
-- ⏸️ **Domain:** still to be chosen — parked, non-blocking for Phases 0–2 (D-013). Needed before Phase 1 go-live and `ALLOWED_ORIGINS` strict mode.
+- ✅ **Domain:** `intelligentclean.co.uk`, registered with 123reg (D-013, resolved 7 June 2026). `ALLOWED_ORIGINS` strict mode has been live against it since 30 July 2026. Still to do: the DNS cutover itself (the apex has no `A` record and `www` resolves to nothing as of 18 Sept 2026), then the `noindex` flip; the runbook is [docs/LAUNCH_CUTOVER.md](docs/LAUNCH_CUTOVER.md).
 
 Resolved with Mark (August 2026):
 - ✅ **Trading hours:** per-day starts with 1pm the last job start, Saturday premium (supersedes 09:00–16:30). See the Phase 2 rework item.
