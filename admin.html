@@ -364,19 +364,25 @@ function logout(){
 // --- Password recovery (roadmap item, Ben 16 Sept 2026; previously only scripts/admin-set-password.js) ---
 // Supabase Auth's email recovery, driven with the same raw GoTrue REST the sign-in uses.
 // Request: POST /auth/v1/recover with the email. GoTrue answers 200 whether or not the
-// address has an account (so the page never confirms one exists), and emails a one-time
-// link that lands back on THIS page with a short-lived session in the URL fragment
-// (#access_token=...&type=recovery). The fragment is read once at load, wiped from the
-// address bar and history before anything else runs, held in memory only, and spent on a
-// single PUT /auth/v1/user carrying the new password; then the operator signs in normally.
+// address has an account, so the success note never confirms one exists (GoTrue's own
+// per-address send limit answers 429 only for a real account, an oracle that lives in the
+// API whatever this page says; the page reports it honestly rather than pretending a
+// link was sent). GoTrue emails a one-time link that lands back on THIS page with a
+// session in the URL fragment (#access_token=...&type=recovery). That session is a real
+// one-hour session for the account, which is what a reset email is in any email-recovery
+// flow: a temporary sign-in credential, so the mailbox is the thing to protect. The page
+// reads the fragment once at load, wipes it from the address bar and history before
+// anything else runs, holds the token in memory only, spends it on one PUT /auth/v1/user
+// carrying the new password, then drops it; the operator signs in normally afterwards.
 // The redirect target is this page's own origin, so the same code serves the .netlify.app
 // host and the real domain; each origin must be on the Supabase Auth redirect allowlist
 // (docs/ADMIN_PASSWORD_RESET.md) or GoTrue falls back to the project's Site URL and the
-// link lands on the wrong page. Nothing here grants admin rights: the API functions still
-// check the signed-in email against ADMIN_EMAILS (requireAdmin) on every request.
+// link lands on the wrong page. Nothing here widens access: the API functions check the
+// signed-in email against ADMIN_EMAILS (requireAdmin) on every request, and sign-ups are
+// disabled, so a link can only ever reach an account that already exists.
 const RECOVERY_MIN_PASSWORD_CHARS = 8;  // the client bar; Supabase enforces its own minimum too
 const AUTH_FETCH_TIMEOUT_MS = 15000;     // every browser fetch is time-bounded (17 Sept rule)
-let recoveryToken = "";                  // the one-shot session from the reset link; never logged, never stored
+let recoveryToken = "";                  // the session from the reset link; never logged, never stored, dropped on leaving the card
 
 function showLoginNote(msg){
   const el = document.getElementById("loginNote");
@@ -389,7 +395,14 @@ function showRecoveryError(msg){
   el.textContent = msg;
   el.style.display = "block";
 }
+// Leaving the recovery card, by either route, drops the recovery session and clears the
+// card: a token that outlives the card is a sign-in credential sitting in a tab that
+// looks signed out (GPT, cross-agent review 18 Sept). Going back means a new link.
 function showLoginCard(){
+  recoveryToken = "";
+  document.getElementById("newPasswordInput").value = "";
+  document.getElementById("newPasswordConfirm").value = "";
+  document.getElementById("recoveryError").style.display = "none";
   document.getElementById("recoveryCard").style.display = "none";
   document.getElementById("loginCard").style.display = "block";
 }
@@ -466,8 +479,10 @@ async function setNewPassword(){
     return;
   }
   if(res.status === 401 || res.status === 403){
-    recoveryToken = "";
-    showRecoveryError("That reset link has expired or was already used. Go back and request a new one.");
+    // The session is gone for good, so the card cannot succeed: leave it (which drops the
+    // token and the typed passwords) and explain on the sign-in card, next to the link.
+    showLoginCard();
+    showLoginError("That reset link has expired or was already used. Request a new one.");
     return;
   }
   if(!res.ok){
@@ -477,10 +492,6 @@ async function setNewPassword(){
     showRecoveryError(why ? String(why) : "Could not save that password. Try a different one.");
     return;
   }
-  recoveryToken = "";
-  document.getElementById("newPasswordInput").value = "";
-  document.getElementById("newPasswordConfirm").value = "";
-  document.getElementById("recoveryError").style.display = "none";
   showLoginCard();
   showLoginNote("Password updated. Sign in with it.");
 }

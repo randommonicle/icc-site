@@ -8,13 +8,13 @@ Related: [DECISIONS.md](../DECISIONS.md) D-046, [ROADMAP.md](../ROADMAP.md) Phas
 
 ## What the operator sees
 
-1. On the admin sign-in card, enter the email address and choose **Forgot password?**. The page always answers "If that address has an admin account, a reset link is on its way", whether or not the address has an account, so the sign-in page never confirms which addresses exist.
+1. On the admin sign-in card, enter the email address and choose **Forgot password?**. The page answers "If that address has an admin account, a reset link is on its way" whether or not the address has an account (Supabase answers 200 either way). One honest exception: Supabase's own per-address send limit answers 429 only for an address that has an account, and the page reports that as "Too many reset emails in a short time" rather than pretending a link was sent. That distinction exists in Supabase's API whatever the page says (measured on the local stack, 18 September 2026: a known address 200 then 429, an unknown address 200 twice), so the page does not create it, and with two admin addresses that are no secret it is not worth a lie to the operator.
 2. The email (subject "Reset Your Password", from Supabase's mailer) carries a one-time link. Opening it lands back on `/admin` showing **Set a new password**. Enter the new password twice (at least 8 characters on the page; Supabase applies the project's own policy too) and choose **Save password**.
 3. The page returns to the sign-in card with "Password updated. Sign in with it." The old password no longer works.
 
 Links expire after an hour and work once. An expired or reused link lands on the sign-in card with "That reset link has expired or was already used. Request a new one."
 
-Nothing here grants admin rights: every API call still checks the signed-in email against `ADMIN_EMAILS` (`adminAuth.requireAdmin`), and sign-ups stay disabled, so a reset link only ever changes the password of an account that already exists.
+Nothing here widens access: every API call still checks the signed-in email against `ADMIN_EMAILS` (`adminAuth.requireAdmin`), and sign-ups stay disabled, so a reset link can only ever reach an account that already exists. **Treat the reset email as a temporary sign-in credential.** The link carries a real one-hour session for that account (that is how every email-recovery flow works), so whoever holds the link within the hour can act as that account, with or without changing the password. The mailbox is the thing to protect; the page drops the session the moment the operator leaves the recovery card, by saving or by going back, and never logs or stores it.
 
 ---
 
@@ -27,7 +27,7 @@ Supabase dashboard → project `icc-platform` → **Authentication → URL Confi
 - **Redirect URLs**: add each origin the admin page is served from, exact, with the path:
   - `https://super-frangollo-c3a14a.netlify.app/admin`
   - `https://www.intelligentclean.co.uk/admin` (before or at the domain cutover)
-  - `https://intelligentclean.co.uk/admin` (the apex redirects to `www`, but a link opened on the apex must still be allowed)
+  - `https://intelligentclean.co.uk/admin` (belt and braces: the target is computed from the origin the admin page was opened on, and Netlify sends the apex to `www` before the page runs once `www` is primary, so this entry is only reached if the page is ever served on the apex without that redirect; harmless to add)
 - **Site URL**: set to `https://www.intelligentclean.co.uk` at the cutover if it is not already. It is only the fallback for this flow, but Supabase also uses it in email templates.
 
 No redeploy is needed for this step; the allowlist is read by Supabase at request time.

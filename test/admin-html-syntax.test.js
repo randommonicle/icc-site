@@ -87,7 +87,7 @@ test("admin.html operator panel polls GET ?turn= and waits longer than the serve
 // domain), the recovery fragment is wiped from the URL before the token is used, the token
 // is never logged, the wording never confirms an account exists, the rate-limit answer has
 // its own message, and both new fetches are time-bounded like every other browser fetch.
-test("admin.html password recovery: own-origin redirect, fragment wiped before use, token never logged, no enumeration", () => {
+test("admin.html password recovery: own-origin redirect, fragment wiped before use, token never logged and dropped on leaving the card, the success note never confirms an account", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "admin.html"), "utf8").replace(/\r\n/g, "\n"); // the checkout may be CRLF
   const start = html.indexOf("// --- Password recovery");
   assert.ok(start > 0, "the password recovery script block is present");
@@ -102,12 +102,23 @@ test("admin.html password recovery: own-origin redirect, fragment wiped before u
   const wipe = code.indexOf('history.replaceState(null, "", location.pathname + location.search);');
   const use = code.indexOf("recoveryToken = f.token;");
   assert.ok(wipe > 0 && use > wipe, "the fragment is wiped from the URL and history before the token is kept");
-  // Never logged.
-  for (const line of code.split("\n")) {
-    if (/console\.(log|error|warn|info|debug)\(/.test(line)) assert.ok(!/recoveryToken|access_token|f\.token/.test(line), "the recovery token must never be logged: " + line.trim());
+  // Never logged or stored: the block names no sink at all, in any spelling (a match on the
+  // token's name would let `console.log(f)` through, a dot-only match `console["log"]`;
+  // GPT, cross-agent review 18 Sept). What the code DOES with the token is covered by
+  // test/admin-recovery-behaviour.test.js, which runs it.
+  assert.ok(!/\b(console|localStorage|sessionStorage|indexedDB|cookie)\b/.test(code), "the recovery block must not name console, storage or cookies");
+  // Leaving the card by either route drops the session and clears the fields, so no
+  // recovery bearer outlives the card it belongs to; the success path goes through it.
+  const leave = code.indexOf("function showLoginCard(){");
+  const leaveBody = code.slice(leave, code.indexOf("}", leave));
+  for (const must of ['recoveryToken = "";', 'getElementById("newPasswordInput").value = "";', 'getElementById("newPasswordConfirm").value = "";', 'getElementById("recoveryError").style.display = "none";']) {
+    assert.ok(leaveBody.includes(must), "showLoginCard clears: " + must);
   }
-  // Wording and branches.
-  assert.ok(code.includes('"If that address has an admin account, a reset link is on its way.'), "the confirmation never says whether the account exists");
+  assert.ok(code.includes('showLoginCard();\n  showLoginNote("Password updated. Sign in with it.");'), "the success path leaves through showLoginCard");
+  assert.ok(html.includes('onclick="showLoginCard(); return false;">Back to sign in</a>'), "Back to sign in leaves through showLoginCard");
+  // Wording and branches. The success note never confirms an account (GoTrue answers
+  // 200 either way); the per-address 429 is GoTrue's own oracle and is reported honestly.
+  assert.ok(code.includes('"If that address has an admin account, a reset link is on its way.'), "the success note never says whether the account exists");
   assert.ok(code.includes("if(res.status === 429)"), "a rate-limited request has its own message");
   assert.ok(code.includes('f.error === "otp_expired"'), "an expired or reused link is explained");
   assert.strictEqual((code.match(/await fetch\(/g) || []).length, 2, "exactly two fetches: the reset request and the password update");
