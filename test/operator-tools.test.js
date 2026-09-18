@@ -53,7 +53,7 @@ const TABLES = {
   ],
   expenses: [
     expense(),
-    expense({ id: "e1000000-0000-4000-8000-000000000002", incurred_on: "2026-09-12", category: "materials", amount: 12.5, description: "Pre-spray with\ncontrol chars" }),
+    expense({ id: "e1000000-0000-4000-8000-000000000002", incurred_on: "2026-09-12", category: "materials", amount: 12.5, description: "Pre-spray\x07 with\ncontrol chars" }),
     expense({ id: "e1000000-0000-4000-8000-000000000003", incurred_on: "2026-08-30", category: "fuel", amount: 33, description: "August fuel" }),
   ],
 };
@@ -238,7 +238,7 @@ test("hostile text inside a valid row stays inert data: capped, JSON-escaped, no
 });
 
 test("safeText strips control characters, collapses whitespace and caps with an ellipsis", () => {
-  assert.strictEqual(safeText("a bcd", 10), "a b c d");
+  assert.strictEqual(safeText("a\x00b\x1fc\x7fd", 10), "a b c d");
   assert.strictEqual(safeText("  many   spaces\n\nhere ", 100), "many spaces here");
   assert.strictEqual(safeText("x".repeat(12), 10), "x".repeat(10) + "…");
   assert.strictEqual(safeText(null, 10), "");
