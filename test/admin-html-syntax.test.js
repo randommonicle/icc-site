@@ -81,3 +81,38 @@ test("admin.html operator panel polls GET ?turn= and waits longer than the serve
   assert.strictEqual((block.match(/operatorPending = \{ key: key, text: q \};/g) || []).length, 2, "the key is kept on the network-error branch and on the poll timeout");
   assert.ok(block.includes("(operatorPending && operatorPending.text === q) ? operatorPending.key : crypto.randomUUID()"), "the same text reuses the pending key");
 });
+
+// Password recovery (roadmap, Ben 16 Sept 2026): the reset request goes to GoTrue with this
+// page's own origin as the redirect (one code path for the .netlify.app host and the real
+// domain), the recovery fragment is wiped from the URL before the token is used, the token
+// is never logged, the wording never confirms an account exists, the rate-limit answer has
+// its own message, and both new fetches are time-bounded like every other browser fetch.
+test("admin.html password recovery: own-origin redirect, fragment wiped before use, token never logged, no enumeration", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "admin.html"), "utf8").replace(/\r\n/g, "\n"); // the checkout may be CRLF
+  const start = html.indexOf("// --- Password recovery");
+  assert.ok(start > 0, "the password recovery script block is present");
+  const block = html.slice(start, html.indexOf("initPasswordRecovery();", start));
+  const code = require("../test-support/moduleGraph.js").stripComments(block);
+  for (const id of ['id="forgotLink"', 'id="recoveryCard"', 'id="loginCard"', 'id="loginNote"', 'id="recoveryError"']) assert.ok(html.includes(id), "markup has " + id);
+  assert.ok(html.includes('id="newPasswordInput" placeholder="New password" autocomplete="new-password"'), "the new password field is marked new-password for password managers");
+  assert.ok(code.includes('const redirectTo = location.origin + "/admin";'), "the redirect is derived from this page's own origin");
+  assert.ok(code.includes('SUPABASE_URL + "/auth/v1/recover?redirect_to=" + encodeURIComponent(redirectTo)'), "the reset request is GoTrue recover with the redirect as a query parameter");
+  assert.ok(code.includes('SUPABASE_URL + "/auth/v1/user"') && code.includes('"Authorization": "Bearer " + recoveryToken'), "the new password is a PUT to the user endpoint with the recovery session");
+  // The wipe precedes the first use of the token.
+  const wipe = code.indexOf('history.replaceState(null, "", location.pathname + location.search);');
+  const use = code.indexOf("recoveryToken = f.token;");
+  assert.ok(wipe > 0 && use > wipe, "the fragment is wiped from the URL and history before the token is kept");
+  // Never logged.
+  for (const line of code.split("\n")) {
+    if (/console\.(log|error|warn|info|debug)\(/.test(line)) assert.ok(!/recoveryToken|access_token|f\.token/.test(line), "the recovery token must never be logged: " + line.trim());
+  }
+  // Wording and branches.
+  assert.ok(code.includes('"If that address has an admin account, a reset link is on its way.'), "the confirmation never says whether the account exists");
+  assert.ok(code.includes("if(res.status === 429)"), "a rate-limited request has its own message");
+  assert.ok(code.includes('f.error === "otp_expired"'), "an expired or reused link is explained");
+  assert.strictEqual((code.match(/await fetch\(/g) || []).length, 2, "exactly two fetches: the reset request and the password update");
+  assert.strictEqual((code.match(/signal: AbortSignal\.timeout\(AUTH_FETCH_TIMEOUT_MS\)/g) || []).length, 2, "both are time-bounded");
+  // Inert rendering (L-003): messages, including GoTrue's own, go through textContent.
+  for (const banned of ["innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"]) assert.ok(!code.includes(banned), "recovery block must not use " + banned);
+  assert.ok(html.includes("initPasswordRecovery();\n"), "the fragment is read at load");
+});

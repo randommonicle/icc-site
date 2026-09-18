@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // Set (reset) an admin user's password through the Supabase Admin API.
 //
-// The admin dashboard signs in with Supabase Auth email + password (Slice 5d) and has
-// no self-service "forgot password" flow yet (a recovery email would land on a page
-// that does not handle the recovery token). Until that exists, an operator who has
-// forgotten the password resets it here, with the service-role key from the local
-// .env, which never leaves this machine.
+// The admin dashboard signs in with Supabase Auth email + password (Slice 5d). Since
+// 18 Sept 2026 it also has a self-service "Forgot password?" flow (D-046,
+// docs/ADMIN_PASSWORD_RESET.md), which is the primary path. This script is the
+// fallback for when that flow cannot be used (the reset email not arriving, the
+// redirect allowlist not yet set): it resets the password with the service-role key
+// from the local .env, which never leaves this machine.
 //
 // Usage (run from the checkout that holds the real .env, so it is read from cwd):
 //   $env:ICC_NEW_PASSWORD = 'the new password'        (PowerShell)
