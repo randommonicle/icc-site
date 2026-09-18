@@ -153,6 +153,11 @@ max_indexes = 5
 # [storage.vector.buckets.documents-openai]
 
 [auth]
+# TODO(supabase/config-push-remotes): this section holds LOCAL-development values (sign-ups on,
+# Site URL 127.0.0.1, a 1 s email limit). `supabase config push` would send them to the hosted
+# project as-is and has no dry run (checked 2.105.0 and 2.117.0, 18 Sept 2026); do not run it
+# until a reviewed [remotes] production override block exists. Hosted auth settings are changed
+# through the Management API for now (NEXT_SESSION.md, 18 Sept entry, first action).
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
