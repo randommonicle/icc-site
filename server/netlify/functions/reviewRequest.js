@@ -24,19 +24,17 @@ const { getSupabaseAdmin } = require("./supabaseClient.js");
 const { sendSms, isSmsConfigured, normalizeUkMobile } = require("./smsProvider.js");
 const { googleReviewUrl } = require("../../../shared/config/reviews.js");
 const { buildReviewEmail, buildReviewSms } = require("../../../shared/reviewMessages.js");
+const emailIdentity = require("../../../shared/emailIdentity.js");
 
-// Public site origin for the privacy-notice link (env-overridable so it tracks
-// the domain at cutover; mirrors handoffs.js).
-const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.intelligentclean.co.uk";
-function privacyNoticeUrl() {
-  return `${String(PUBLIC_SITE_URL).replace(/\/+$/, "")}/privacy`;
-}
+// The privacy-notice link, the From and the Reply-To come from shared/emailIdentity.js
+// (the one source every customer email shares).
+const { privacyNoticeUrl } = emailIdentity;
 
 // Email the review request via Resend. Fail-closed (throws on non-2xx). Injectable
 // in tests via deps.sendEmailFn.
 async function sendReviewEmail(toEmail, content, resendKey) {
-  const customerFrom = process.env.CUSTOMER_FROM || "Intelligent Carpet Cleaning <onboarding@resend.dev>";
-  const replyTo = process.env.CUSTOMER_REPLY_TO || "hello@intelligentclean.co.uk";
+  const customerFrom = emailIdentity.customerFrom();
+  const replyTo = emailIdentity.customerReplyTo();
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${resendKey}` },

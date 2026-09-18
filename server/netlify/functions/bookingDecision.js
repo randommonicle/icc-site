@@ -19,13 +19,11 @@
 const crypto = require("crypto");
 const tradingHours = require("../../../shared/config/tradingHours.js");
 const { depositPayButtonHtml, depositPayTextLine } = require("../../../shared/emailSnippets.js");
+const emailIdentity = require("../../../shared/emailIdentity.js");
 
-// Public site origin for the privacy-notice link (env-overridable so it tracks the
-// domain at cutover; mirrors reviewRequest.js / chat.js).
-const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.intelligentclean.co.uk";
-function privacyNoticeUrl() {
-  return `${String(PUBLIC_SITE_URL).replace(/\/+$/, "")}/privacy`;
-}
+// The privacy-notice link, the From and the Reply-To come from shared/emailIdentity.js
+// (the one source every customer email shares).
+const { privacyNoticeUrl } = emailIdentity;
 
 // Escape customer-/model-supplied text before it lands in an HTML email (L-003).
 function escHtml(s) {
@@ -220,8 +218,8 @@ function buildDeclineEmail(summary, privacyUrl) {
 // Send the customer email via Resend. Fail-closed (throws on non-2xx) so the caller
 // logs 'failed'. Injectable in tests via deps.sendEmailFn.
 async function sendCustomerEmail(toEmail, content, resendKey, idempotencyKey) {
-  const customerFrom = process.env.CUSTOMER_FROM || "Intelligent Carpet Cleaning <onboarding@resend.dev>";
-  const replyTo = process.env.CUSTOMER_REPLY_TO || "hello@intelligentclean.co.uk";
+  const customerFrom = emailIdentity.customerFrom();
+  const replyTo = emailIdentity.customerReplyTo();
   // Idempotency-Key (Resend, 24h window): a duplicate send for the same notice (a stuck
   // 'sending' row retried after the stale window, or any re-fire of the same (job, kind)) is
   // a no-op at the provider, so no second email reaches the customer. This closes the
@@ -371,7 +369,6 @@ async function notifyCustomerOutcome(supabase, job, action, opts = {}) {
 }
 
 module.exports = {
-  PUBLIC_SITE_URL,
   privacyNoticeUrl,
   escHtml,
   mintActionToken,

@@ -17,6 +17,7 @@ const policy = require("../../../shared/config/policy.js");
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const { escalationToMessageDraft } = require("../../../shared/messages.js");
 const { depositPayButtonHtml, depositInstructionLine } = require("../../../shared/emailSnippets.js");
+const emailIdentity = require("../../../shared/emailIdentity.js");
 const { isPaymentConfigured, createDepositCheckoutForJob } = require("./paymentProvider.js");
 // D-027: the shared provisional-decision core supplies the action-token mint + expiry
 // so handleBooking, bookingAction and bookingAdmin all compute them identically.
@@ -511,8 +512,8 @@ async function handleEscalation(input, context, resendKey, supabase) {
 // Operator (Mark) email for an escalation, mirroring the booking email path. All
 // model- and customer-supplied text is escHtml-escaped (L-003).
 async function sendEscalationEmail(input, context, resendKey) {
-  const operatorEmail = process.env.OPERATOR_EMAIL || "ben.graham240689@gmail.com";
-  const operatorFrom = process.env.OPERATOR_FROM || "ICC Bookings <onboarding@resend.dev>";
+  const operatorEmail = emailIdentity.operatorEmail();
+  const operatorFrom = emailIdentity.operatorFrom();
 
   const reasonLabels = {
     out_of_scope: "Outside the assistant's knowledge",
@@ -775,23 +776,11 @@ function formatGBP(n){
   return "£" + (Number.isInteger(v) ? String(v) : v.toFixed(2));
 }
 
-// Customer-facing email identity (review finding A4; UK GDPR Arts.13/14). A
-// privacy-notice link and a monitored Reply-To let a customer see who holds their
-// data and reach a real mailbox, even when the From is a send-only/sandbox
-// address. Both are env-overridable so they track the domain at cutover with no
-// code change; the defaults are the live ICC values. This mirrors the handoff
-// reply in handoffs.js so the two customer emails stay consistent.
-// TODO(dedupe/email-identity): once the handoffs.js A4 work is also on main, lift
-// PUBLIC_SITE_URL / privacyNoticeUrl / CUSTOMER_REPLY_TO into a shared
-// shared/emailIdentity.js so the two copies cannot drift.
-const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.intelligentclean.co.uk";
-
-// Build the public privacy-notice URL. siteUrl is injectable for tests; a trailing
-// slash on the base is normalised so we never emit a double slash.
-function privacyNoticeUrl(siteUrl) {
-  const base = String(siteUrl || PUBLIC_SITE_URL).replace(/\/+$/, "");
-  return `${base}/privacy`;
-}
+// Customer-facing email identity (review finding A4; UK GDPR Arts.13/14): the From,
+// the monitored Reply-To and the privacy-notice link come from
+// shared/emailIdentity.js, the one source every customer email shares (the handoff
+// reply, the D-027 notices, the review request). Re-exported for the existing test.
+const privacyNoticeUrl = emailIdentity.privacyNoticeUrl;
 
 async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   const headers = Object.assign({}, baseHeaders || {}, { "Content-Type": "application/json" });
@@ -989,16 +978,14 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
 
   const pdfFilename = `ICC-Job-${(booking.name||"Unknown").replace(/\s+/g,"-")}-${booking.date}.pdf`;
 
-  // Email sender/recipient addresses are env-configurable so Mark's address can
-  // change without a code deploy once Resend has a verified sending domain.
-  const operatorEmail = process.env.OPERATOR_EMAIL || "ben.graham240689@gmail.com";
-  const operatorFrom = process.env.OPERATOR_FROM || "ICC Bookings <onboarding@resend.dev>";
-  const customerFrom = process.env.CUSTOMER_FROM || "Intelligent Carpet Cleaning <onboarding@resend.dev>";
-  // A4 customer-email identity (see privacyNoticeUrl above): a real monitored
-  // Reply-To so a customer's reply reaches ICC even when the From is a send-only
-  // address, and a privacy-notice link in the body (UK GDPR Arts.13/14). Operator
-  // emails (below) are internal to Mark and deliberately get neither.
-  const customerReplyTo = process.env.CUSTOMER_REPLY_TO || "hello@intelligentclean.co.uk";
+  // Email sender/recipient addresses are env-configurable (shared/emailIdentity.js) so
+  // Mark's address can change without a code deploy. The customer email carries the
+  // A4 identity (a real monitored Reply-To and a privacy-notice link, UK GDPR
+  // Arts.13/14); operator emails (below) are internal to Mark and deliberately get neither.
+  const operatorEmail = emailIdentity.operatorEmail();
+  const operatorFrom = emailIdentity.operatorFrom();
+  const customerFrom = emailIdentity.customerFrom();
+  const customerReplyTo = emailIdentity.customerReplyTo();
   const customerPrivacyUrl = privacyNoticeUrl();
 
   // D-027 operator accept/decline. The link goes to a READ-ONLY confirm page (Phase 4)
@@ -1007,7 +994,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   // provisional booking has a token, so actionUrl (and the block/flags) are null/plain
   // otherwise, leaving the ordinary confirmed operator email unchanged.
   const actionUrl = provisional && actionToken && currentBookingId
-    ? `${PUBLIC_SITE_URL}/booking-action#job=${encodeURIComponent(currentBookingId)}&token=${actionToken}`
+    ? `${emailIdentity.siteUrl()}/booking-action#job=${encodeURIComponent(currentBookingId)}&token=${actionToken}`
     : null;
   const operatorSubject = provisional
     ? `ACTION NEEDED - Provisional booking - ${booking.name} - ${booking.date}`

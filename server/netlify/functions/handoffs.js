@@ -22,6 +22,7 @@ const { getSupabaseAdmin } = require("./supabaseClient.js");
 const { isDraftableReason, extractEmail } = require("../../../shared/messages.js");
 const models = require("../../../shared/config/models.js");
 const knowledge = require("../../../shared/config/knowledge.js");
+const emailIdentity = require("../../../shared/emailIdentity.js");
 
 const HANDOFF_COLS =
   "id,created_at,subject,body,status,channel,handoff_reason,customer_contact,handoff_question,draft_reply,approved_at,sent_at";
@@ -165,16 +166,10 @@ function escHtml(s) {
 // contact-config could dedupe them later.
 const ICC_SIGN_OFF_LINES = ["Intelligent Carpet Cleaning", "Cheltenham, Gloucestershire", "01452 452356", "hello@intelligentclean.co.uk"];
 
-// Public site origin used to build the privacy-notice link in the email. Env
-// overridable so the link tracks the domain at cutover with no code change; it
-// defaults to the production domain. For a pre-domain smoke, set PUBLIC_SITE_URL
-// to the live .netlify.app URL so the link resolves.
-const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.intelligentclean.co.uk";
-
-function privacyNoticeUrl(siteUrl) {
-  const base = String(siteUrl || PUBLIC_SITE_URL).replace(/\/+$/, "");
-  return `${base}/privacy`;
-}
+// The privacy-notice link, the From and the Reply-To come from shared/emailIdentity.js
+// (the one source every customer email shares). For a pre-domain smoke, set
+// PUBLIC_SITE_URL to the live .netlify.app URL so the link resolves.
+const { privacyNoticeUrl } = emailIdentity;
 
 // Build the customer reply email body. Pure (the privacy URL is injectable) and
 // exported for the test. The reply is escaped for the HTML part (L-003); the
@@ -207,10 +202,10 @@ function buildHandoffEmail(replyText, opts = {}) {
 // Throws unless Resend accepts the message (fail-closed; "accepted" is still not
 // "delivered", L-004, but a non-2xx is a hard failure we must not mark sent on).
 async function sendHandoffReply(toEmail, replyText, resendKey) {
-  const customerFrom = process.env.CUSTOMER_FROM || "Intelligent Carpet Cleaning <onboarding@resend.dev>";
+  const customerFrom = emailIdentity.customerFrom();
   // A real, monitored Reply-To so a customer's reply reaches ICC even when the
   // From is a send-only or sandbox address (review finding A4).
-  const replyTo = process.env.CUSTOMER_REPLY_TO || "hello@intelligentclean.co.uk";
+  const replyTo = emailIdentity.customerReplyTo();
   const { html, text } = buildHandoffEmail(replyText);
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",

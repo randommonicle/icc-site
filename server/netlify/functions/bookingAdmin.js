@@ -36,8 +36,7 @@ const {
   rotateActionToken,
   hasSentProvisionalNotice,
 } = require("./bookingDecision.js");
-
-const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.intelligentclean.co.uk";
+const emailIdentity = require("../../../shared/emailIdentity.js");
 
 function json(statusCode, headers, obj) {
   return { statusCode, headers, body: JSON.stringify(obj) };
@@ -69,8 +68,8 @@ function buildResendOperatorEmail(summary, actionUrl) {
 
 // Send the operator email to Mark. Fail-closed (throws on non-2xx). Injectable in tests.
 async function sendOperatorEmail(content, resendKey) {
-  const operatorEmail = process.env.OPERATOR_EMAIL || "ben.graham240689@gmail.com";
-  const operatorFrom = process.env.OPERATOR_FROM || "ICC Bookings <onboarding@resend.dev>";
+  const operatorEmail = emailIdentity.operatorEmail();
+  const operatorFrom = emailIdentity.operatorFrom();
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
@@ -148,8 +147,7 @@ async function handlePost(event, headers, deps) {
     const rows = await rotateActionToken(supabase, id, { oldHash: job.operator_action_token_hash, newHash: hash, newExpiry });
     if (rows === 0) return json(409, headers, { error: "This booking has just been actioned; nothing to resend." });
 
-    const base = String(PUBLIC_SITE_URL).replace(/\/+$/, "");
-    const actionUrl = `${base}/booking-action#job=${encodeURIComponent(id)}&token=${plaintext}`;
+    const actionUrl = `${emailIdentity.siteUrl()}/booking-action#job=${encodeURIComponent(id)}&token=${plaintext}`;
     try {
       await sendOperatorFn(buildResendOperatorEmail(bookingSummary(job), actionUrl), resendKey);
       return json(200, headers, { ok: true, resent: true });

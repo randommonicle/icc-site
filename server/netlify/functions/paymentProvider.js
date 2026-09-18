@@ -13,6 +13,7 @@
 // CommonJS for the Netlify functions and the plain-Node `node --test` runner.
 
 const crypto = require("crypto");
+const { siteUrl } = require("../../../shared/emailIdentity.js");
 
 const STRIPE_API = "https://api.stripe.com/v1";
 
@@ -102,7 +103,7 @@ async function createDepositCheckout(input, opts = {}) {
 // (sends the email without a pay button). fetchImpl is injectable via opts for tests.
 async function createDepositCheckoutForJob(input, opts = {}) {
   const { jobId, depositPounds, customerEmail, dateLabel, origin } = input || {};
-  const base = String(origin || process.env.PUBLIC_SITE_URL || "https://www.intelligentclean.co.uk").replace(/\/+$/, "");
+  const base = origin ? String(origin).replace(/\/+$/, "") : siteUrl();
   const amountPence = Math.round(Number(depositPounds) * 100);
   return createDepositCheckout(
     {
