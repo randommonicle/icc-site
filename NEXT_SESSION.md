@@ -14,6 +14,25 @@ The `NETLIFY_TOKEN` env var in Netlify (a personal access token, `nfp_…`, used
 
 ---
 
+## This session (2026-09-19, morning, Ben at the gym): unattended run on `claude/unattended-work-session-798e3e`, a SUPERSET of `claude/prelaunch-hygiene-2026-09-18` (reset to its tip `c5bdf54`, same merge-base `2c12848` with `main`). NOT pushed, NOT merged, NOT deployed. **Merge this branch in the hygiene branch's place** in the 18 Sept merge order; do not merge both.
+
+*Diagnoses in this note are unverified unless marked.* **Context and usage are read from the app's usage card at every checkpoint (`get_usage`), not estimated; the readings are in the checkpoint lines below.**
+
+**Session brief (Ben, before leaving).** Read the handover, do the start-up rituals, push on with everything that can be done unattended. Allowed: the cross-agent review skill (no Astra seat), one Opus and two Sonnet sub-agents. Not allowed: any push, any deploy, any Fable or higher audit. Questions must not stop the work; a blocked item is skipped for the next logical one. Bank data at checkpoints in local project files.
+
+**Asked of Ben before he left (no answer at the time of writing; treated as "no"):** (1) a `SUPABASE_ACCESS_TOKEN` line in the root `.env` for the hosted auth-config first action; (2) an explicit yes to the two-field PATCH; (3) an admin address whose password may be set for the D-045 cold ride. The `.env` is re-checked at each checkpoint; the first action runs the moment the token appears, the PATCH only on the explicit yes.
+
+**State verified at the start (19 Sept, 10:55 BST).** `origin/main` = `main` = `2c12848`, no open PRs, no remote branch other than `main`. Three local unpushed branches: `claude/prelaunch-hygiene-2026-09-18` (`c5bdf54`, 11 ahead of `main`, checked out in the main working copy), `claude/launch-check` (`748476b`, 1 ahead, worktree `launch-check`), `claude/launch-flip-noindex` (`3d470b6`, 4 ahead, worktree `launch-flip`). This worktree was a fresh branch at `main`; reset hard to `c5bdf54` (no commits lost, the branch had none). Dependencies installed fresh in the worktree (`npm ci` root and `site/`; the site's `esbuild` postinstall needed `npm approve-scripts esbuild`, which wrote an `allowScripts` block into `site/package.json` that was reverted, not committed). Suite at `c5bdf54` with `site/dist` rebuilt (28 pages): **605 tests, 593 pass, 0 fail, 12 skip**, exactly the 18 Sept wrap figure. Local stack up (Docker, `supabase_*_icc-site`); after `db reset`: pgTAP **95/95**, the integration files with `ICC_SUPABASE_IT=1` **123/123** (the twelve `[integration]` cases plus the unit cases in the same files). `codex` and `agy` on PATH. The root `.env` copied into the worktree (git-ignored, verified with `git check-ignore`): it carries the PRODUCTION Supabase URL and service-role key, so any local server or ops script run from here must override `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to the local stack (the 17 Sept trap).
+
+**Usage at the start:** 5-hour window 7%, weekly (all models) **73%** (resets Sunday 20 Sept, 19:59 BST), weekly Fable 7%; context 16% of 1M. Working thresholds for this run: no new work unit above 85% weekly, handover and stop at 90%.
+
+**Checkpoints (newest last; each line is written at the commit it names).**
+- CP-1 (this commit): the start-up verification above; no code changed yet.
+
+**Plan for the run (advisor-reviewed, in order).** (1) This checkpoint. (2) `scripts/supabase-auth-config.mjs`: the first action as one command (GET prints the live field names, `--apply` PATCHes only the two fields, refuses when `disable_signup` is false), unit-tested, the paste-ready lines in `docs/ADMIN_PASSWORD_RESET.md`. (3) The unproven `/admin` to `/admin.html` 200-rewrite seam ridden locally with `netlify dev` against the local stack. (4) One substantive Phase 2 slice, planned first with a checkpoint log: job photos into Supabase Storage (`TODO(slice5x/photos)`); the smaller fallback if the budget says no is the `/api/v1/jobs` read endpoint. Deliberately NOT touched, because the two launch branches edit them: `CLAUDE.md:276`, the CLAUDE.md scripts line, and the `netlify.toml` noindex region.
+
+---
+
 ## This session (2026-09-18, evening): autonomous prelaunch work while Ben's three launch actions stay his. **FIRST ACTION NEXT SESSION: the Supabase auth config (Site URL + redirect allowlist) via the Management API, see the block above Next actions.** Eleven commits on `claude/prelaunch-hygiene-2026-09-18` (eight code and docs, this handover, and one handover fixup), NOT pushed, NOT merged, NOT deployed: a binary-file defect found and fixed with a guard, the email identity single-sourced, the admin "Forgot password?" flow built, ridden locally and reviewed three ways (D-046), docs caught up, L-043 drafted; both launch branches rebased onto `main`. The domain is still dark; the cold ride is still owed.
 
 *Diagnoses in this note are unverified unless marked.* **Wrap-up context: no reading, /context unavailable in this harness; no compaction occurred; treated green.**
