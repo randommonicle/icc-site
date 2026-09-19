@@ -1,36 +1,41 @@
 // jobPhotoStore.js (slice5x/photos, D-047): the booking photo into the private Storage
 // bucket. The unit cases drive a recording fake of the supabase-js storage + table builders
-// (no network) and pin the four rules the module states: never throws and never blocks
-// (a failure is an { ok:false }), the path is server-derived from the validated type, the
-// object goes up before the row and is removed if the row fails, and signing is one batch
+// (no network) and pin the rules the module states: never throws and never blocks (a
+// failure is an { ok:false }, and ONE deadline bounds the whole call, cleanup included),
+// the path is server-derived from the validated type, the ROW goes first and the object
+// second so a late completion can only leave a row without an object (never bytes no
+// erasure can find), a late result tidies its own row, and signing is one bounded batch
 // that tolerates a client with no .storage. The [integration] case (ICC_SUPABASE_IT=1, the
-// local stack after db reset) proves the seam: a real upload, a real row, the signed URL
+// local stack after db reset) proves the seam: a real row, a real upload, the signed URL
 // returns the bytes, the anonymous public-object GET is refused, and erasure removes both.
 
 const { test } = require("node:test");
 const assert = require("node:assert");
 
 const {
-  BUCKET, EXT_BY_TYPE, UPLOAD_DEADLINE_MS, photoObjectPath, storeJobPhoto, signPhotoUrls, deleteJobPhotos,
+  BUCKET, EXT_BY_TYPE, STORE_DEADLINE_MS, SIGN_DEADLINE_MS, photoObjectPath, storeJobPhoto, signPhotoUrls, deleteJobPhotos,
 } = require("../server/netlify/functions/jobPhotoStore.js");
 
 const JOB = "6f1d2a3b-4c5d-4e6f-8a9b-0c1d2e3f4a5b";
 // 1x1 transparent PNG (67 bytes) as the booking client would send it.
 const PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
 const IMAGE = { base64: PNG_B64, mediaType: "image/png" };
+const tick = () => new Promise((r) => setImmediate(r));
+const deferred = () => { const d = {}; d.promise = new Promise((res, rej) => { d.resolve = res; d.reject = rej; }); return d; };
 
 // A recording fake: storage.from(bucket).upload/remove/createSignedUrls and a chainable
 // from(table).insert().select().single() / .select().eq() / .delete().eq(). Each op's
-// outcome is scripted per test.
+// outcome is scripted per test; a `Deferred` outcome hangs until the test settles it.
 function fakeSupabase(plan = {}) {
   const log = [];
+  const settle = (out) => (out && out.promise ? out.promise : out instanceof Error ? Promise.reject(out) : Promise.resolve(out));
   const storage = {
     from(bucket) {
       log.push(["storage.from", bucket]);
       return {
-        upload: async (path, body, options) => { log.push(["upload", path, body.length, options]); if (plan.uploadThrows) throw new Error("upload boom"); return plan.upload || { data: { path }, error: null }; },
-        remove: async (paths) => { log.push(["remove", paths]); if (plan.removeThrows) throw new Error("remove boom"); return plan.remove || { data: paths, error: null }; },
-        createSignedUrls: async (paths, exp) => { log.push(["createSignedUrls", paths, exp]); if (plan.signThrows) throw new Error("sign boom"); return plan.sign ? plan.sign(paths) : { data: paths.map((p) => ({ path: p, signedUrl: "https://x.supabase.co/storage/v1/object/sign/job-photos/" + p + "?token=t", error: null })), error: null }; },
+        upload: (path, body, options) => { log.push(["upload", path, body.length, options]); if (plan.uploadThrows) return Promise.reject(new Error("upload boom")); return settle(plan.upload || { data: { path }, error: null }); },
+        remove: (paths) => { log.push(["remove", paths]); if (plan.removeThrows) return Promise.reject(new Error("remove boom")); return settle(plan.remove || { data: paths, error: null }); },
+        createSignedUrls: (paths, exp) => { log.push(["createSignedUrls", paths, exp]); if (plan.signThrows) return Promise.reject(new Error("sign boom")); return settle(plan.sign ? plan.sign(paths) : { data: paths.map((p) => ({ path: p, signedUrl: "https://x.supabase.co/storage/v1/object/sign/job-photos/" + p + "?token=t", error: null })), error: null }); },
       };
     },
   };
@@ -44,13 +49,14 @@ function fakeSupabase(plan = {}) {
       if (ops.includes("insert")) out = plan.insert || { data: { id: "photo-row-1" }, error: null };
       else if (ops.includes("delete")) out = plan.delete || { data: null, error: null };
       else out = plan.read || { data: [], error: null };
-      if (out instanceof Error) return Promise.reject(out).then(res, rej);
-      return Promise.resolve(out).then(res, rej);
+      return settle(out).then(res, rej);
     };
     return b;
   }
   return { log, storage: plan.noStorage ? undefined : storage, from: (t) => builder(t) };
 }
+const ops = (sb) => sb.log.map((l) => l[0]);
+const rowDrops = (sb) => sb.log.filter((l) => l[0] === "job_photos.delete").length;
 
 test("photoObjectPath: server-derived, extension per validated type, refuses a non-uuid id and an unlisted type", () => {
   const p = photoObjectPath(JOB, "image/jpeg", "abc");
@@ -63,77 +69,108 @@ test("photoObjectPath: server-derived, extension per validated type, refuses a n
   assert.strictEqual(BUCKET, "job-photos");
 });
 
-test("storeJobPhoto: upload then row, the path from the job id and type, the bytes decoded, the type as contentType", async () => {
+test("storeJobPhoto: the ROW first, then the object; the path from the job id and type; the bytes decoded; the type as contentType; no cache max-age", async () => {
   const sb = fakeSupabase();
   const logs = [];
   const r = await storeJobPhoto(sb, JOB, IMAGE, { log: (...a) => logs.push(a.join(" ")) });
   assert.strictEqual(r.ok, true);
   assert.strictEqual(r.id, "photo-row-1");
   assert.match(r.path, new RegExp(`^jobs/${JOB}/photo-[0-9a-f-]{36}\\.png$`));
-  const ops = sb.log.map((l) => l[0]);
-  assert.deepStrictEqual(ops, ["storage.from", "upload", "job_photos.insert", "job_photos.select"], "upload strictly before the row");
-  const up = sb.log[1];
+  const o = ops(sb);
+  assert.ok(o.indexOf("job_photos.insert") >= 0 && o.indexOf("upload") > o.indexOf("job_photos.insert"), "the row is written strictly before the upload starts: " + o.join(","));
+  const ins = sb.log.find((l) => l[0] === "job_photos.insert");
+  assert.deepStrictEqual(ins[1], { job_id: JOB, storage_path: r.path, media_type: "image/png" });
+  const up = sb.log.find((l) => l[0] === "upload");
   assert.strictEqual(up[1], r.path);
   assert.strictEqual(up[2], Buffer.from(PNG_B64, "base64").length, "the decoded bytes go up, not the base64");
   assert.deepStrictEqual(up[3], { contentType: "image/png", upsert: false, cacheControl: "0" }, "no CDN max-age: an erased photo must stop serving at once");
-  assert.deepStrictEqual(sb.log[2][1], { job_id: JOB, storage_path: r.path, media_type: "image/png" });
+  await tick();
+  assert.strictEqual(rowDrops(sb), 0, "nothing is dropped on the happy path");
   assert.deepStrictEqual(logs, []);
 });
 
-test("storeJobPhoto never throws: no image / no client are skips; a throwing or erroring upload is { ok:false } and no row is written", async () => {
+test("storeJobPhoto never throws: no image / no client are skips; a refused id or type never touches the client", async () => {
   assert.deepStrictEqual(await storeJobPhoto(fakeSupabase(), JOB, null), { ok: false, skipped: "no image" });
   assert.deepStrictEqual(await storeJobPhoto(fakeSupabase(), JOB, { base64: "", mediaType: "image/png" }), { ok: false, skipped: "no image" });
   assert.deepStrictEqual(await storeJobPhoto(fakeSupabase({ noStorage: true }), JOB, IMAGE), { ok: false, skipped: "no storage client" });
   assert.deepStrictEqual(await storeJobPhoto(null, JOB, IMAGE), { ok: false, skipped: "no storage client" });
-
   const logs = [];
-  const thrown = fakeSupabase({ uploadThrows: true });
-  const r1 = await storeJobPhoto(thrown, JOB, IMAGE, { log: (...a) => logs.push(a.join(" ")) });
-  assert.deepStrictEqual(r1, { ok: false, error: "upload boom" });
-  assert.ok(!thrown.log.some((l) => l[0] === "job_photos.insert"), "no row after a failed upload");
-
-  const errored = fakeSupabase({ upload: { data: null, error: { message: "mime type not allowed" } } });
-  const r2 = await storeJobPhoto(errored, JOB, IMAGE, { log: (...a) => logs.push(a.join(" ")) });
-  assert.deepStrictEqual(r2, { ok: false, error: "mime type not allowed" });
-  assert.ok(!errored.log.some((l) => l[0] === "job_photos.insert"));
-
-  const badType = await storeJobPhoto(fakeSupabase(), JOB, { base64: PNG_B64, mediaType: "text/html" }, { log: (...a) => logs.push(a.join(" ")) });
-  assert.strictEqual(badType.ok, false);
-  assert.match(badType.error, /not allowed/);
-  const badJob = await storeJobPhoto(fakeSupabase(), "12345", IMAGE, { log: (...a) => logs.push(a.join(" ")) });
-  assert.match(badJob.error, /not a uuid/);
-  assert.strictEqual(logs.length, 4, "every failure is logged once");
+  const badType = fakeSupabase();
+  const r1 = await storeJobPhoto(badType, JOB, { base64: PNG_B64, mediaType: "text/html" }, { log: (...a) => logs.push(a.join(" ")) });
+  assert.match(r1.error, /not allowed/);
+  assert.deepStrictEqual(ops(badType), [], "a refused type reaches neither the table nor Storage");
+  const badJob = fakeSupabase();
+  const r2 = await storeJobPhoto(badJob, "12345", IMAGE, { log: (...a) => logs.push(a.join(" ")) });
+  assert.match(r2.error, /not a uuid/);
+  assert.deepStrictEqual(ops(badJob), []);
+  assert.strictEqual(logs.length, 2, "every failure is logged once");
 });
 
-test("storeJobPhoto: a failed row insert removes the object it just uploaded", async () => {
+test("storeJobPhoto: a failed row insert starts no upload; a failed or throwing upload drops the row it just wrote (never awaited)", async () => {
   const logs = [];
-  const sb = fakeSupabase({ insert: { data: null, error: { message: "row boom" } } });
-  const r = await storeJobPhoto(sb, JOB, IMAGE, { log: (...a) => logs.push(a.join(" ")) });
-  assert.deepStrictEqual(r, { ok: false, error: "row boom" });
-  const rm = sb.log.find((l) => l[0] === "remove");
-  assert.ok(rm, "the object is removed");
-  assert.match(rm[1][0], new RegExp(`^jobs/${JOB}/photo-`));
-  assert.ok(logs[0].includes("removing the object"));
+  const rowFail = fakeSupabase({ insert: { data: null, error: { message: "row boom" } } });
+  assert.deepStrictEqual(await storeJobPhoto(rowFail, JOB, IMAGE, { log: (...a) => logs.push(a.join(" ")) }), { ok: false, error: "row boom" });
+  assert.ok(!ops(rowFail).includes("upload"), "no upload after a failed row");
 
-  const thrown = fakeSupabase({ insert: new Error("network down") });
-  const r2 = await storeJobPhoto(thrown, JOB, IMAGE, { log: () => {} });
-  assert.deepStrictEqual(r2, { ok: false, error: "network down" });
-  assert.ok(thrown.log.some((l) => l[0] === "remove"));
+  const upErr = fakeSupabase({ upload: { data: null, error: { message: "mime type not allowed" } } });
+  assert.deepStrictEqual(await storeJobPhoto(upErr, JOB, IMAGE, { log: (...a) => logs.push(a.join(" ")) }), { ok: false, error: "mime type not allowed" });
+  await tick();
+  assert.strictEqual(rowDrops(upErr), 1, "the row is dropped after a failed upload");
+  assert.deepStrictEqual(upErr.log.find((l) => l[0] === "job_photos.eq")[1], "id");
+
+  const upThrow = fakeSupabase({ uploadThrows: true });
+  assert.deepStrictEqual(await storeJobPhoto(upThrow, JOB, IMAGE, { log: (...a) => logs.push(a.join(" ")) }), { ok: false, error: "upload boom" });
+  await tick();
+  assert.strictEqual(rowDrops(upThrow), 1);
+
+  // A hung cleanup never holds the caller: the row delete never settles, the call still returns.
+  const hungDrop = fakeSupabase({ upload: { data: null, error: { message: "boom" } }, delete: deferred() });
+  const t0 = Date.now();
+  assert.strictEqual((await storeJobPhoto(hungDrop, JOB, IMAGE, { log: () => {} })).ok, false);
+  assert.ok(Date.now() - t0 < 1000, "cleanup is fire-and-forget");
+  assert.strictEqual(logs.length, 3);
 });
 
-test("storeJobPhoto: a hung upload is cut by the deadline and reported, never awaited past it", async () => {
-  const sb = fakeSupabase();
-  sb.storage.from = () => ({ upload: () => new Promise(() => {}), remove: async () => ({ error: null }) });
+test("storeJobPhoto: ONE deadline bounds the whole call; a hung upload leaves a row that a late definite failure drops and a late success keeps", async () => {
+  assert.ok(STORE_DEADLINE_MS <= 5000, "the default leaves a 10 s function its own headroom after the emails");
+  // late failure
+  const lateFail = deferred();
+  const sb = fakeSupabase({ upload: lateFail });
   const logs = [];
   const t0 = Date.now();
-  const r = await storeJobPhoto(sb, JOB, IMAGE, { deadlineMs: 50, log: (...a) => logs.push(a.join(" ")) });
+  const r = await storeJobPhoto(sb, JOB, IMAGE, { deadlineMs: 60, log: (...a) => logs.push(a.join(" ")) });
   assert.strictEqual(r.ok, false);
-  assert.match(r.error, /job photo upload exceeded 50 ms/);
-  assert.ok(Date.now() - t0 < 2000);
-  assert.ok(UPLOAD_DEADLINE_MS <= 10000, "the default deadline leaves the function its own headroom");
+  assert.match(r.error, /job photo store exceeded 60 ms/);
+  assert.ok(Date.now() - t0 < 1000);
+  assert.ok(ops(sb).includes("job_photos.insert") && ops(sb).includes("upload"), "the row was written and the upload started before the deadline");
+  assert.strictEqual(rowDrops(sb), 0, "nothing dropped while the upload is still in flight");
+  lateFail.resolve({ data: null, error: { message: "late 500" } });
+  await tick(); await tick();
+  assert.strictEqual(rowDrops(sb), 1, "a definite failure after the deadline drops the row");
+  // late success
+  const lateOk = deferred();
+  const sb2 = fakeSupabase({ upload: lateOk });
+  assert.strictEqual((await storeJobPhoto(sb2, JOB, IMAGE, { deadlineMs: 60, log: () => {} })).ok, false);
+  lateOk.resolve({ data: { path: "x" }, error: null });
+  await tick(); await tick();
+  assert.strictEqual(rowDrops(sb2), 0, "a late success is a consistent pair and is kept");
 });
 
-test("signPhotoUrls: one batch for every record with a path, url attached, records without a photo untouched", async () => {
+test("storeJobPhoto: a hung row insert returns within the deadline, starts no upload, and a row that commits late is dropped", async () => {
+  const lateRow = deferred();
+  const sb = fakeSupabase({ insert: lateRow });
+  const t0 = Date.now();
+  const r = await storeJobPhoto(sb, JOB, IMAGE, { deadlineMs: 60, log: () => {} });
+  assert.strictEqual(r.ok, false);
+  assert.ok(Date.now() - t0 < 1000);
+  lateRow.resolve({ data: { id: "late-row" }, error: null });
+  await tick(); await tick();
+  assert.ok(!ops(sb).includes("upload"), "no upload starts after the deadline");
+  assert.strictEqual(rowDrops(sb), 1, "the late row is dropped");
+  assert.deepStrictEqual(sb.log.find((l) => l[0] === "job_photos.eq").slice(1), ["id", "late-row"]);
+});
+
+test("signPhotoUrls: one bounded batch for every record with a path, url attached, records without a photo untouched", async () => {
   const sb = fakeSupabase();
   const records = [
     { id: "a", photo: { path: "jobs/a/photo-1.jpg", mediaType: "image/jpeg" } },
@@ -151,9 +188,10 @@ test("signPhotoUrls: one batch for every record with a path, url attached, recor
   assert.strictEqual(records[3].photo.url, records[0].photo.url);
   assert.strictEqual(records[1].photo, undefined);
   assert.ok(records[2].photo.url.includes("photo-2.png"));
+  assert.ok(SIGN_DEADLINE_MS <= 5000);
 });
 
-test("signPhotoUrls is best-effort: no .storage, a throw, an error, or a per-path error leaves url unset and the list intact", async () => {
+test("signPhotoUrls is best-effort: no .storage, a throw, an error, a per-path error, or a hung call leaves url unset and the list intact", async () => {
   const mk = () => [{ id: "a", photo: { path: "jobs/a/p.jpg", mediaType: "image/jpeg" } }];
   const noStorage = mk();
   assert.strictEqual(await signPhotoUrls(fakeSupabase({ noStorage: true }), noStorage), noStorage);
@@ -168,7 +206,13 @@ test("signPhotoUrls is best-effort: no .storage, a throw, an error, or a per-pat
   const perPath = mk();
   await signPhotoUrls(fakeSupabase({ sign: (paths) => ({ data: paths.map((p) => ({ path: p, signedUrl: null, error: "Object not found" })), error: null }) }), perPath, { log: (...a) => logs.push(a.join(" ")) });
   assert.strictEqual(perPath[0].photo.url, undefined);
-  assert.strictEqual(logs.length, 2);
+  const hung = mk();
+  const t0 = Date.now();
+  await signPhotoUrls(fakeSupabase({ sign: () => deferred() }), hung, { deadlineMs: 60, log: (...a) => logs.push(a.join(" ")) });
+  assert.strictEqual(hung[0].photo.url, undefined);
+  assert.ok(Date.now() - t0 < 1000, "a hung signing call is cut by its deadline");
+  assert.ok(logs.some((l) => /job photo signing exceeded 60 ms/.test(l)));
+  assert.strictEqual(logs.length, 3);
   assert.deepStrictEqual(await signPhotoUrls(null, []), []);
   assert.deepStrictEqual(await signPhotoUrls(null, undefined), []);
 });
@@ -177,16 +221,16 @@ test("deleteJobPhotos: reads the rows, removes the objects, then the rows; refus
   const sb = fakeSupabase({ read: { data: [{ id: "r1", storage_path: "jobs/x/p1.jpg" }, { id: "r2", storage_path: "jobs/x/p2.png" }], error: null } });
   const r = await deleteJobPhotos(sb, JOB);
   assert.deepStrictEqual(r, { ok: true, removed: 2 });
-  const ops = sb.log.map((l) => l[0]);
-  assert.ok(ops.indexOf("remove") < ops.indexOf("job_photos.delete"), "objects go before rows");
+  const o = ops(sb);
+  assert.ok(o.indexOf("remove") < o.indexOf("job_photos.delete"), "objects go before rows");
   assert.deepStrictEqual(sb.log.find((l) => l[0] === "remove")[1], ["jobs/x/p1.jpg", "jobs/x/p2.png"]);
   assert.deepStrictEqual(await deleteJobPhotos(sb, "nope"), { ok: false, error: "job id is not a uuid" });
   const none = fakeSupabase({ read: { data: [], error: null } });
   assert.deepStrictEqual(await deleteJobPhotos(none, JOB), { ok: true, removed: 0 });
-  assert.ok(!none.log.some((l) => l[0] === "remove"), "nothing to remove, no Storage call");
+  assert.ok(!ops(none).includes("remove"), "nothing to remove, no Storage call");
   const rmFail = fakeSupabase({ read: { data: [{ id: "r1", storage_path: "jobs/x/p1.jpg" }], error: null }, remove: { data: null, error: { message: "rm fail" } } });
   assert.deepStrictEqual(await deleteJobPhotos(rmFail, JOB), { ok: false, error: "rm fail" });
-  assert.ok(!rmFail.log.some((l) => l[0] === "job_photos.delete"), "rows are kept when the objects could not be removed");
+  assert.ok(!ops(rmFail).includes("job_photos.delete"), "rows are kept when the objects could not be removed");
 });
 
 // --- Guarded integration: real local Supabase + Storage (D-010 real services, no mocks) ---

@@ -13,8 +13,10 @@
 -- 4.5M characters, about 3.4 MB decoded) and the allowed types are exactly the four
 -- validateBooking accepts, so the bucket refuses what the function would never send.
 --
--- Idempotent (on conflict do nothing) so a re-run, or a project where the bucket was made
--- by hand first, does not fail the migration history.
+-- Idempotent AND corrective: on conflict the row is brought to exactly these values, so a
+-- bucket of this name made by hand first (public, or with wider limits) is closed by the
+-- migration rather than preserved by it (cross-agent review, GPT, 19 Sept 2026: "do nothing"
+-- would have kept a misconfigured pre-existing bucket on hosted).
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
@@ -24,7 +26,10 @@ values (
   4194304,                                                    -- 4 MB
   array['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 )
-on conflict (id) do nothing;
+on conflict (id) do update
+  set public             = excluded.public,
+      file_size_limit    = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
 
 -- Post-apply verification (read catalog state directly; db-migration-verification).
 -- Run each query on its own after applying, expecting the noted results:

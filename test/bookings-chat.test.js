@@ -82,12 +82,14 @@ function fakeSupabase(plan = {}) {
       if (state.op === "upsert") return plan.customersUpsert || { data: { id: "cust-1" }, error: null };
       if (state.op === "insert") return plan.jobsInsert || { data: { id: "job-1" }, error: null };
       if (state.op === "update") return plan.jobsUpdate || { data: null, error: null };
+      if (state.op === "delete") return { data: null, error: null };
       return plan.jobsSelect || { data: [], error: null };
     };
     const b = {
       upsert(row, opts) { state.op = "upsert"; state.row = row; state.opts = opts; return b; },
       insert(row) { state.op = "insert"; state.row = row; return b; },
       update(obj) { state.op = "update"; state.obj = obj; return b; },
+      delete() { state.op = "delete"; return b; },
       select() { return b; },
       eq() { return b; },
       in() { return b; },
@@ -283,7 +285,10 @@ test("handleBooking (Postgres): a Storage failure never changes the booking outc
     const body = JSON.parse(res.body);
     assert.strictEqual(body.success, true);
     assert.deepStrictEqual(body.emailStatus, { operator: true, customer: true });
-    assert.ok(!down.calls.some((c) => c.op === "insert" && c.row && c.row.storage_path), "no job_photos row after a failed upload");
+    // Row first, then the object (D-047 rule 3): the row was written, the upload failed, the row is dropped.
+    assert.ok(down.calls.some((c) => c.op === "insert" && c.row && c.row.storage_path), "the job_photos row is written before the upload");
+    await new Promise((r) => setImmediate(r));
+    assert.ok(down.calls.some((c) => c.op === "delete"), "the row is dropped after the failed upload (fire-and-forget)");
     const plain = fakeSupabaseWithStorage();
     await handleBooking(baseBooking(), "re_test", {}, plain);
     assert.strictEqual(plain.storageCalls.length, 0, "no image, no upload");

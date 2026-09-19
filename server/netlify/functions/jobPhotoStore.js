@@ -5,25 +5,34 @@
 //   1. Never blocks a booking. storeJobPhoto is called by chat.js AFTER the fail-closed
 //      insert, the calendar stamp, the PDF and both emails, and it never throws: any
 //      Storage or table failure is a logged { ok: false } and the customer's outcome is
-//      unchanged (the email still carries the photo, the guaranteed path). It is also
-//      time-bounded, because supabase-js's storage upload takes no abort signal and a
-//      slow 3 MB upload must not push the function past its own deadline.
+//      unchanged (the email still carries the photo, the guaranteed path). The WHOLE call
+//      is bounded by one deadline (STORE_DEADLINE_MS), cleanup is never awaited, and no new
+//      step starts once the deadline has fired, because supabase-js's storage upload takes
+//      no abort signal and a slow 3 MB upload must not hold the response (cross-agent
+//      review, GPT, 19 Sept 2026: two sequential deadlines plus unbounded cleanup awaits
+//      let the helper hold the response for about 16 s).
 //   2. The object path is derived here from the job id and the VALIDATED media type
 //      (validateBooking, chat.js), never from anything the client sent.
-//   3. Upload first, row second, so a job_photos row can never point at a missing object;
-//      if the row insert fails the object is removed best-effort.
+//   3. Row FIRST, object second. A deadline cannot cancel an in-flight call, so a late
+//      completion always leaves one of two states behind: a row without an object (the
+//      card says "No photo uploaded", erasure deletes the row, nothing leaks) or an object
+//      without a row (bytes of a customer's home that no erasure path can find). The order
+//      is chosen so the only reachable inconsistent state is the harmless one, and a late
+//      result that arrives after the deadline tidies itself (a row whose upload never
+//      started or definitely failed is deleted, fire-and-forget).
 //   4. The bucket is private (migration 20260919120000). Nothing here mints a public URL;
 //      the admin gets one-hour signed URLs, in one batch, from bookings.js.
 //
-// TODO(slice5x/photos-erasure): job erasure is SQL by hand today; deleting the jobs row
-// cascades job_photos but leaves the object bytes (only the Storage API removes them).
-// Whatever erases a job must call deleteJobPhotos(supabase, jobId) first.
+// Erasure: deleting the jobs row cascades job_photos but leaves the object bytes (only
+// the Storage API removes them), so scripts/erase-job.js calls deleteJobPhotos first.
+// TODO(slice5x/photos-erasure): an admin-UI erase action, when one is built, must do the same.
 
 const crypto = require("node:crypto");
 
 const BUCKET = "job-photos";
 const SIGNED_URL_SECONDS = 3600;          // the admin session's own lifetime
-const UPLOAD_DEADLINE_MS = 8000;          // bounded so the booking response is never held by Storage
+const STORE_DEADLINE_MS = 5000;           // the whole store call: chat.js awaits this AFTER the emails, inside a 10 s function
+const SIGN_DEADLINE_MS = 5000;            // the admin list is never held by a hung signing call
 
 // The four types validateBooking accepts, and the extension each gets on the object.
 const EXT_BY_TYPE = Object.freeze({
@@ -46,19 +55,33 @@ function photoObjectPath(jobId, mediaType, id = crypto.randomUUID()) {
   return `jobs/${jobId}/photo-${id}.${ext}`;
 }
 
-function withDeadline(promise, ms, label) {
+// Race a promise against a deadline. Rejects when the deadline fires (after calling
+// onExpire, so the racer can stop starting new work); it cannot cancel the promise.
+function withDeadline(promise, ms, label, onExpire) {
   let timer;
-  const deadline = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${label} exceeded ${ms} ms`)), ms); });
-  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => { if (onExpire) onExpire(); reject(new Error(`${label} exceeded ${ms} ms`)); }, ms);
+  });
+  return Promise.race([Promise.resolve(promise), deadline]).finally(() => clearTimeout(timer));
 }
 
-// Store one validated booking image against a persisted job. Never throws.
-//   -> { ok: true, path, id }            stored (object + job_photos row)
+// Start a cleanup and forget it: never awaited, a failure (a rejection, an { error }, or a
+// synchronous throw while building the call) is logged, never thrown.
+function fireAndForget(build, what, log) {
+  Promise.resolve().then(build).then(
+    (r) => { if (r && r.error) log(`job photo ${what} failed:`, r.error.message); },
+    (e) => log(`job photo ${what} failed:`, e && e.message)
+  );
+}
+
+// Store one validated booking image against a persisted job. Never throws. Bounded by
+// opts.deadlineMs (default STORE_DEADLINE_MS) for the whole call.
+//   -> { ok: true, path, id }            stored (job_photos row + object)
 //   -> { ok: false, skipped: reason }    nothing to do (no image, no client)
-//   -> { ok: false, error }              a failure, already logged
+//   -> { ok: false, error }              a failure or the deadline, already logged
 async function storeJobPhoto(supabase, jobId, image, opts = {}) {
   const log = opts.log || console.log;
-  const deadlineMs = Number.isFinite(opts.deadlineMs) ? opts.deadlineMs : UPLOAD_DEADLINE_MS;
+  const deadlineMs = Number.isFinite(opts.deadlineMs) ? opts.deadlineMs : STORE_DEADLINE_MS;
   if (!image || typeof image !== "object" || typeof image.base64 !== "string" || !image.base64) return { ok: false, skipped: "no image" };
   if (!supabase || !supabase.storage || typeof supabase.storage.from !== "function") return { ok: false, skipped: "no storage client" };
 
@@ -71,46 +94,63 @@ async function storeJobPhoto(supabase, jobId, image, opts = {}) {
   }
 
   const bucket = supabase.storage.from(BUCKET);
-  try {
+  const state = { expired: false };
+  const dropRow = (id, why) => fireAndForget(() => supabase.from("job_photos").delete().eq("id", id), `row removal (${why})`, log);
+
+  const run = async () => {
+    // 1. The row, first (rule 3). A row that commits after the deadline has no upload
+    //    behind it (none is started once expired), so it is dropped by the continuation.
+    const insert = Promise.resolve(supabase.from("job_photos").insert({ job_id: jobId, storage_path: path, media_type: image.mediaType }).select("id").single());
+    insert.then((r) => { if (state.expired && r && r.data && !r.error) dropRow(r.data.id, "row committed after the deadline"); }, () => {});
+    const { data, error } = await insert;
+    if (state.expired) return { ok: false, error: "deadline" };
+    if (error || !data) {
+      log("job photo row insert failed:", error ? error.message : "no row");
+      return { ok: false, error: error ? error.message : "no row" };
+    }
+    const rowId = data.id;
+
+    // 2. The object. A late success leaves a consistent pair (kept); a late definite
+    //    failure leaves a row with nothing behind it (dropped by the continuation).
     const bytes = Buffer.from(image.base64, "base64");
     // cacheControl 0: a photo is looked at once or twice by Mark, and an erased object must
     // stop serving at once, not after a CDN's max-age.
-    const up = await withDeadline(
-      bucket.upload(path, bytes, { contentType: image.mediaType, upsert: false, cacheControl: "0" }),
-      deadlineMs,
-      "job photo upload"
+    const upload = Promise.resolve(bucket.upload(path, bytes, { contentType: image.mediaType, upsert: false, cacheControl: "0" }));
+    upload.then(
+      (up) => { if (state.expired && (!up || up.error)) dropRow(rowId, "upload failed after the deadline"); },
+      () => { if (state.expired) dropRow(rowId, "upload threw after the deadline"); }
     );
-    if (!up || up.error) {
-      log("job photo upload failed:", up && up.error ? up.error.message : "no response");
-      return { ok: false, error: up && up.error ? up.error.message : "no response" };
+    let up;
+    try {
+      up = await upload;
+    } catch (e) {
+      if (state.expired) return { ok: false, error: "deadline" };
+      log("job photo upload failed:", e.message);
+      dropRow(rowId, "upload threw");
+      return { ok: false, error: e.message };
     }
-  } catch (e) {
-    log("job photo upload failed:", e.message);
-    return { ok: false, error: e.message };
-  }
+    if (state.expired) return { ok: false, error: "deadline" };
+    if (!up || up.error) {
+      const msg = up && up.error ? up.error.message : "no response";
+      log("job photo upload failed:", msg);
+      dropRow(rowId, "upload failed");
+      return { ok: false, error: msg };
+    }
+    return { ok: true, path, id: rowId };
+  };
 
   try {
-    const { data, error } = await withDeadline(
-      supabase.from("job_photos").insert({ job_id: jobId, storage_path: path, media_type: image.mediaType }).select("id").single(),
-      deadlineMs,
-      "job photo row insert"
-    );
-    if (error || !data) {
-      log("job photo row insert failed, removing the object:", error ? error.message : "no row");
-      try { await bucket.remove([path]); } catch (e) { log("job photo object removal failed:", e.message); }
-      return { ok: false, error: error ? error.message : "no row" };
-    }
-    return { ok: true, path, id: data.id };
+    return await withDeadline(run(), deadlineMs, "job photo store", () => { state.expired = true; });
   } catch (e) {
-    log("job photo row insert failed, removing the object:", e.message);
-    try { await bucket.remove([path]); } catch (e2) { log("job photo object removal failed:", e2.message); }
+    log("job photo store failed:", e.message);
     return { ok: false, error: e.message };
   }
 }
 
 // Attach a one-hour signed URL to every admin record that carries a photo path, in ONE
-// Storage call. Best-effort: a client without .storage, a signing failure, or a path the
-// API refuses leaves that record's photo without a url and the list still answers.
+// Storage call, bounded by SIGN_DEADLINE_MS. Best-effort: a client without .storage, a
+// signing failure, the deadline, or a path the API refuses leaves that record's photo
+// without a url and the list still answers.
 async function signPhotoUrls(supabase, records, opts = {}) {
   const log = opts.log || console.log;
   const list = Array.isArray(records) ? records : [];
@@ -119,7 +159,11 @@ async function signPhotoUrls(supabase, records, opts = {}) {
   if (!supabase || !supabase.storage || typeof supabase.storage.from !== "function") return list;
   try {
     const paths = [...new Set(withPhoto.map((r) => r.photo.path))];
-    const { data, error } = await supabase.storage.from(BUCKET).createSignedUrls(paths, opts.expiresIn || SIGNED_URL_SECONDS);
+    const { data, error } = await withDeadline(
+      supabase.storage.from(BUCKET).createSignedUrls(paths, opts.expiresIn || SIGNED_URL_SECONDS),
+      Number.isFinite(opts.deadlineMs) ? opts.deadlineMs : SIGN_DEADLINE_MS,
+      "job photo signing"
+    );
     if (error || !Array.isArray(data)) {
       log("job photo signing failed:", error ? error.message : "no data");
       return list;
@@ -137,6 +181,7 @@ async function signPhotoUrls(supabase, records, opts = {}) {
 }
 
 // Remove every object and row for a job (the erasure half the cascade cannot do).
+// Objects first, then rows: a failure part-way leaves rows that still name what is left.
 //   -> { ok: true, removed: n } | { ok: false, error }
 async function deleteJobPhotos(supabase, jobId, opts = {}) {
   const log = opts.log || console.log;
@@ -159,4 +204,4 @@ async function deleteJobPhotos(supabase, jobId, opts = {}) {
   }
 }
 
-module.exports = { BUCKET, SIGNED_URL_SECONDS, UPLOAD_DEADLINE_MS, EXT_BY_TYPE, photoObjectPath, storeJobPhoto, signPhotoUrls, deleteJobPhotos };
+module.exports = { BUCKET, SIGNED_URL_SECONDS, STORE_DEADLINE_MS, SIGN_DEADLINE_MS, EXT_BY_TYPE, photoObjectPath, storeJobPhoto, signPhotoUrls, deleteJobPhotos };

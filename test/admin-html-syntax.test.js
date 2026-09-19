@@ -145,13 +145,13 @@ test("admin.html password recovery: own-origin redirect, fragment wiped before u
 // under /storage/v1/ (the bucket is private, so that is the only place a photo can be),
 // escaped, and never builds an image from any other string; the legacy inline shape keeps
 // its media-type guard.
-test("admin.html renders a stored photo only from a same-origin /storage/v1/ signed url, escaped", () => {
+test("admin.html renders a stored photo only from a signed url for this project's job-photos bucket, escaped", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "admin.html"), "utf8").replace(/\r\n/g, "\n");
   const start = html.indexOf("function buildCard(");
   assert.ok(start > 0, "buildCard is present");
   const block = html.slice(start, html.indexOf("const calLinkSafe", start));
   const code = require("../test-support/moduleGraph.js").stripComments(block);
-  assert.ok(code.includes('b.photo.url.startsWith(SUPABASE_URL + "/storage/v1/")'), "the signed url must be on this project's Supabase origin under /storage/v1/");
+  assert.ok(code.includes('b.photo.url.startsWith(SUPABASE_URL + "/storage/v1/object/sign/job-photos/")'), "the url must be a signed url for this project's job-photos bucket (a same-origin public path does not pass)");
   assert.ok(code.includes("src=\"'+esc(photoUrlSafe)+'\""), "the url is escaped into the img src");
   assert.ok(code.includes("href=\"'+esc(photoUrlSafe)+'\" target=\"_blank\" rel=\"noopener\""), "the full-size link is escaped and noopener");
   assert.ok(!/src=["']'\+esc\(b\.photo\.url\)/.test(code), "the raw photo.url is never rendered, only the guarded value");
