@@ -125,11 +125,16 @@ async function main() {
   const withCustomer = args.includes("--with-customer");
   if (!UUID.test(jobId)) throw new Error("usage: node scripts/erase-job.js <job uuid> [--delete] [--with-customer]");
 
+  // The URL and the key come from ONE source: the .env pair when the file carries both,
+  // else the process pair. Mixing them is how the first hosted run failed on this machine
+  // (a SUPABASE_SERVICE_ROLE_KEY for another project sits in the shell environment, and
+  // it was taken with the ICC URL from .env: "Invalid API key").
   const envFile = process.env.ICC_ENV_FILE || path.join(process.cwd(), ".env");
   const env = fs.existsSync(envFile) ? loadEnv(envFile) : {};
-  const url = process.env.SUPABASE_URL || env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are needed (env or the repo-root .env)");
+  const fromFile = env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = fromFile ? env.SUPABASE_URL : process.env.SUPABASE_URL;
+  const key = fromFile ? env.SUPABASE_SERVICE_ROLE_KEY : process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are needed, both from the repo-root .env or both from the environment");
   const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   console.log(`target: ${url}`);
 
@@ -150,9 +155,11 @@ async function main() {
 }
 
 if (require.main === module) {
+  // exitCode, not process.exit(): an exit right after an awaited fetch trips a libuv
+  // assertion on Windows (the 18 Sept 2026 ride script found the same).
   main().catch((e) => {
     console.error("FAILED:", e.message || e);
-    process.exit(1);
+    process.exitCode = 1;
   });
 }
 
