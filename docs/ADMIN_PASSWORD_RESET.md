@@ -14,11 +14,33 @@ Related: [DECISIONS.md](../DECISIONS.md) D-046, [ROADMAP.md](../ROADMAP.md) Phas
 
 Links expire after an hour and work once. An expired or reused link lands on the sign-in card with "That reset link has expired or was already used. Request a new one."
 
-Nothing here widens access: every API call still checks the signed-in email against `ADMIN_EMAILS` (`adminAuth.requireAdmin`), and sign-ups stay disabled, so a reset link can only ever reach an account that already exists. **Treat the reset email as a temporary sign-in credential.** The link carries a real one-hour session for that account (that is how every email-recovery flow works), so whoever holds the link within the hour can act as that account, with or without changing the password. The mailbox is the thing to protect; the page drops the session the moment the operator leaves the recovery card, by saving or by going back, and never logs or stores it.
+Nothing here widens access: every API call still checks the signed-in email against `ADMIN_EMAILS` (`adminAuth.requireAdmin`), and with sign-ups disabled on the project a reset link can only ever reach an account that already exists. **That second half is an owner setting, not a fact of the code: the first live read of the hosted project (19 September 2026) found sign-ups ENABLED, against what had been recorded since June (L-044). The scripted owner step below refuses to set the allowlist until they are off, and `test/hosted-auth-settings.test.js` (`ICC_HOSTED_IT=1`) reads the flag back.** **Treat the reset email as a temporary sign-in credential.** The link carries a real one-hour session for that account (that is how every email-recovery flow works), so whoever holds the link within the hour can act as that account, with or without changing the password. The mailbox is the thing to protect; the page drops the session the moment the operator leaves the recovery card, by saving or by going back, and never logs or stores it.
 
 ---
 
-## Owner step 1 (Ben, Supabase dashboard): the redirect allowlist
+## Owner step 1 (Ben): the Site URL and the redirect allowlist
+
+Two routes to the same two settings. The scripted one is the intended route (19 September 2026); the dashboard one below it is the fallback and the place to read the three settings the script only reports.
+
+### Route A: one command through the Management API (scripted, 19 Sept 2026)
+
+`scripts/supabase-auth-config.mjs` does the step through the Supabase Management API (`GET`/`PATCH /v1/projects/qzcfgpfvzpynnjgriqqn/config/auth`; field names verified against the API's own OpenAPI document on 19 September 2026). It needs a Supabase **personal access token**: supabase.com, account menu, **Access Tokens**, generate one (name it, e.g. `icc auth config`), then add one line to the git-ignored `.env` in the repo root, `SUPABASE_ACCESS_TOKEN=` followed immediately by the token (no space, never into chat). The token is account-wide: revoke it on the same page once the step is done, or keep it for the domain cutover and record which in the handover.
+
+```powershell
+node scripts/supabase-auth-config.mjs
+```
+
+The dry run GETs the live config and prints only the fields that matter (Site URL, allowlist, sign-ups, email provider, OTP expiry, minimum password length, the per-address email rate limit, whether the recovery template is customised and still carries `{{ .ConfirmationURL }}`), the checks, and the exact body it would send. It never prints the raw response, which carries the project's SMTP password and every provider and hook secret. Read the output, then:
+
+```powershell
+node scripts/supabase-auth-config.mjs --apply
+```
+
+`--apply` sends a PATCH with exactly two fields, `site_url` (default `https://super-frangollo-c3a14a.netlify.app`; at the cutover run it again with `--site-url https://www.intelligentclean.co.uk`) and `uri_allow_list` (the four admin URLs below, added to whatever is already on the list, nothing dropped; `--replace` sets exactly the four), then GETs again and prints the two values back, exit 0 only when both match. It **refuses** (exit 2, nothing sent) unless `disable_signup` reads a literal `true`, because sign-ups being off is what keeps a stranger's planted recovery fragment inert on the admin page; a WARN line, not a refusal, for an OTP expiry other than 3600 s, a customised recovery template without `{{ .ConfirmationURL }}`, or the email provider being off. No redeploy is needed; Supabase reads the allowlist at request time.
+
+The wildcard entry is `https://*--super-frangollo-c3a14a.netlify.app/admin` with a single `*` on purpose: in Supabase's redirect globs `*` matches any run of non-separator characters and the separators are `.` and `/` (supabase.com/docs/guides/auth/redirect-urls), so the matched host can only be a real `<deploy>--super-frangollo-c3a14a.netlify.app` preview or branch host. The docs' own Netlify example uses `**`, which matches any sequence including `/` and would also accept an attacker's host whose path carried the suffix; do not "upgrade" it.
+
+### Route B: the dashboard (fallback, and where the three assumed settings are read)
 
 The page asks Supabase to send the operator back to **its own origin plus `/admin`**, so one build serves every host. Supabase only honours a redirect target that is on the project's allowlist; anything else silently falls back to the project **Site URL**.
 

@@ -7,11 +7,14 @@
 // model the field app will reuse (D-012).
 //
 // Two layers, deliberately:
-//   1. Public sign-ups are DISABLED in the Supabase project, so the only users
-//      that exist are the operators created in the dashboard.
+//   1. Public sign-ups are meant to be DISABLED in the Supabase project, so the only
+//      users that exist are the operators created in the dashboard. Recorded as done
+//      on 15 June 2026; the first live read (19 Sept 2026) found them ENABLED, so
+//      test/hosted-auth-settings.test.js now reads the flag back (ICC_HOSTED_IT=1)
+//      and the owner step is scripts/supabase-auth-config.mjs --disable-signups (L-044).
 //   2. ADMIN_EMAILS is a server-side allowlist on top of that — defence in depth,
 //      so a stray or accidentally-created user could never read the dashboard
-//      even if signups were re-enabled.
+//      even if signups were re-enabled (as they were found to be, above).
 //
 // The token is verified with a publishable-key client (the standard way to check
 // a user token). The publishable key is PUBLIC by design (it also sits in

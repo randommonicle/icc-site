@@ -309,8 +309,9 @@ let invoicesByJob = {};       // job_id -> invoice record (D-026 Beta 2e)
 let invoicingConfigured = null; // true/false from GET /api/v1/invoices; null = load failed
 
 // Supabase Auth (Slice 5d). Both values are PUBLIC by design — the publishable key
-// is meant to live in client code; access is controlled by the disabled signups +
-// the server-side ADMIN_EMAILS allowlist, not by hiding the key.
+// is meant to live in client code; access is controlled by the server-side ADMIN_EMAILS
+// allowlist (and by sign-ups being disabled on the project, an owner setting that
+// test/hosted-auth-settings.test.js reads back), not by hiding the key.
 const SUPABASE_URL = "https://qzcfgpfvzpynnjgriqqn.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_QZ0JDjbGNtj_JEUf-qfJ4Q_mIawmFsK";
 
@@ -378,8 +379,9 @@ function logout(){
 // host and the real domain; each origin must be on the Supabase Auth redirect allowlist
 // (docs/ADMIN_PASSWORD_RESET.md) or GoTrue falls back to the project's Site URL and the
 // link lands on the wrong page. Nothing here widens access: the API functions check the
-// signed-in email against ADMIN_EMAILS (requireAdmin) on every request, and sign-ups are
-// disabled, so a link can only ever reach an account that already exists.
+// signed-in email against ADMIN_EMAILS (requireAdmin) on every request, and with sign-ups
+// disabled on the project (the owner step; found ENABLED on 19 Sept 2026, read back by
+// test/hosted-auth-settings.test.js) a link can only ever reach an account that already exists.
 const RECOVERY_MIN_PASSWORD_CHARS = 8;  // the client bar; Supabase enforces its own minimum too
 const AUTH_FETCH_TIMEOUT_MS = 15000;     // the two recovery fetches are time-bounded, like the operator panel's (not yet every fetch on this page)
 let recoveryToken = "";                  // the session from the reset link; never logged, never stored, dropped on leaving the card
