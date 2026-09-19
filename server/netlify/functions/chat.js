@@ -24,6 +24,8 @@ const { isPaymentConfigured, createDepositCheckoutForJob } = require("./paymentP
 const { mintActionToken, actionTokenExpiry } = require("./bookingDecision.js");
 // Slice 5b (D-021): the Postgres booking store (used only under BOOKINGS_STORE).
 const { insertBooking, setJobCalLink, availabilityFromJobs, serverQuoteForBooking } = require("./bookingsStore.js");
+// slice5x/photos (D-047): the booking photo into the private Storage bucket, best-effort.
+const { storeJobPhoto } = require("./jobPhotoStore.js");
 // Shared Netlify Blobs store + per-IP rate limiter (extracted from this file so
 // bookingAction.js reuses the same limiter, not a divergent copy). rateLimit is
 // re-exported below for test/hardening.test.js.
@@ -959,7 +961,21 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
   // rather than whatever the model wrote in BOOKING_READY (copy review B-3, 14 Sep 2026).
   const figures = { estimatedPrice: booking.estimated_price, deposit: booking.deposit };
 
+  // slice5x/photos (D-047): the customer's photo goes into the private Storage bucket
+  // against the persisted job, so the admin card can show it. Best-effort and LAST: it
+  // runs only once the booking, the calendar stamp, the PDF and both emails are done,
+  // never changes the outcome, and is time-bounded inside jobPhotoStore (a slow Storage
+  // cannot hold the response). The email still carries the photo, the guaranteed path.
+  const storePhotoBestEffort = async () => {
+    if (!usePostgres || !currentBookingId || !booking.image) return;
+    try {
+      const p = await storeJobPhoto(supabase, currentBookingId, booking.image);
+      if (p.ok) console.log("job photo stored:", p.path);
+    } catch (e) { console.log("job photo store threw:", e.message); }
+  };
+
   if (!resendKey) {
+    await storePhotoBestEffort();
     return {
       statusCode: 200,
       headers,
@@ -1158,6 +1174,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
     if (!operatorEmailed) console.error("Booking operator email failed:", markRes.status, JSON.stringify(markData));
     if (!customerEmailed) console.error("Booking customer email failed:", customerRes.status, JSON.stringify(customerData));
 
+    await storePhotoBestEffort();
     return {
       statusCode: 200,
       headers,
@@ -1182,6 +1199,7 @@ async function handleBooking(booking, resendKey, baseHeaders, supabase) {
     // L-041 this response carried both, so a saved booking was announced as "choose
     // another time". The message and the log keep the diagnosis.
     console.error("Booking email send threw:", err.message);
+    await storePhotoBestEffort();
     return {
       statusCode: 200,
       headers,

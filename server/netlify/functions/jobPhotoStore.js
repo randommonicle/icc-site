@@ -73,8 +73,10 @@ async function storeJobPhoto(supabase, jobId, image, opts = {}) {
   const bucket = supabase.storage.from(BUCKET);
   try {
     const bytes = Buffer.from(image.base64, "base64");
+    // cacheControl 0: a photo is looked at once or twice by Mark, and an erased object must
+    // stop serving at once, not after a CDN's max-age.
     const up = await withDeadline(
-      bucket.upload(path, bytes, { contentType: image.mediaType, upsert: false, cacheControl: "3600" }),
+      bucket.upload(path, bytes, { contentType: image.mediaType, upsert: false, cacheControl: "0" }),
       deadlineMs,
       "job photo upload"
     );

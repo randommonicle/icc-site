@@ -75,7 +75,7 @@ test("storeJobPhoto: upload then row, the path from the job id and type, the byt
   const up = sb.log[1];
   assert.strictEqual(up[1], r.path);
   assert.strictEqual(up[2], Buffer.from(PNG_B64, "base64").length, "the decoded bytes go up, not the base64");
-  assert.deepStrictEqual(up[3], { contentType: "image/png", upsert: false, cacheControl: "3600" });
+  assert.deepStrictEqual(up[3], { contentType: "image/png", upsert: false, cacheControl: "0" }, "no CDN max-age: an erased photo must stop serving at once");
   assert.deepStrictEqual(sb.log[2][1], { job_id: JOB, storage_path: r.path, media_type: "image/png" });
   assert.deepStrictEqual(logs, []);
 });

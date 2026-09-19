@@ -156,15 +156,20 @@ function bookingToJobRow(booking, opts) {
 }
 
 // Map a `jobs` row joined to its customer back to the flat record shape the admin
-// dashboard renders (admin.html buildCard / downloadXML / updateStats). Photos are
-// not stored in Postgres (job_photos wants a Storage path; bucket not stood up),
-// so no `image` key — buildCard renders "No photo uploaded". Mark still receives
-// the photo by email. TODO(slice5x/photos): surface job_photos here once Storage
-// is wired.
+// dashboard renders (admin.html buildCard / downloadXML / updateStats). Photos live in
+// the private Storage bucket (slice5x/photos, D-047): the joined job_photos rows map to
+// `photo: { id, path, mediaType }` (the earliest one; the chat client sends one image
+// per booking) and bookings.js attaches a one-hour signed `url` in one batch. A job
+// without a row gets no `photo` key and buildCard renders "No photo uploaded". Never an
+// `image` key: that is the legacy Blobs shape (inline base64), and the two never mix.
 function jobRowToAdminRecord(row) {
   const r = row || {};
   const cust = r.customers || {};
+  const photos = Array.isArray(r.job_photos) ? r.job_photos.filter((p) => p && typeof p.storage_path === "string" && p.storage_path) : [];
+  photos.sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")));
+  const photo = photos.length ? { id: photos[0].id ?? null, path: photos[0].storage_path, mediaType: photos[0].media_type ?? null } : null;
   return {
+    ...(photo ? { photo } : {}),
     id: r.id,
     job_status: r.status ?? null,   // real jobs.status (enquiry/booked/.../completed) — drives the review action (D-025)
     confirmation_state: r.confirmation_state ?? null, // D-027: auto_confirmed | awaiting_operator | operator_confirmed | operator_declined
@@ -252,7 +257,7 @@ async function fetchBookingsFromJobs(supabase, limit = 500) {
   const { data, error } = await supabase
     .from("jobs")
     .select(
-      "id,created_at,status,confirmation_state,operator_decided_at,slot_date,start_hour,start_minute,slots_needed,address,postcode,rooms,carpet_types,concerns,furniture_moving,pets,recommended_method,ai_assessment,price_display,notes,cal_link,customers(name,phone,email)"
+      "id,created_at,status,confirmation_state,operator_decided_at,slot_date,start_hour,start_minute,slots_needed,address,postcode,rooms,carpet_types,concerns,furniture_moving,pets,recommended_method,ai_assessment,price_display,notes,cal_link,customers(name,phone,email),job_photos(id,storage_path,media_type,created_at)"
     )
     .order("created_at", { ascending: false })
     .limit(limit);

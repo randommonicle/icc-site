@@ -234,6 +234,67 @@ test("handleBooking (Postgres) persists, then sends emails, on success", async (
   });
 });
 
+// slice5x/photos (D-047): the photo is stored AFTER both emails, best-effort, and a Storage
+// failure never changes the outcome. The fake gains a .storage that records the upload.
+function fakeSupabaseWithStorage(plan = {}) {
+  const sb = fakeSupabase(Object.assign({ jobsInsert: { data: { id: "6f1d2a3b-4c5d-4e6f-8a9b-0c1d2e3f4a5b" }, error: null } }, plan));
+  sb.storageCalls = [];
+  sb.storage = {
+    from(bucket) {
+      return {
+        upload: async (path, body, options) => { sb.storageCalls.push({ bucket, path, bytes: body.length, options, at: Date.now() }); if (plan.uploadThrows) throw new Error("storage down"); return { data: { path }, error: null }; },
+        remove: async () => ({ data: null, error: null }),
+      };
+    },
+  };
+  return sb;
+}
+const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+
+test("handleBooking (Postgres) stores the photo in the bucket AFTER both emails, under a server-derived path", async () => {
+  await underPostgres(async (fetchCalls) => {
+    const sb = fakeSupabaseWithStorage();
+    let emailsSentAt = null;
+    const prevFetch = global.fetch;
+    global.fetch = async (url) => { fetchCalls.push(url); emailsSentAt = Date.now(); return { ok: true, status: 200, json: async () => ({ id: "fake" }) }; };
+    try {
+      const res = await handleBooking(baseBooking({ image: { base64: PNG, mediaType: "image/png" } }), "re_test", {}, sb);
+      assert.strictEqual(res.statusCode, 200);
+      assert.strictEqual(JSON.parse(res.body).success, true);
+      assert.strictEqual(sb.storageCalls.length, 1, "one upload");
+      const up = sb.storageCalls[0];
+      assert.strictEqual(up.bucket, "job-photos");
+      assert.match(up.path, /^jobs\/6f1d2a3b-4c5d-4e6f-8a9b-0c1d2e3f4a5b\/photo-[0-9a-f-]{36}\.png$/);
+      assert.strictEqual(up.options.contentType, "image/png");
+      assert.ok(fetchCalls.length >= 2, "both emails were sent");
+      assert.ok(up.at >= emailsSentAt, "the upload starts after the emails were sent");
+      assert.ok(sb.calls.some((c) => c.op === "insert" && c.row && c.row.storage_path === up.path && c.row.media_type === "image/png"), "the job_photos row points at the object");
+    } finally {
+      global.fetch = prevFetch;
+    }
+  });
+});
+
+test("handleBooking (Postgres): a Storage failure never changes the booking outcome, and no image means no Storage call", async () => {
+  await underPostgres(async () => {
+    const down = fakeSupabaseWithStorage({ uploadThrows: true });
+    const res = await handleBooking(baseBooking({ image: { base64: PNG, mediaType: "image/png" } }), "re_test", {}, down);
+    assert.strictEqual(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    assert.strictEqual(body.success, true);
+    assert.deepStrictEqual(body.emailStatus, { operator: true, customer: true });
+    assert.ok(!down.calls.some((c) => c.op === "insert" && c.row && c.row.storage_path), "no job_photos row after a failed upload");
+    const plain = fakeSupabaseWithStorage();
+    await handleBooking(baseBooking(), "re_test", {}, plain);
+    assert.strictEqual(plain.storageCalls.length, 0, "no image, no upload");
+    // The no-Resend early return stores the photo too.
+    const noEmail = fakeSupabaseWithStorage();
+    const res2 = await handleBooking(baseBooking({ image: { base64: PNG, mediaType: "image/png" } }), "", {}, noEmail);
+    assert.strictEqual(JSON.parse(res2.body).success, true);
+    assert.strictEqual(noEmail.storageCalls.length, 1);
+  });
+});
+
 test("handleBooking (Postgres) returns 409 on a slot conflict and sends NO email", async () => {
   await underPostgres(async (fetchCalls) => {
     const sb = fakeSupabase({ jobsInsert: { data: null, error: { code: "23P01", message: "exclusion" } } });

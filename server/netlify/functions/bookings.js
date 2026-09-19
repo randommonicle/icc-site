@@ -3,6 +3,7 @@ const crypto = require("crypto");
 // stay visible during the transition. supabase === null -> Blobs-only (unchanged).
 const { getSupabaseAdmin } = require("./supabaseClient.js");
 const { fetchBookingsFromJobs } = require("./bookingsStore.js");
+const { signPhotoUrls } = require("./jobPhotoStore.js");
 const { sentProvisionalNoticeJobIds } = require("./bookingDecision.js");
 const { requireAdmin } = require("./adminAuth.js");
 
@@ -90,6 +91,10 @@ exports.handler = async function(event) {
       } catch(e){
         console.log("notice-sent annotation skipped:", e.message);
       }
+      // slice5x/photos (D-047): one-hour signed URLs for every stored photo, ONE Storage
+      // call for the whole list. Best-effort: a signing failure leaves photo.url unset and
+      // the card says "No photo uploaded" for that job; the list still answers.
+      pgBookings = await signPhotoUrls(supabase, pgBookings);
     } catch(e){
       pgError = e;
       console.log("Postgres bookings read failed:", e.message);

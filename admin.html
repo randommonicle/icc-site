@@ -1103,11 +1103,19 @@ function buildCard(b, i){
   else { status = b.date < today ? "completed" : b.date === today ? "confirmed" : "pending";
          statusLabel = b.date < today ? "Past" : b.date === today ? "Today" : "Upcoming"; }
 
-  // Image: only render if mediaType is a safe image type
+  // Image. Two shapes share the list: a legacy Blobs record carries the photo inline
+  // (image.base64, rendered only for a safe media type) and a Postgres job carries a
+  // one-hour signed Storage URL minted server-side (photo.url, slice5x/photos, D-047).
+  // The URL is rendered ONLY when it sits on this project's Supabase origin under
+  // /storage/v1/ (the bucket is private, so that is the only place a photo can be), the
+  // same shape of guard as the calendar link below; anything else is "No photo uploaded".
   const safeMediaTypes = ["image/jpeg","image/png","image/gif","image/webp"];
+  const photoUrlSafe = (b.photo && typeof b.photo.url === "string" && b.photo.url.startsWith(SUPABASE_URL + "/storage/v1/")) ? b.photo.url : null;
   const imageHtml = (b.image && safeMediaTypes.includes(b.image.mediaType))
     ? '<div class="carpet-image-section"><label>Carpet Photo</label><img class="carpet-image" src="data:'+esc(b.image.mediaType)+';base64,'+esc(b.image.base64)+'" alt="Carpet photo"></div>'
-    : '<div class="carpet-image-section"><label>Carpet Photo</label><div class="no-image">No photo uploaded</div></div>';
+    : photoUrlSafe
+      ? '<div class="carpet-image-section"><label>Carpet Photo</label><a href="'+esc(photoUrlSafe)+'" target="_blank" rel="noopener"><img class="carpet-image" src="'+esc(photoUrlSafe)+'" alt="Carpet photo" loading="lazy"></a></div>'
+      : '<div class="carpet-image-section"><label>Carpet Photo</label><div class="no-image">No photo uploaded</div></div>';
 
   // Calendar link: validate it starts with the expected Google Calendar URL
   const calLinkSafe = (b.calLink && b.calLink.startsWith("https://calendar.google.com/")) ? b.calLink : null;

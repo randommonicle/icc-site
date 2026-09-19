@@ -258,8 +258,27 @@ test("jobRowToAdminRecord maps a joined jobs row to the admin record shape", () 
   assert.strictEqual(adminRow.recommended_method, "Texatherm wet extraction");
   assert.strictEqual(adminRow.calLink, "https://calendar.google.com/y");
   assert.strictEqual(adminRow.pets, true);
-  // No photo in Postgres -> no image key (buildCard renders "No photo uploaded").
+  // No job_photos row -> no photo key and never an image key (the legacy Blobs shape).
   assert.ok(!("image" in adminRow));
+  assert.ok(!("photo" in adminRow));
+});
+
+test("jobRowToAdminRecord maps the earliest job_photos row to photo {id, path, mediaType}, never an image key (slice5x/photos)", () => {
+  const base = { id: "job-uuid", slot_date: "2026-07-10", start_hour: 9, slots_needed: 1, customers: { name: "Jane" } };
+  const withPhotos = jobRowToAdminRecord(Object.assign({}, base, {
+    job_photos: [
+      { id: "p-later", storage_path: "jobs/job-uuid/photo-2.png", media_type: "image/png", created_at: "2026-07-01T10:00:00+00:00" },
+      { id: "p-first", storage_path: "jobs/job-uuid/photo-1.jpg", media_type: "image/jpeg", created_at: "2026-07-01T09:00:00+00:00" },
+      { id: "p-blank", storage_path: "", media_type: "image/gif", created_at: "2026-07-01T08:00:00+00:00" },
+    ],
+  }));
+  assert.deepStrictEqual(withPhotos.photo, { id: "p-first", path: "jobs/job-uuid/photo-1.jpg", mediaType: "image/jpeg" });
+  assert.ok(!("image" in withPhotos));
+  assert.strictEqual(withPhotos.photo.url, undefined, "the url is attached by bookings.js signing, not the mapper");
+  const empty = jobRowToAdminRecord(Object.assign({}, base, { job_photos: [] }));
+  assert.ok(!("photo" in empty));
+  const nullJoin = jobRowToAdminRecord(Object.assign({}, base, { job_photos: null }));
+  assert.ok(!("photo" in nullJoin));
 });
 
 test("jobRowToAdminRecord renders a half-hour start as H:MM (D-027)", () => {

@@ -139,3 +139,22 @@ test("admin.html password recovery: own-origin redirect, fragment wiped before u
   const scriptEnd = html.indexOf("</script>", start);
   assert.ok(initCall > end && initCall < scriptEnd && html.slice(initCall, scriptEnd).split("\n").filter((l) => l.trim() && !l.trim().startsWith("//")).length === 1, "the init call is the last statement of the script");
 });
+
+// slice5x/photos (D-047): a Postgres job's photo is a one-hour signed Storage URL minted
+// server-side. The card renders it only when it sits on this project's Supabase origin
+// under /storage/v1/ (the bucket is private, so that is the only place a photo can be),
+// escaped, and never builds an image from any other string; the legacy inline shape keeps
+// its media-type guard.
+test("admin.html renders a stored photo only from a same-origin /storage/v1/ signed url, escaped", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "admin.html"), "utf8").replace(/\r\n/g, "\n");
+  const start = html.indexOf("function buildCard(");
+  assert.ok(start > 0, "buildCard is present");
+  const block = html.slice(start, html.indexOf("const calLinkSafe", start));
+  const code = require("../test-support/moduleGraph.js").stripComments(block);
+  assert.ok(code.includes('b.photo.url.startsWith(SUPABASE_URL + "/storage/v1/")'), "the signed url must be on this project's Supabase origin under /storage/v1/");
+  assert.ok(code.includes("src=\"'+esc(photoUrlSafe)+'\""), "the url is escaped into the img src");
+  assert.ok(code.includes("href=\"'+esc(photoUrlSafe)+'\" target=\"_blank\" rel=\"noopener\""), "the full-size link is escaped and noopener");
+  assert.ok(!/src=["']'\+esc\(b\.photo\.url\)/.test(code), "the raw photo.url is never rendered, only the guarded value");
+  assert.ok(code.includes('safeMediaTypes.includes(b.image.mediaType)'), "the legacy inline shape keeps its media-type guard");
+  assert.ok(code.includes("No photo uploaded"), "the fallback copy is unchanged");
+});
