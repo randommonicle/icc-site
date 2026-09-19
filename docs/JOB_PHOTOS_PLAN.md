@@ -39,4 +39,18 @@ Photo re-assessment history (`job_assessments`), more than one photo per booking
 
 ## Checkpoint log
 
-- (open) plan written; commits follow in the order: migration + pgTAP; module + tests; wiring; admin render; docs.
+- `dc6ea92` migration + pgTAP + this plan. Applied on the local stack after `db reset`; the four inline catalog queries answered exactly as noted; pgTAP 9/9, proven red by setting the bucket public (test 2), restored; whole pgTAP suite 104/104. Decision: idempotent insert (on conflict do nothing) so a hand-made bucket does not break the history.
+- `59b3ecc` `jobPhotoStore.js` + `test/job-photo-store.test.js`: 8 unit cases on a recording fake (mutation proven red: the removal-on-row-failure deleted), the [integration] round trip 9/9 on the local stack (upload, row, signed bytes, public path refused, text/html refused by the bucket, erasure). Decision: an 8 s deadline on the upload, since supabase-js's storage upload takes no abort signal.
+- `9a8335a` wiring: `chat.js` stores at every success return AFTER both emails (proven red by moving the call), `bookingsStore.js` joins `job_photos` (resolved on real PostgREST, 133/133 integration, three consecutive runs), `bookings.js` signs one batch, `admin.html` renders the guarded url (pin proven red). Deviation from plan: `cacheControl` set to 0 on upload (not the library's 3600) so an erased photo stops serving at once; the erasure assertion in the integration test depends on it.
+- (this commit) docs: D-047 drafted for Ben, D-021's deferral note pointed at it, ROADMAP Phase 2 lines, the CLAUDE.md Supabase row and tree, this log closed below.
+
+## Closing checklist (checkpoint-log)
+
+- [x] Migration applied locally, catalog-verified, pgTAP green and proven red.
+- [x] Module unit + integration green; a mutation proven red.
+- [x] Wiring pinned at the placement that matters (after the emails); a mutation proven red.
+- [x] Admin render guarded and pinned; a mutation proven red.
+- [x] Deferred anchor planted: `TODO(slice5x/photos-erasure)` in `jobPhotoStore.js`; `TODO(slice5x/photos)` retired everywhere (`grep -rn "TODO(slice5x/photos)"` finds only the D-021 note that now points at D-047 and this log).
+- [x] Docs: D-047 (draft for Ben), ROADMAP, CLAUDE.md, NEXT_SESSION CP-4.
+- [ ] **Wiring step still owed to Ben:** `bash scripts/db-push.sh --dry-run` then `bash scripts/db-push.sh` (the hosted bucket migration) BEFORE the push (L-040, D-043 hook), then the one real ride: a booking with a photo on the `.netlify.app` host, the admin card showing it, `job photo stored:` in the function log.
+- [ ] Cross-agent review (GPT via codex) of the slice: recorded in the exchange file when run.

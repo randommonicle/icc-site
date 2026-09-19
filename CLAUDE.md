@@ -72,7 +72,7 @@ The public marketing site and the operational platform are separated cleanly, sh
 | **Resend** | Transactional email (confirmations) | Sandbox domain until a sending domain is verified |
 | **GitHub** | Source control | https://github.com/randommonicle/icc-site — **currently PUBLIC**. No secrets are exposed (`.env` is git-ignored and has never been committed), but the pricing logic, client contact details and decision records are all readable. Flip to private at the real launch (domain cutover + marketing); until then this is deliberate, not an oversight |
 | **Stripe** | Payments — deposits + balances; **invoicing rail (D-026)** | Not yet integrated. Invoicing = platform-owned on Stripe (D-026, supersedes the D-024 FreeAgent plan); deposits/balances = D-004. Processor kept swappable (Stripe default / Revolut alt, D-004) |
-| **Supabase** | Relational backend + auth + storage | Stood up + live (D-009 addendum): hosted `icc-platform`, London. Carries escalation handoffs (5a) and **live bookings (5b, ENABLED 14 June)** in `jobs`/`customers`. Auth + photo Storage still to come (5d / photos) |
+| **Supabase** | Relational backend + auth + storage | Stood up + live (D-009 addendum): hosted `icc-platform`, London. Carries escalation handoffs (5a) and **live bookings (5b, ENABLED 14 June)** in `jobs`/`customers`; per-user Auth for the admin (5d); the private `job-photos` Storage bucket for booking photos (D-047, 19 Sept 2026, migration pending on hosted until the next push) |
 | **The SMS Works** | Transactional SMS (review requests) | Post-job Google-review texts (D-025). Server-side only; provider-agnostic adapter (`smsProvider.js`) so the gateway is swappable. Dormant until `SMSWORKS_API_KEY` set; Mark-owned account (D-009) |
 
 When a service is added, add a row here and a decision record in DECISIONS.md.
@@ -141,6 +141,7 @@ icc-site/                        # monorepo layout (D-014): site/ + server/ + sh
 │       ├── bookings.js         # Admin-only: list all bookings (Postgres jobs + legacy Blobs)
 │       ├── handoffs.js         # Admin-only: escalation queue + AI draft → send reply (Slice 5e-2)
 │       ├── bookingsStore.js    # Postgres booking read/write mappers (Slice 5b)
+│       ├── jobPhotoStore.js    # Booking photo into the private Storage bucket; signed URLs; erasure (D-047)
 │       ├── v1-quote.js         # Stateless server-side pricing endpoint (Slice 3)
 │       ├── adminAuth.js        # Supabase-Auth JWT gate for the admin functions (Slice 5d)
 │       └── supabaseClient.js   # Service-role Supabase client singleton
