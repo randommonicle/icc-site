@@ -57,6 +57,8 @@ function fakeSupabase(plan = {}) {
 }
 const ops = (sb) => sb.log.map((l) => l[0]);
 const rowDrops = (sb) => sb.log.filter((l) => l[0] === "job_photos.delete").length;
+const removes = (sb) => sb.log.filter((l) => l[0] === "remove").length;
+const settled = async () => { for (let i = 0; i < 4; i++) await tick(); };
 
 test("photoObjectPath: server-derived, extension per validated type, refuses a non-uuid id and an unlisted type", () => {
   const p = photoObjectPath(JOB, "image/jpeg", "abc");
@@ -106,7 +108,7 @@ test("storeJobPhoto never throws: no image / no client are skips; a refused id o
   assert.strictEqual(logs.length, 2, "every failure is logged once");
 });
 
-test("storeJobPhoto: a failed row insert starts no upload; a failed or throwing upload drops the row it just wrote (never awaited)", async () => {
+test("storeJobPhoto: a failed row insert starts no upload; a failed or throwing upload undoes the pair, object first, row only when the removal succeeded (never awaited)", async () => {
   const logs = [];
   const rowFail = fakeSupabase({ insert: { data: null, error: { message: "row boom" } } });
   assert.deepStrictEqual(await storeJobPhoto(rowFail, JOB, IMAGE, { log: (...a) => logs.push(a.join(" ")) }), { ok: false, error: "row boom" });
@@ -114,21 +116,34 @@ test("storeJobPhoto: a failed row insert starts no upload; a failed or throwing 
 
   const upErr = fakeSupabase({ upload: { data: null, error: { message: "mime type not allowed" } } });
   assert.deepStrictEqual(await storeJobPhoto(upErr, JOB, IMAGE, { log: (...a) => logs.push(a.join(" ")) }), { ok: false, error: "mime type not allowed" });
-  await tick();
-  assert.strictEqual(rowDrops(upErr), 1, "the row is dropped after a failed upload");
+  await settled();
+  // An upload error is not proof that nothing landed (storage-js reports a committed object
+  // whose success body failed to parse as an error too), so the undo removes the object first
+  // (a no-op when nothing landed) and only then the row.
+  const order = ops(upErr).filter((o) => o === "remove" || o === "job_photos.delete");
+  assert.deepStrictEqual(order, ["remove", "job_photos.delete"], "object removal before the row delete");
+  assert.deepStrictEqual(upErr.log.find((l) => l[0] === "remove")[1], [upErr.log.find((l) => l[0] === "upload")[1]], "the removal names the path that was uploaded");
   assert.deepStrictEqual(upErr.log.find((l) => l[0] === "job_photos.eq")[1], "id");
 
   const upThrow = fakeSupabase({ uploadThrows: true });
   assert.deepStrictEqual(await storeJobPhoto(upThrow, JOB, IMAGE, { log: (...a) => logs.push(a.join(" ")) }), { ok: false, error: "upload boom" });
-  await tick();
+  await settled();
+  assert.strictEqual(removes(upThrow), 1);
   assert.strictEqual(rowDrops(upThrow), 1);
 
-  // A hung cleanup never holds the caller: the row delete never settles, the call still returns.
-  const hungDrop = fakeSupabase({ upload: { data: null, error: { message: "boom" } }, delete: deferred() });
+  // The removal failing keeps the row: it still names what may exist in the bucket.
+  const rmFail = fakeSupabase({ upload: { data: null, error: { message: "ambiguous" } }, remove: { data: null, error: { message: "storage down" } } });
+  assert.strictEqual((await storeJobPhoto(rmFail, JOB, IMAGE, { log: (...a) => logs.push(a.join(" ")) })).ok, false);
+  await settled();
+  assert.strictEqual(removes(rmFail), 1);
+  assert.strictEqual(rowDrops(rmFail), 0, "the row is kept when the object could not be removed");
+
+  // A hung cleanup never holds the caller: the removal never settles, the call still returns.
+  const hungDrop = fakeSupabase({ upload: { data: null, error: { message: "boom" } }, remove: deferred() });
   const t0 = Date.now();
   assert.strictEqual((await storeJobPhoto(hungDrop, JOB, IMAGE, { log: () => {} })).ok, false);
   assert.ok(Date.now() - t0 < 1000, "cleanup is fire-and-forget");
-  assert.strictEqual(logs.length, 3);
+  assert.strictEqual(logs.length, 5, "the three failures and the kept-row note are logged: " + JSON.stringify(logs));
 });
 
 test("storeJobPhoto: ONE deadline bounds the whole call; a hung upload leaves a row that a late definite failure drops and a late success keeps", async () => {
@@ -145,8 +160,9 @@ test("storeJobPhoto: ONE deadline bounds the whole call; a hung upload leaves a 
   assert.ok(ops(sb).includes("job_photos.insert") && ops(sb).includes("upload"), "the row was written and the upload started before the deadline");
   assert.strictEqual(rowDrops(sb), 0, "nothing dropped while the upload is still in flight");
   lateFail.resolve({ data: null, error: { message: "late 500" } });
-  await tick(); await tick();
-  assert.strictEqual(rowDrops(sb), 1, "a definite failure after the deadline drops the row");
+  await settled();
+  assert.strictEqual(removes(sb), 1, "a failure after the deadline removes whatever may have landed first");
+  assert.strictEqual(rowDrops(sb), 1, "then drops the row");
   // late success
   const lateOk = deferred();
   const sb2 = fakeSupabase({ upload: lateOk });

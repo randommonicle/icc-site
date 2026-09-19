@@ -95,7 +95,19 @@ async function storeJobPhoto(supabase, jobId, image, opts = {}) {
 
   const bucket = supabase.storage.from(BUCKET);
   const state = { expired: false };
+  // A row whose upload never STARTED can go straight away: no object can exist.
   const dropRow = (id, why) => fireAndForget(() => supabase.from("job_photos").delete().eq("id", id), `row removal (${why})`, log);
+  // A row whose upload FAILED is undone in two steps, because an upload error is not proof
+  // that nothing landed: storage-js reports a committed object whose success body it could
+  // not parse as an error too (cross-agent review, GPT round 2). So remove the object first
+  // (a no-op when nothing landed: Storage answers { data: [] } for a missing key, measured on
+  // the local stack) and delete the row only when that removal succeeded; if it did not,
+  // the row stays and still names what may exist.
+  const undoPair = (id, why) => fireAndForget(async () => {
+    const rm = await bucket.remove([path]);
+    if (rm && rm.error) { log(`job photo object removal (${why}) failed, row kept:`, rm.error.message); return null; }
+    return supabase.from("job_photos").delete().eq("id", id);
+  }, `undo (${why})`, log);
 
   const run = async () => {
     // 1. The row, first (rule 3). A row that commits after the deadline has no upload
@@ -110,15 +122,15 @@ async function storeJobPhoto(supabase, jobId, image, opts = {}) {
     }
     const rowId = data.id;
 
-    // 2. The object. A late success leaves a consistent pair (kept); a late definite
-    //    failure leaves a row with nothing behind it (dropped by the continuation).
+    // 2. The object. A late success leaves a consistent pair (kept); a late failure is
+    //    undone object-then-row by the continuation (see undoPair).
     const bytes = Buffer.from(image.base64, "base64");
     // cacheControl 0: a photo is looked at once or twice by Mark, and an erased object must
     // stop serving at once, not after a CDN's max-age.
     const upload = Promise.resolve(bucket.upload(path, bytes, { contentType: image.mediaType, upsert: false, cacheControl: "0" }));
     upload.then(
-      (up) => { if (state.expired && (!up || up.error)) dropRow(rowId, "upload failed after the deadline"); },
-      () => { if (state.expired) dropRow(rowId, "upload threw after the deadline"); }
+      (up) => { if (state.expired && (!up || up.error)) undoPair(rowId, "upload failed after the deadline"); },
+      () => { if (state.expired) undoPair(rowId, "upload threw after the deadline"); }
     );
     let up;
     try {
@@ -126,14 +138,14 @@ async function storeJobPhoto(supabase, jobId, image, opts = {}) {
     } catch (e) {
       if (state.expired) return { ok: false, error: "deadline" };
       log("job photo upload failed:", e.message);
-      dropRow(rowId, "upload threw");
+      undoPair(rowId, "upload threw");
       return { ok: false, error: e.message };
     }
     if (state.expired) return { ok: false, error: "deadline" };
     if (!up || up.error) {
       const msg = up && up.error ? up.error.message : "no response";
       log("job photo upload failed:", msg);
-      dropRow(rowId, "upload failed");
+      undoPair(rowId, "upload failed");
       return { ok: false, error: msg };
     }
     return { ok: true, path, id: rowId };

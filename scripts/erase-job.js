@@ -15,6 +15,13 @@
 // only when no other job references it (jobs -> customers is RESTRICT), and their
 // messages cascade with it.
 //
+// Accepted residual (cross-agent review, GPT round 2, 19 Sept 2026): the invoice check and
+// the job delete are two statements, so an invoice created between them makes the delete
+// fail AFTER the photos are gone. The end state, "photo bytes erased, invoiced job kept",
+// is one the operator can live with (a photo is not part of the financial record) and the
+// script reports exactly that; a supabase-js client has no transaction to close the gap,
+// and the window is one operator running two actions on one job in the same second.
+//
 // Usage (run from the checkout that holds the real .env; read-only until --delete):
 //   node scripts/erase-job.js <job uuid>                        report what would go
 //   node scripts/erase-job.js <job uuid> --delete               photos (objects + rows), then the job
